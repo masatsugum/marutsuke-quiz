@@ -69,6 +69,9 @@ h1,h2{margin:0; text-wrap:balance}
 .mode.quiet{border:1px solid var(--line)}
 .stepper output.word{font-size:1.3rem; min-width:3ch}
 .stepper output{font-family:var(--display); font-size:2rem; line-height:1; min-width:1.6ch; text-align:center; color:var(--pen)}
+.sets{display:flex; flex-wrap:wrap; gap:8px}
+.chip{border:2px solid var(--ink); background:var(--card); border-radius:999px; padding:8px 16px; min-height:44px; font-weight:700; max-width:100%; overflow-wrap:anywhere; text-align:left}
+.chip.on{background:var(--marker); color:var(--on-marker); border-color:var(--on-marker)}
 .links{display:grid; grid-template-columns:1fr 1fr; gap:10px}
 details{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:4px 16px}
 summary{font-weight:700; padding-block:12px; cursor:pointer}
@@ -156,6 +159,8 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
     </div>
   </div>
 
+  <div class="sets" id="setList" role="group" aria-label="問題セット" hidden></div>
+
   <div class="tally" id="tally" hidden>
     <div><b id="tAll">0</b><span>ぜんぶの問題</span></div>
     <div><b id="tDone">0</b><span>やった問題</span></div>
@@ -202,12 +207,20 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
   <p class="note">音が出ない端末では、「音」のボタンを押して「オン２」をためしてください。</p>
 
   <details id="syncBox">
-    <summary>問題を入れかえる</summary>
+    <summary>問題セットを追加・更新する</summary>
     <div class="sync">
-      <label for="sheetUrl">Google スプレッドシートのURL（列は 問題・選択肢１〜４・正解 の順）。シートの共有を「リンクを知っている全員が閲覧可」にしてください。</label>
+      <label for="setName">セットの名前（例：理科、社会・歴史）</label>
+      <input id="setName" type="text" maxlength="20" autocomplete="off" placeholder="理科">
+      <label for="sheetUrl">Google スプレッドシートのURL。列は 問題・選択肢１〜４・正解 の順、共有は「リンクを知っている全員が閲覧可」にしてください。タブを分けている場合は、そのタブを開いたときのURLを入れます。</label>
       <input id="sheetUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…">
-      <button class="plain" id="syncBtn" type="button">スプレッドシートから読みこむ</button>
-      <p class="note" id="syncNote"></p>
+      <button class="plain" id="addBtn" type="button">読みこんで登録する</button>
+      <p class="note">登録ずみのURLを入れると、そのセットを更新します。名前も入れると名前が変わります。</p>
+      <p class="note" id="syncNote" aria-live="polite"></p>
+      <div class="sync" id="curBox" hidden>
+        <p class="note" id="syncedAt"></p>
+        <button class="plain" id="reloadBtn" type="button">読みこみ直す</button>
+        <button class="plain" id="removeBtn" type="button">一覧から外す</button>
+      </div>
     </div>
   </details>
 
@@ -274,8 +287,21 @@ function shuffle(a){a=a.slice(); for(var i=a.length-1;i>0;i--){var j=Math.floor(
 function keyOf(q){var h=5381; for(var i=0;i<q.length;i++){h=((h<<5)+h+q.charCodeAt(i))|0} return "q"+(h>>>0).toString(36)}
 
 /* ---------- state ---------- */
-var bank=JSON.parse($("bankData").textContent);   // built-in questions, used until a newer set arrives
-(function(){var c=lsGet("mq.bank",null); if(c&&Array.isArray(c.questions)&&c.questions.length&&c.syncedAt)bank=c})();
+/* question sets: [{id,name,url,questions,syncedAt}] kept in this browser; "cur" is the one in use */
+var SAMPLE=JSON.parse($("bankData").textContent);
+var sets=lsGet("mq.sets",null), cur=lsGet("mq.cur","");
+if(!Array.isArray(sets)){ sets=[];
+  (function(){var old=lsGet("mq.bank",null);   // carry over the single sheet from the earlier version
+    if(old&&Array.isArray(old.questions)&&old.questions.length&&old.syncedAt){
+      sets.push({id:"s"+Date.now().toString(36),name:"セット1",url:old.sheetUrl||DEFAULT_SHEET,questions:old.questions.map(function(q){return {q:q.q,c:q.c,a:q.a}}),syncedAt:old.syncedAt}); cur=sets[0].id } })();
+  lsSet("mq.sets",sets); lsSet("mq.cur",cur) }
+function saveSets(){lsSet("mq.sets",sets); lsSet("mq.cur",cur)}
+function curSet(){for(var i=0;i<sets.length;i++)if(sets[i].id===cur)return sets[i]; return sets[0]||null}
+var bank;
+function useCur(){var s=curSet();
+  if(s){cur=s.id; bank={title:s.name,questions:s.questions,syncedAt:s.syncedAt}}
+  else {cur=""; bank={title:"サンプル",questions:SAMPLE.questions,syncedAt:0}} }
+useCur();
 var hist=lsGet("mq.hist",{});           // key -> {w: wrong count, r: right count, t: last time}
 var minWrong=lsGet("mq.min",1);
 var timeLimit=Number(lsGet("mq.time",10)); if(!(timeLimit>=0&&timeLimit<=60))timeLimit=10;   // seconds per question, 0 = no limit
@@ -403,8 +429,12 @@ function renderHome(){
   var wp=weakPool().length;
   $("weakInfo").textContent=wp?("あてはまる問題："+wp+"問"+(wp<GAME_SIZE?"（"+wp+"問だけ出します）":"")):"あてはまる問題はまだありません。";
   $("startWeak").disabled=!wp;
-  if(document.activeElement!==$("sheetUrl"))$("sheetUrl").value=bank.sheetUrl||DEFAULT_SHEET;
-  if(bank.syncedAt&&!$("syncNote").dataset.busy){$("syncNote").className="note"; $("syncNote").textContent="さいごに読みこんだ日時："+new Date(bank.syncedAt).toLocaleString("ja-JP")}
+  var sl=$("setList"); sl.textContent=""; sl.hidden=!sets.length;
+  sets.forEach(function(s){ var on=(s.id===cur), b=el("button","chip"+(on?" on":""),s.name); b.type="button"; b.setAttribute("aria-pressed",String(on));
+    b.addEventListener("click",function(){ if(s.id===cur)return; cur=s.id; saveSets(); useCur(); syncMsg(""); renderHome(); syncSet(s,true) }); sl.appendChild(b) });
+  var cs=curSet(); $("curBox").hidden=!cs; removeArmed=false;
+  if(cs){ $("syncedAt").textContent="いまのセット「"+cs.name+"」 さいごに読みこんだ日時："+new Date(cs.syncedAt).toLocaleString("ja-JP");
+    $("reloadBtn").textContent="「"+cs.name+"」を読みこみ直す"; $("removeBtn").textContent="「"+cs.name+"」を一覧から外す" }
   $("soundBtn").textContent="音："+["オフ","オン","オン２"][soundMode]; $("soundBtn").setAttribute("aria-pressed",String(soundOn));
 }
 
@@ -530,28 +560,51 @@ function fetchCsv(urls,i){
     return r.text().then(function(t){ if(/^\s*<(!doctype|html)/i.test(t))throw {code:"private"}; return t });
   }).catch(function(e){ if(i+1<urls.length)return fetchCsv(urls,i+1); throw e });
 }
-var syncing=false;
-function doSync(quiet){
-  var url=(quiet?bank.sheetUrl:$("sheetUrl").value.trim())||DEFAULT_SHEET, urls=sheetCsvUrls(url);
-  if(!urls){ if(!quiet)syncMsg("スプレッドシートのURLを入れてください。",true); return }
-  if(syncing)return; syncing=true; $("syncBtn").disabled=true; if(!quiet)syncMsg("読みこんでいます…",false,true);
-  fetchCsv(urls,0).then(function(text){
-    var parsed=parseSheet(text);
-    if(!parsed.questions.length){ if(!quiet)syncMsg("問題が見つかりませんでした。列を 問題・選択肢１〜４・正解（1〜4）の順にしてください。",true); return }
-    var same=JSON.stringify(parsed.questions)===JSON.stringify(bank.questions.map(function(q){return {q:q.q,c:q.c,a:q.a}}))&&url===bank.sheetUrl;
-    bank={title:"",questions:parsed.questions,sheetUrl:url,syncedAt:Date.now()}; lsSet("mq.bank",bank);
-    if(!quiet)syncMsg(parsed.questions.length+"問を読みこみました。"+(parsed.dup?"（同じ問題文 "+parsed.dup+"行はまとめました）":"")+(parsed.skipped?"（書き方がちがう行を "+parsed.skipped+"行とばしました）":""));
-    if(!game&&!(quiet&&same))renderHome();
-  }).catch(function(e){
-    if(quiet)return;
-    syncMsg(e&&e.code==="private"||e&&e.code==="http"&&(e.status===401||e.status===403||e.status===404)
-      ?"スプレッドシートを開けませんでした。共有を「リンクを知っている全員が閲覧可」にして、URLをたしかめてください。"
-      :"読みこめませんでした。通信の状態と、シートの共有設定（リンクを知っている全員が閲覧可）をたしかめてください。",true);
-  }).then(function(){syncing=false; $("syncBtn").disabled=false});
+var syncing=false, removeArmed=false;
+function setKey(url){var m=url.match(/\/d\/([\w-]{20,})/)||url.match(/^([\w-]{20,})$/); if(!m)return null; var g=url.match(/[#&?]gid=(\d+)/); return m[1]+"|"+(g?g[1]:"")}
+function loadSheet(url){ var urls=sheetCsvUrls(url); if(!urls)return Promise.reject({code:"url"});
+  return fetchCsv(urls,0).then(function(t){var p=parseSheet(t); if(!p.questions.length)throw {code:"empty"}; return p}) }
+function errText(e){ var c=e&&e.code;
+  if(c==="url")return "スプレッドシートのURLを入れてください。";
+  if(c==="empty")return "問題が見つかりませんでした。列を 問題・選択肢１〜４・正解（1〜4）の順にしてください。";
+  if(c==="private"||(c==="http"&&(e.status===401||e.status===403||e.status===404)))return "スプレッドシートを開けませんでした。共有を「リンクを知っている全員が閲覧可」にして、URLをたしかめてください。";
+  return "読みこめませんでした。通信の状態と、シートの共有設定（リンクを知っている全員が閲覧可）をたしかめてください。" }
+function doneText(p){return p.questions.length+"問を読みこみました。"+(p.dup?"（同じ問題文 "+p.dup+"行はまとめました）":"")+(p.skipped?"（書き方がちがう行を "+p.skipped+"行とばしました）":"")}
+function busy(on){syncing=on; ["addBtn","reloadBtn","removeBtn"].forEach(function(id){$(id).disabled=on})}
+function syncSet(s,quiet){   // re-read one registered set from its sheet
+  if(syncing)return; busy(true); if(!quiet)syncMsg("読みこんでいます…",false,true);
+  loadSheet(s.url).then(function(p){
+    var same=JSON.stringify(p.questions)===JSON.stringify(s.questions);
+    s.questions=p.questions; s.syncedAt=Date.now(); saveSets();
+    if(!quiet)syncMsg("「"+s.name+"」 "+doneText(p));
+    if(s.id===cur&&!game){useCur(); renderHome()}
+  }).catch(function(e){ if(!quiet)syncMsg(errText(e),true) }).then(function(){busy(false)});
+}
+function addSet(){   // register a new set, or update the one that already uses this URL
+  if(syncing)return;
+  var name=$("setName").value.trim(), url=$("sheetUrl").value.trim(), key=setKey(url), ex=null;
+  if(!key){syncMsg(errText({code:"url"}),true); return}
+  sets.forEach(function(s){if(setKey(s.url)===key)ex=s});
+  busy(true); syncMsg("読みこんでいます…",false,true);
+  loadSheet(url).then(function(p){
+    var s=ex||{id:"s"+Date.now().toString(36),name:"",url:url,questions:[],syncedAt:0};
+    s.name=name||s.name||("セット"+(sets.length+1)); s.url=url; s.questions=p.questions; s.syncedAt=Date.now();
+    if(!ex)sets.push(s); cur=s.id; saveSets(); $("setName").value=""; $("sheetUrl").value="";
+    syncMsg("「"+s.name+"」を"+(ex?"更新しました。":"登録しました。")+doneText(p));
+    if(!game){useCur(); renderHome()}
+  }).catch(function(e){syncMsg(errText(e),true)}).then(function(){busy(false)});
+}
+function removeCur(){
+  var s=curSet(); if(!s||syncing)return;
+  if(!removeArmed){removeArmed=true; $("removeBtn").textContent="ほんとうに外す？ もう一度おすと外れます"; return}
+  sets=sets.filter(function(x){return x.id!==s.id}); cur=sets[0]?sets[0].id:""; saveSets(); useCur();
+  syncMsg("「"+s.name+"」を一覧から外しました。履歴は残っています。"); renderHome();
 }
 
 /* ---------- wiring ---------- */
-$("syncBtn").addEventListener("click",function(){doSync(false)});
+$("addBtn").addEventListener("click",addSet);
+$("reloadBtn").addEventListener("click",function(){var s=curSet(); if(s)syncSet(s,false)});
+$("removeBtn").addEventListener("click",removeCur);
 $("startNew").addEventListener("click",function(){startGame(newPool(),{type:"new"})});
 $("startWeak").addEventListener("click",function(){startGame(weakPool(),{type:"weak"})});
 $("timeDown").addEventListener("click",function(){timeLimit=timeLimit<=5?0:timeLimit-5; lsSet("mq.time",timeLimit); renderHome()});
@@ -566,8 +619,8 @@ $("resetBtn").addEventListener("click",function(){
   hist={}; lsSet("mq.hist",hist); renderHistory();
 });
 $("nextBtn").addEventListener("click",advance);
-$("quitBtn").addEventListener("click",function(){stopTimer(); game=null; renderHome(); show("home")});
-$("homeBtn").addEventListener("click",function(){game=null; renderHome(); show("home")});
+$("quitBtn").addEventListener("click",function(){stopTimer(); game=null; useCur(); renderHome(); show("home")});
+$("homeBtn").addEventListener("click",function(){game=null; useCur(); renderHome(); show("home")});
 $("againBtn").addEventListener("click",function(){
   var pool=lastMode.type==="weak"?weakPool():lastMode.type==="new"?newPool():lastMode.type==="list"?lastMode.list:bank.questions;
   if(!pool.length){pool=bank.questions; lastMode={type:"random"}} startGame(pool,lastMode)});
@@ -576,7 +629,7 @@ $("retryMiss").addEventListener("click",function(){var l=game.missed; startGame(
 renderHome();
 
 /* ---------- on open: quietly refresh from the saved spreadsheet ---------- */
-if(bank.syncedAt)doSync(true);
+if(curSet())syncSet(curSet(),true);
 })();
 </script>
 </body>
