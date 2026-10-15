@@ -123,6 +123,8 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 .choice.ng .k{border-color:var(--x); color:var(--x); background:var(--card)}
 .verdict{margin:0; min-height:1.8em; text-align:center; font-family:var(--display); font-size:1.35rem}
 .verdict.ok{color:var(--pen)} .verdict.ng{color:var(--x)}
+.explain{margin:0; background:var(--x-bg); border-left:4px solid var(--x); border-radius:10px; padding:10px 14px; font-size:.98rem; line-height:1.75; overflow-wrap:anywhere; white-space:pre-wrap}
+.explain b{display:block; color:var(--x); font-size:.8rem; font-weight:900}
 
 /* ---------- result ---------- */
 .score{position:relative; background:var(--card); border:2px solid var(--ink); border-radius:16px; padding:20px 16px; text-align:center}
@@ -139,6 +141,7 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
 .list .a{margin:0; grid-column:1; font-size:.9rem; color:var(--sub); overflow-wrap:anywhere}
 .list .a b{color:var(--pen)}
 .list .a s{color:var(--x)}
+.list .ex{margin:4px 0 0; grid-column:1; font-size:.85rem; line-height:1.65; background:var(--x-bg); border-radius:8px; padding:6px 10px; white-space:pre-wrap; overflow-wrap:anywhere}
 .list .n{grid-row:1 / span 2; grid-column:2; text-align:right; font-family:var(--display); font-variant-numeric:tabular-nums; line-height:1.3}
 .list .n .w{display:block; font-size:1.3rem; color:var(--x)}
 .list .n .r{display:block; font-size:.85rem; color:var(--sub)}
@@ -209,12 +212,29 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
   </div>
   <p class="note">音が出ない端末では、「音」のボタンを押して「オン２」をためしてください。</p>
 
+  <details id="cloudBox">
+    <summary id="cloudSum">記録をほかの端末と同期する</summary>
+    <div class="sync">
+      <label for="cloudUrl">同期用のURL（Apps Script の「ウェブアプリ」のURL。…/exec で終わるもの）</label>
+      <input id="cloudUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec">
+      <label for="cloudKey">合言葉（同じ合言葉を入れた端末どうしで、履歴と問題セットが共有されます）</label>
+      <input id="cloudKey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="60" placeholder="例：masa-quiz-2026">
+      <button class="plain" id="cloudSave" type="button">保存して同期する</button>
+      <p class="note" id="cloudNote" aria-live="polite"></p>
+      <div class="sync" id="cloudOn" hidden>
+        <button class="plain" id="cloudNow" type="button">いますぐ同期する</button>
+        <button class="plain" id="cloudLink" type="button">ほかの端末用のリンクをコピー</button>
+        <button class="plain" id="cloudOff" type="button">この端末の同期をやめる</button>
+      </div>
+    </div>
+  </details>
+
   <details id="syncBox">
     <summary>問題セットを追加・更新する</summary>
     <div class="sync">
       <label for="setName">セットの名前（例：理科、社会・歴史）</label>
       <input id="setName" type="text" maxlength="20" autocomplete="off" placeholder="理科">
-      <label for="sheetUrl">Google スプレッドシートのURL。列は 問題・選択肢１〜４・正解 の順、共有は「リンクを知っている全員が閲覧可」にしてください。タブを分けている場合は、そのタブを開いたときのURLを入れます。</label>
+      <label for="sheetUrl">Google スプレッドシートのURL。列は 問題・選択肢１〜４・正解・解説 の順（解説はなくてもかまいません）、共有は「リンクを知っている全員が閲覧可」にしてください。タブを分けている場合は、そのタブを開いたときのURLを入れます。</label>
       <input id="sheetUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…">
       <button class="plain" id="addBtn" type="button">読みこんで登録する</button>
       <p class="note">登録ずみのURLを入れると、そのセットを更新します。名前も入れると名前が変わります。</p>
@@ -246,6 +266,7 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
   </div>
   <div class="choices" id="choices"></div>
   <p class="verdict" id="verdict" aria-live="polite"></p>
+  <p class="explain" id="explain" hidden></p>
   <button class="go" id="nextBtn" type="button" hidden>つぎへ</button>
 </section>
 
@@ -334,7 +355,8 @@ function parseSheet(text){
     var ch=cells.slice(1,5);
     if(!cells[0]||ch.length<4||ch.some(function(c){return !c})||!(ans>=1&&ans<=4)){skipped++; return}
     if(seen["k"+cells[0]]){dup++; return} seen["k"+cells[0]]=1;
-    out.push({q:cells[0],c:ch,a:ans-1});
+    var item={q:cells[0],c:ch,a:ans-1}; if(cells[6])item.ex=cells[6];
+    out.push(item);
   });
   return {questions:out,skipped:skipped,dup:dup};
 }
@@ -457,6 +479,7 @@ function renderQuestion(){
   $("past").hidden=!(s.w>0); $("past").textContent="これまで "+s.w+"回まちがえた";
   var old=$("qcard").querySelector(".maru"); if(old)old.remove();
   $("verdict").textContent=""; $("verdict").className="verdict"; $("nextBtn").hidden=true;
+  $("explain").hidden=true; $("explain").textContent="";
   var box=$("choices"); box.textContent="";
   it.order.forEach(function(ci,pos){
     var b=el("button","choice"); b.type="button"; b.dataset.ci=ci;
@@ -501,6 +524,7 @@ function answer(ci){   // ci = chosen choice, or -1 when time ran out
     var tk=++game.token, g=game; setTimeout(function(){ if(game===g&&g.token===tk)advance() },1000);
   }else{
     sndNg(); $("verdict").textContent=(ci<0?"時間切れ！":"ざんねん…")+" 正解は◯のほう"; $("verdict").className="verdict ng";
+    if(q.ex){ var ex=$("explain"); ex.textContent=""; ex.appendChild(el("b",null,"かいせつ")); ex.appendChild(document.createTextNode(q.ex)); ex.hidden=false }
     $("nextBtn").textContent=last?"けっかを見る":"つぎへ"; $("nextBtn").hidden=false;
   }
 }
@@ -527,10 +551,11 @@ function showResult(){
     var li=el("li"); li.appendChild(el("p","q",it.q.q));
     var a=el("p","a"); a.appendChild(document.createTextNode("正解：")); a.appendChild(el("b",null,it.q.c[it.q.a]));
     a.appendChild(document.createTextNode("　えらんだ答え：")); a.appendChild(el("s",null,it.picked<0?"時間切れ":it.q.c[it.picked]));
-    li.appendChild(a); ul.appendChild(li);
+    li.appendChild(a); if(it.q.ex)li.appendChild(el("p","ex",it.q.ex)); ul.appendChild(li);
   });
   game.missed=miss.map(function(it){return it.q});
   show("result"); if(right>=total*0.8)sndFanfare();
+  cloudSync(true);
 }
 
 /* ---------- history ---------- */
@@ -546,6 +571,7 @@ function renderHistory(){
     var li=el("li"); li.appendChild(el("p","q",x.q.q));
     var n=el("div","n"); n.appendChild(el("span","w","✕ "+x.s.w)); n.appendChild(el("span","r","◯ "+x.s.r)); li.appendChild(n);
     var a=el("p","a"); a.appendChild(document.createTextNode("正解：")); a.appendChild(el("b",null,x.q.c[x.q.a])); li.appendChild(a);
+    if(x.q.ex)li.appendChild(el("p","ex",x.q.ex));
     ul.appendChild(li);
   });
   $("resetBtn").hidden=!Object.keys(hist).length;
@@ -593,7 +619,7 @@ function addSet(){   // register a new set, or update the one that already uses 
   loadSheet(url).then(function(p){
     var s=ex||{id:"s"+Date.now().toString(36),name:"",url:url,questions:[],syncedAt:0};
     s.name=name||s.name||("セット"+(sets.length+1)); s.url=url; s.questions=p.questions; s.syncedAt=Date.now();
-    if(!ex)sets.push(s); cur=s.id; saveSets(); $("setName").value=""; $("sheetUrl").value="";
+    if(!ex)sets.push(s); cur=s.id; saveSets(); touchSets(); $("setName").value=""; $("sheetUrl").value="";
     syncMsg("「"+s.name+"」を"+(ex?"更新しました。":"登録しました。")+doneText(p));
     if(!game){useCur(); renderHome()}
   }).catch(function(e){syncMsg(errText(e),true)}).then(function(){busy(false)});
@@ -601,7 +627,7 @@ function addSet(){   // register a new set, or update the one that already uses 
 function removeCur(){
   var s=curSet(); if(!s||syncing)return;
   if(!removeArmed){removeArmed=true; $("removeBtn").textContent="ほんとうに外す？ もう一度おすと外れます"; return}
-  sets=sets.filter(function(x){return x.id!==s.id}); cur=sets[0]?sets[0].id:""; saveSets(); useCur();
+  sets=sets.filter(function(x){return x.id!==s.id}); cur=sets[0]?sets[0].id:""; saveSets(); touchSets(); useCur();
   syncMsg("「"+s.name+"」を一覧から外しました。履歴は残っています。"); renderHome();
 }
 
@@ -620,20 +646,114 @@ $("openHistory").addEventListener("click",function(){renderHistory(); show("hist
 $("histBack").addEventListener("click",function(){renderHome(); show("home")});
 $("resetBtn").addEventListener("click",function(){
   if(!resetArmed){resetArmed=true; $("resetBtn").textContent="ほんとうに消す？ もう一度おすと消えます"; return}
-  hist={}; lsSet("mq.hist",hist); renderHistory();
+  hist={}; lsSet("mq.hist",hist); resetAt=Date.now(); lsSet("mq.resetAt",resetAt); renderHistory(); cloudSync(true);
 });
 $("nextBtn").addEventListener("click",advance);
-$("quitBtn").addEventListener("click",function(){stopTimer(); game=null; useCur(); renderHome(); show("home")});
+$("quitBtn").addEventListener("click",function(){stopTimer(); game=null; useCur(); renderHome(); show("home"); cloudSync(true)});
 $("homeBtn").addEventListener("click",function(){game=null; useCur(); renderHome(); show("home")});
 $("againBtn").addEventListener("click",function(){
   var pool=lastMode.type==="weak"?weakPool():lastMode.type==="new"?newPool():lastMode.type==="list"?lastMode.list:bank.questions;
   if(!pool.length){pool=bank.questions; lastMode={type:"random"}} startGame(pool,lastMode)});
 $("retryMiss").addEventListener("click",function(){var l=game.missed; startGame(l,{type:"list",list:l})});
 
+
+/* ---------- cloud sync (Google Apps Script web app + 合言葉) ----------
+   The script stores one JSON blob per 合言葉. Each sync = read it, merge it into this device, write the result back. */
+var cloud={url:lsGet("mq.cloudUrl",""), key:lsGet("mq.cloudKey",""), at:lsGet("mq.cloudAt",0)};
+var setsAt=lsGet("mq.setsAt",0), resetAt=lsGet("mq.resetAt",0);
+var cloudBusy=false, cloudAgain=false, cloudFailed=false, missingBusy=false;
+function cloudReady(){return !!(cloud.url&&cloud.key)}
+function touchSets(){setsAt=Date.now(); lsSet("mq.setsAt",setsAt); cloudSync(true)}
+function cloudPayload(){return {v:1,hist:hist,resetAt:resetAt,setsAt:setsAt,
+  sets:sets.map(function(s){return {id:s.id,name:s.name,url:s.url}})}}
+function mergeHist(a,b,cut){   // per question keep the record with more attempts (then the newer one)
+  var out={}; [a||{},b||{}].forEach(function(h){ Object.keys(h).forEach(function(k){
+    var s=h[k]; if(!s||typeof s!=="object"||(s.t||0)<cut)return;
+    var x={w:s.w|0,r:s.r|0,t:Number(s.t)||0}, o=out[k];
+    if(!o||x.w+x.r>o.w+o.r||(x.w+x.r===o.w+o.r&&x.t>o.t))out[k]=x }) });
+  return out;
+}
+function urlKey(s){return setKey(s.url||"")||s.id}
+function applyRemote(d){
+  if(!d||typeof d!=="object")return;
+  var cut=Math.max(resetAt||0,Number(d.resetAt)||0);
+  hist=mergeHist(hist,d.hist,cut); resetAt=cut; lsSet("mq.hist",hist); lsSet("mq.resetAt",resetAt);
+  var rs=Array.isArray(d.sets)?d.sets.filter(function(s){return s&&s.url}):[];
+  var rAt=Number(d.setsAt)||0, curKey=curSet()?urlKey(curSet()):"";
+  var old={}; sets.forEach(function(s){old[urlKey(s)]=s});
+  function adopt(s){var o=old[urlKey(s)]; return {id:o?o.id:(s.id||"s"+Date.now().toString(36)),name:s.name||"セット",url:s.url,questions:o?o.questions:[],syncedAt:o?o.syncedAt:0}}
+  if(rs.length&&(rAt>setsAt||!sets.length)){ sets=rs.map(adopt); setsAt=rAt }
+  else if(rs.length&&!setsAt){   // this device never edited its list: combine both lists
+    var seen={}, merged=rs.map(adopt); merged.forEach(function(s){seen[urlKey(s)]=1});
+    sets.forEach(function(s){ if(!seen[urlKey(s)])merged.push(s) }); sets=merged; setsAt=Math.max(rAt,1) }
+  else return finishApply();
+  lsSet("mq.setsAt",setsAt);
+  var hit=null; sets.forEach(function(s){ if(curKey&&urlKey(s)===curKey)hit=s });
+  cur=hit?hit.id:(sets[0]?sets[0].id:""); saveSets(); finishApply();
+}
+function finishApply(){ if(!game){useCur(); renderHome()} }
+function loadMissing(){   // a set that arrived from another device has no questions here yet
+  if(missingBusy)return;
+  var list=sets.filter(function(s){return !(s.questions&&s.questions.length)}); if(!list.length)return;
+  missingBusy=true; var i=0;
+  (function next(){ if(i>=list.length){missingBusy=false; return}
+    var s=list[i++];
+    loadSheet(s.url).then(function(p){s.questions=p.questions; s.syncedAt=Date.now(); saveSets(); finishApply()}).catch(function(){}).then(next) })();
+}
+function asJson(r){ if(!r.ok)throw {code:"http"}; return r.text().then(function(t){ try{return JSON.parse(t)}catch(e){throw {code:"notjson"}} }) }
+function cloudErrText(e){ var c=e&&e.code;
+  if(c==="key")return "合言葉は4文字以上にしてください。";
+  if(c==="notjson"||c==="http")return "同期用のURLがちがうようです。Apps Script のウェブアプリのURL（…/exec）を入れてください。";
+  return "同期できませんでした。ネットにつながっているか、Apps Script のデプロイで「アクセスできるユーザー：全員」になっているかを確認してください。" }
+function cloudMsg(t,err){var n=$("cloudNote"); n.textContent=t||""; n.className="note"+(err?" err":"")}
+function renderCloud(){
+  var on=cloudReady(); $("cloudOn").hidden=!on;
+  $("cloudSum").textContent=on?("記録の同期：オン"+(cloudFailed?"（うまくいっていません）":cloud.at?"（さいご "+new Date(cloud.at).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})+"）":"")):"記録をほかの端末と同期する";
+}
+function cloudSync(silent){
+  if(!cloudReady())return;
+  if(cloudBusy){cloudAgain=true; return}
+  cloudBusy=true; if(!silent)cloudMsg("同期しています…");
+  var url=cloud.url, key=cloud.key;
+  fetch(url+(url.indexOf("?")<0?"?":"&")+"k="+encodeURIComponent(key)+"&_="+Date.now(),{credentials:"omit",cache:"no-store"}).then(asJson)
+  .then(function(r){ if(!r||!r.ok)throw {code:r&&r.err};
+    applyRemote(r.data);
+    return fetch(url,{method:"POST",credentials:"omit",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({k:key,data:cloudPayload()})}).then(asJson) })
+  .then(function(r){ if(!r||!r.ok)throw {code:r&&r.err};
+    cloud.at=Date.now(); lsSet("mq.cloudAt",cloud.at); cloudFailed=false; cloudMsg(silent?"":"同期しました。"); loadMissing() })
+  .catch(function(e){ cloudFailed=true; cloudMsg(cloudErrText(e),true) })
+  .then(function(){ cloudBusy=false; renderCloud(); if(cloudAgain){cloudAgain=false; cloudSync(true)} });
+}
+function cloudUse(url,key){ cloud.url=url; cloud.key=key; cloud.at=0; lsSet("mq.cloudUrl",url); lsSet("mq.cloudKey",key); lsSet("mq.cloudAt",0) }
+$("cloudSave").addEventListener("click",function(){
+  var url=$("cloudUrl").value.trim(), key=$("cloudKey").value.trim();
+  if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){cloudMsg("同期用のURLは https://script.google.com/… で始まるものを入れてください。",true); return}
+  if(key.length<4){cloudMsg(cloudErrText({code:"key"}),true); return}
+  cloudUse(url,key); renderCloud(); cloudSync(false);
+});
+$("cloudNow").addEventListener("click",function(){cloudSync(false)});
+$("cloudOff").addEventListener("click",function(){ cloudUse("",""); $("cloudUrl").value=""; $("cloudKey").value=""; cloudFailed=false;
+  cloudMsg("この端末の同期をやめました。この端末の記録はそのまま残っています。"); renderCloud() });
+$("cloudLink").addEventListener("click",function(){
+  var link=location.origin+location.pathname+"#sync="+encodeURIComponent(cloud.url)+"&key="+encodeURIComponent(cloud.key);
+  function shown(){cloudMsg("このリンクをほかの端末で開くと、同期の設定が入ります（合言葉も入っているので、ほかの人には送らないでください）：\n"+link)}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(link).then(function(){cloudMsg("リンクをコピーしました。ほかの端末で開くと、同期の設定が入ります。合言葉も入っているので、ほかの人には送らないでください。")},shown);
+  else shown();
+});
+document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="visible"&&!game&&cloudReady()&&Date.now()-cloud.at>60000)cloudSync(true) });
+(function(){   // a link from "ほかの端末用のリンク" sets this device up
+  var h=location.hash; if(h.indexOf("#sync=")!==0)return;
+  var m=h.match(/[#&]sync=([^&]*)/), k=h.match(/[#&]key=([^&]*)/);
+  try{ if(m&&k)cloudUse(decodeURIComponent(m[1]),decodeURIComponent(k[1])) }catch(e){}
+  try{history.replaceState(null,"",location.pathname+location.search)}catch(e){}
+})();
+$("cloudUrl").value=cloud.url; $("cloudKey").value=cloud.key; renderCloud();
+
 renderHome();
 
-/* ---------- on open: quietly refresh from the saved spreadsheet ---------- */
+/* ---------- on open: quietly refresh from the saved spreadsheet, then sync records ---------- */
 if(curSet())syncSet(curSet(),true);
+cloudSync(true);
 })();
 </script>
 </body>
