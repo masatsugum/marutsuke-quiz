@@ -72,6 +72,8 @@ h1,h2{margin:0; text-wrap:balance}
 .sets{display:flex; flex-wrap:wrap; gap:8px}
 .chip{border:2px solid var(--ink); background:var(--card); border-radius:999px; padding:8px 16px; min-height:44px; font-weight:700; max-width:100%; overflow-wrap:anywhere; text-align:left}
 .chip.on{background:var(--marker); color:var(--on-marker); border-color:var(--on-marker)}
+.complete{margin:0; padding:12px 14px; border-radius:12px; background:var(--pen-bg); color:var(--pen); font-weight:700; display:flex; flex-direction:column; gap:2px}
+.complete b{font-family:var(--display); font-weight:400; font-size:1.6rem; line-height:1.2}
 .links{display:grid; grid-template-columns:1fr 1fr; gap:10px}
 details{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:4px 16px}
 summary{font-weight:700; padding-block:12px; cursor:pointer}
@@ -170,8 +172,9 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
   <div class="empty" id="emptyBank" hidden>まだ問題がありません。</div>
 
   <div class="mode" id="modeNew">
-    <h2>まだやっていない問題から10問</h2>
+    <h2>まだ正解していない問題から10問</h2>
     <p id="newInfo">あてはまる問題：0問</p>
+    <p class="complete" id="complete" hidden><b>コンプリート！</b>このセットの問題に、ぜんぶ一度は正解しました。</p>
     <button class="go" id="startNew" type="button">スタート</button>
   </div>
 
@@ -411,7 +414,7 @@ function sndFanfare(){ if(alt("fan")||!audio())return; [523.25,523.25,523.25,659
 /* ---------- screens ---------- */
 function show(id){ if(id==="home"||id==="history")keepAliveOn(false);["home","quiz","result","history"].forEach(function(s){$(s).hidden=(s!==id)}); window.scrollTo(0,0)}
 function stat(q){return hist[keyOf(q.q)]||{w:0,r:0}}
-function newPool(){return bank.questions.filter(function(q){var s=stat(q); return s.w+s.r===0})}
+function newPool(){return bank.questions.filter(function(q){var s=stat(q); return !(s.r>0)})}
 function weakPool(){return bank.questions.filter(function(q){return stat(q).w>=minWrong})}
 
 function renderHome(){
@@ -420,7 +423,8 @@ function renderHome(){
   $("tally").hidden=!n; $("emptyBank").hidden=!!n;
   $("modeWeak").hidden=!n; $("modeNew").hidden=!n;
   var np=newPool().length;
-  $("newInfo").textContent=np?("あてはまる問題："+np+"問"+(np<GAME_SIZE?"（"+np+"問だけ出します）":"")):"ぜんぶの問題を一度はやりました。";
+  $("newInfo").textContent=np?("あてはまる問題："+np+"問"+(np<GAME_SIZE?"（"+np+"問だけ出します）":"")):"";
+  $("newInfo").hidden=!np; $("complete").hidden=!!np;
   $("startNew").disabled=!np;
   var done=0,wrong=0; qs.forEach(function(q){var s=stat(q); if(s.w+s.r>0)done++; if(s.w>0)wrong++});
   $("tAll").textContent=n; $("tDone").textContent=done; $("tWrong").textContent=wrong;
