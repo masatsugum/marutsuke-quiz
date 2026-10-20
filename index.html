@@ -184,7 +184,7 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
   #explain{grid-area:ex; max-height:32vh; overflow:auto}
   #nextBtn{grid-area:next}
   #choices{grid-area:ch; min-height:0; gap:4vh}
-  .choice{flex:1 1 0; min-height:0}
+  .choice{flex:1 1 0; min-height:0; overflow:hidden; line-height:1.35}
   .qtext{font-size:clamp(1.6rem,3.4vh + .6rem,2.4rem)}
   .choice{font-size:clamp(1.5rem,3vh + .6rem,2.1rem)}
 }
@@ -514,6 +514,21 @@ function startGame(pool,mode){
 }
 function renderDots(){var d=$("dots"); d.textContent=""; game.items.forEach(function(it,i){var c=el("i"); if(it.ok===true)c.className="ok"; else if(it.ok===false)c.className="ng"; else if(i===game.i)c.className="now"; d.appendChild(c)})}
 var shownAt=0, answeredAt=0;
+function shrinkToFit(box,text,min){   // make text smaller, 1px at a time, until box shows all of it
+  text.style.fontSize=""; if(!box.clientHeight)return;
+  var size=parseFloat(getComputedStyle(text).fontSize);
+  while(box.scrollHeight>box.clientHeight+1&&size>min){ size-=1; text.style.fontSize=size+"px" }
+}
+function fitQuiz(){
+  if($("quiz").hidden)return;
+  var bs=Array.prototype.slice.call($("choices").children), least=Infinity;
+  bs.forEach(function(b){ var t=b.querySelector(".t"); shrinkToFit(b,t,14); least=Math.min(least,parseFloat(getComputedStyle(t).fontSize)) });
+  bs.forEach(function(b){ var t=b.querySelector(".t"); if(parseFloat(getComputedStyle(t).fontSize)>least)t.style.fontSize=least+"px" });   // all four the same size
+  shrinkToFit($("qcard"),$("qtext"),16);
+}
+var fitTimer=null;
+window.addEventListener("resize",function(){ clearTimeout(fitTimer); fitTimer=setTimeout(fitQuiz,120) });
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitQuiz);
 function renderQuestion(){
   var it=game.items[game.i], q=it.q, s=stat(q); shownAt=Date.now();
   renderDots(); $("count").textContent=(game.i+1)+"/"+game.items.length;
@@ -528,7 +543,7 @@ function renderQuestion(){
     b.appendChild(el("span","k",String(pos+1))); b.appendChild(el("span","t",q.c[ci]));
     b.addEventListener("click",function(){answer(ci)}); box.appendChild(b);
   });
-  startTimer();
+  fitQuiz(); startTimer();
 }
 /* ---------- 10-second countdown ---------- */
 var timer=null;
@@ -569,6 +584,7 @@ function answer(ci){   // ci = chosen choice, or -1 when time ran out
     sndNg(); $("verdict").textContent=(ci<0?"時間切れ！":"ざんねん…")+" 正解は◯のほう"; $("verdict").className="verdict ng";
     if(q.ex){ var ex=$("explain"); ex.textContent=""; ex.appendChild(el("b",null,"かいせつ")); ex.appendChild(document.createTextNode(q.ex)); ex.hidden=false }
     $("nextBtn").textContent=last?"けっかを見る":"つぎへ"; $("nextBtn").hidden=false;
+    fitQuiz();
   }
 }
 function advance(){ game.token++; if(game.i<game.items.length-1){game.i++; renderQuestion(); window.scrollTo(0,0)} else showResult() }
