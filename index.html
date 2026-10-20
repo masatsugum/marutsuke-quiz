@@ -147,6 +147,47 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
 .list .n .r{display:block; font-size:.85rem; color:var(--sub)}
 .head{display:flex; align-items:center; gap:12px}
 .head h1{font-family:var(--display); font-weight:400; font-size:1.5rem}
+
+/* ---------- tablet: bigger text, bigger and farther-apart answer buttons ---------- */
+@media (min-width: 700px){
+  .app:has(#quiz:not([hidden])), .app:has(#result:not([hidden])), .app:has(#history:not([hidden])){max-width:46rem}
+  .qtext{font-size:1.75rem; line-height:1.6}
+  .past{font-size:.95rem; padding:4px 14px}
+  .choices{gap:22px}
+  .choice{min-height:96px; padding:16px 22px; gap:18px; font-size:1.55rem; border-width:3px; border-radius:18px}
+  .choice .k{width:48px; height:48px; font-size:1.45rem; border-width:2px}
+  .verdict{font-size:1.9rem}
+  .explain{font-size:1.25rem; padding:14px 18px}
+  .explain b{font-size:.95rem}
+  .quit{width:56px; height:56px; font-size:1.4rem}
+  .count{font-size:1.5rem}
+  .dots i{height:14px; border-radius:7px}
+  .timer .track{height:16px; border-radius:8px}
+  .timer .tnum{font-size:2.2rem}
+  #nextBtn{min-height:72px; font-size:1.45rem}
+  .list .q{font-size:1.2rem}
+  .list .a{font-size:1.1rem}
+  .list .ex{font-size:1.05rem}
+}
+/* iPad held sideways: question on the left, the four answers fill the right half — no scrolling */
+@media (min-width: 900px) and (orientation: landscape){
+  .app:has(#quiz:not([hidden])){max-width:1240px; padding-block:12px}
+  #quiz{
+    display:grid; height:calc(100dvh - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); min-height:420px;
+    grid-template-columns:minmax(0,1fr) minmax(0,1fr); column-gap:40px; row-gap:12px;
+    grid-template-rows:auto auto minmax(0,1fr) auto auto auto;
+    grid-template-areas:"bar bar" "timer timer" "q ch" "v ch" "ex ch" "next ch";
+  }
+  #quiz .bar{grid-area:bar} #timer{grid-area:timer}
+  #qcard{grid-area:q; min-height:0; overflow:auto; justify-content:center}
+  #verdict{grid-area:v; margin:0}
+  #explain{grid-area:ex; max-height:32vh; overflow:auto}
+  #nextBtn{grid-area:next}
+  #choices{grid-area:ch; min-height:0; gap:4vh}
+  .choice{flex:1 1 0; min-height:0}
+  .qtext{font-size:clamp(1.6rem,3.4vh + .6rem,2.4rem)}
+  .choice{font-size:clamp(1.5rem,3vh + .6rem,2.1rem)}
+}
 @media (prefers-reduced-motion: reduce){ .maru circle,.hana path{animation:none; stroke-dashoffset:0} .go:active,.choice:active{transform:none} }
 </style>
 </head>
@@ -472,8 +513,9 @@ function startGame(pool,mode){
   game={items:items,i:0,token:0}; show("quiz"); renderQuestion();
 }
 function renderDots(){var d=$("dots"); d.textContent=""; game.items.forEach(function(it,i){var c=el("i"); if(it.ok===true)c.className="ok"; else if(it.ok===false)c.className="ng"; else if(i===game.i)c.className="now"; d.appendChild(c)})}
+var shownAt=0, answeredAt=0;
 function renderQuestion(){
-  var it=game.items[game.i], q=it.q, s=stat(q);
+  var it=game.items[game.i], q=it.q, s=stat(q); shownAt=Date.now();
   renderDots(); $("count").textContent=(game.i+1)+"/"+game.items.length;
   $("qtext").textContent=q.q;
   $("past").hidden=!(s.w>0); $("past").textContent="これまで "+s.w+"回まちがえた";
@@ -505,7 +547,8 @@ function startTimer(){
 }
 function answer(ci){   // ci = chosen choice, or -1 when time ran out
   var it=game.items[game.i]; if(it.picked!==null)return;
-  stopTimer();
+  if(ci>=0&&Date.now()-shownAt<400)return;
+  stopTimer(); answeredAt=Date.now();
   var q=it.q, ok=(ci===q.a); it.picked=ci; it.ok=ok;
   Array.prototype.forEach.call($("choices").children,function(b){
     var c=Number(b.dataset.ci); b.disabled=true;
@@ -648,7 +691,7 @@ $("resetBtn").addEventListener("click",function(){
   if(!resetArmed){resetArmed=true; $("resetBtn").textContent="ほんとうに消す？ もう一度おすと消えます"; return}
   hist={}; lsSet("mq.hist",hist); resetAt=Date.now(); lsSet("mq.resetAt",resetAt); renderHistory(); cloudSync(true);
 });
-$("nextBtn").addEventListener("click",advance);
+$("nextBtn").addEventListener("click",function(){ if(Date.now()-answeredAt<400)return; advance() });
 $("quitBtn").addEventListener("click",function(){stopTimer(); game=null; useCur(); renderHome(); show("home"); cloudSync(true)});
 $("homeBtn").addEventListener("click",function(){game=null; useCur(); renderHome(); show("home")});
 $("againBtn").addEventListener("click",function(){
