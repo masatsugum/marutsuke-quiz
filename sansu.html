@@ -141,6 +141,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 .fg-line{fill:none; stroke:var(--fig); stroke-width:2.4; stroke-linejoin:round; stroke-linecap:round}
 .fg-thin{fill:none; stroke:var(--fig); stroke-width:1.6}
 .fg-shade{fill:var(--shade); stroke:var(--fig); stroke-width:2; stroke-linejoin:round}
+.fg-hole{fill:var(--card); stroke:var(--fig); stroke-width:2; stroke-linejoin:round}
 .fg-grid{stroke:var(--fig); stroke-width:1; opacity:.55}
 .fg-text{fill:var(--fig); font-family:var(--body); font-weight:700; font-size:19px; text-anchor:middle; dominant-baseline:central}
 .fg-ask{fill:var(--pen); font-family:var(--body); font-weight:900; font-size:22px; text-anchor:middle; dominant-baseline:central}
@@ -261,7 +262,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
   <div class="head"><button class="quit" id="makeBack" type="button" aria-label="もどる">←</button><h1>問題をつくる</h1></div>
   <div class="form">
     <label for="mType">種類</label>
-    <select id="mType"><option>角度</option><option>方眼</option><option>正多角形</option><option>三角形</option><option>文章</option></select>
+    <select id="mType"><option>角度</option><option>方眼</option><option>正多角形</option><option>三角形</option><option>おうぎ形</option><option>半円重ね</option><option>正方形と円</option><option>文章</option></select>
     <p class="note" id="mHelp"></p>
     <label for="mData">データ</label>
     <textarea id="mData" autocomplete="off" spellcheck="false"></textarea>
@@ -577,6 +578,126 @@ function drawTriangle(sol){
   if(sol.showBase){angLabel(1,sol.base); angLabel(2,sol.base)}
   out.push('</svg>'); return out.join("") }
 
+
+/* ---------- 円・おうぎ形 (pi = 3.14) ---------- */
+var PI=Q(314,100);
+function qMul(a,b){return Q(a.n*b.n,a.d*b.d)}
+function qAdd(a,b){return Q(a.n*b.d+b.n*a.d,a.d*b.d)}
+function qSub(a,b){return Q(a.n*b.d-b.n*a.d,a.d*b.d)}
+function piTimes(k){return qMul(k,PI)}           // k×3.14, exact
+function fracText(n,d){var g=gcd(n,d); return d/g===1?String(n/g):(n+"/"+d)}
+// "半径6, 300, まわり"  /  "直径12, 360, 面積"  /  "半径5, 360, 円周"
+function solveSector(data){
+  var t=String(data).normalize("NFKC").split(/[,、，\s]+/).filter(Boolean), m;
+  if(t.length!==3)return {err:"「半径6（または直径12）, 中心角, 聞くこと」の3つを書いてください（例 半径6, 300, まわり）。"};
+  if(!(m=t[0].match(/^(半径|直径)(\d+(?:\.\d+)?)$/)))return {err:"1つ目は 半径6 や 直径12 のように書いてください。"};
+  var byD=m[1]==="直径", L=parseNum(m[2]), th=+t[1], ask=t[2];
+  if(!L||!(L.n>0))return {err:"長さを数で書いてください。"};
+  if(!(th>0&&th<=360)||th!==Math.round(th))return {err:"中心角は 1〜360 の整数にしてください（360 で円になります）。"};
+  var circle=th===360;
+  if(circle&&["円周","面積"].indexOf(ask)<0)return {err:"円（360）のときは、聞くことを 円周 か 面積 にしてください。"};
+  if(!circle&&["弧","まわり","面積"].indexOf(ask)<0)return {err:"おうぎ形のときは、聞くことを 弧・まわり・面積 のどれかにしてください。"};
+  if(!circle&&byD)return {err:"おうぎ形は 半径 で書いてください。"};
+  var r=byD?Q(L.n,L.d*2):L, d=byD?L:Q(L.n*2,L.d), ex=[], k, ans;
+  if(circle){
+    if(ask==="円周"){ k=d; ans=piTimes(k);
+      ex.push((byD?"":"直径は "+fmt(r)+"×2＝"+fmt(d)+"cm。\n")+"円周＝直径×3.14 なので、"+fmt(d)+"×3.14＝"+fmt(ans)+"cm") }
+    else{ k=qMul(r,r); ans=piTimes(k);
+      ex.push((byD?"半径は "+fmt(d)+"÷2＝"+fmt(r)+"cm。\n":"")+"円の面積＝半径×半径×3.14 なので、"+fmt(r)+"×"+fmt(r)+"×3.14＝"+fmt(ans)+"cm²") }
+  }else{
+    var part=Q(th,360), ft=fracText(th,360);
+    if(ask==="面積"){ k=qMul(qMul(r,r),part); ans=piTimes(k);
+      ex.push(fmt(r)+"×"+fmt(r)+"×3.14×"+ft+"＝"+fmt(k)+"×3.14＝"+fmt(ans)+"cm²") }
+    else{ k=qMul(qMul(r,Q(2)),part); var arc=piTimes(k);
+      ex.push("弧の長さは "+fmt(r)+"×2×3.14×"+ft+"＝"+fmt(k)+"×3.14＝"+fmt(arc)+"cm");
+      if(ask==="弧")ans=arc;
+      else{ ans=qAdd(arc,qMul(r,Q(2))); ex.push("直線部分（半径2本）は "+fmt(r)+"×2＝"+fmt(qMul(r,Q(2)))+"cm。合わせて "+fmt(arc)+"＋"+fmt(qMul(r,Q(2)))+"＝"+fmt(ans)+"cm") } }
+  }
+  if(k.d!==1)return {err:"3.14にかける数が整数になりません（"+fmt(k)+"）。半径か中心角を変えてください。"};
+  var what=circle?(ask==="円周"?"円周の長さは何cmですか。":"面積は何cm²ですか。"):(ask==="弧"?"弧の長さは何cmですか。":ask==="まわり"?"まわりの長さは何cmですか。":"面積は何cm²ですか。");
+  var text=circle?"下の図で、点Oは円の中心です。この円の"+what:"下のおうぎ形の"+what;
+  return {r:r,d:d,byD:byD,th:th,circle:circle,answer:ans,unit:ask==="面積"?"cm²":"cm",text:text,explain:ex.join("\n")} }
+function drawSector(sol){
+  var W=360,H=300,out=['<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="円・おうぎ形の図">'];
+  if(sol.circle){ var cx=180,cy=150,R=120;
+    out.push('<circle class="fg-line" cx="'+cx+'" cy="'+cy+'" r="'+R+'"/>');
+    if(sol.byD){ out.push('<line class="fg-thin" stroke-dasharray="6 5" x1="'+(cx-R)+'" y1="'+cy+'" x2="'+(cx+R)+'" y2="'+cy+'"/>'); out.push(text(cx,cy+20,fmt(sol.d)+"cm")) }
+    else{ out.push('<line class="fg-thin" stroke-dasharray="6 5" x1="'+cx+'" y1="'+cy+'" x2="'+(cx+R)+'" y2="'+cy+'"/>'); out.push(text(cx+R/2,cy+20,fmt(sol.r)+"cm")) }
+    out.push('<circle class="fg-dot" cx="'+cx+'" cy="'+cy+'" r="4"/>'); out.push(text(cx,cy-18,"O"));
+    out.push('</svg>'); return out.join("") }
+  // sector: one radius along the bottom to the right, arc going counter-clockwise by th
+  var th=sol.th*Math.PI/180, pts=[[0,0],[1,0]];
+  for(var i=0;i<=48;i++){var a=th*i/48; pts.push([Math.cos(a),Math.sin(a)])}
+  var xs=pts.map(function(p){return p[0]}), ys=pts.map(function(p){return p[1]});
+  var minx=Math.min.apply(null,xs),maxx=Math.max.apply(null,xs),miny=Math.min.apply(null,ys),maxy=Math.max.apply(null,ys), M=40;
+  var sc=Math.min((W-2*M)/(maxx-minx),(H-2*M)/(maxy-miny));
+  function X(x){return M+(x-minx)*sc+((W-2*M)-(maxx-minx)*sc)/2} function Y(y){return H-M-(y-miny)*sc-((H-2*M)-(maxy-miny)*sc)/2}
+  var O=[X(0),Y(0)], A=[X(1),Y(0)], B=[X(Math.cos(th)),Y(Math.sin(th))], R=sc;
+  out.push('<path class="fg-line" d="M'+O[0].toFixed(1)+' '+O[1].toFixed(1)+' L'+A[0].toFixed(1)+' '+A[1].toFixed(1)+' A'+R.toFixed(1)+' '+R.toFixed(1)+' 0 '+(sol.th>180?1:0)+' 0 '+B[0].toFixed(1)+' '+B[1].toFixed(1)+' Z"/>');
+  var rr=sol.th>180?16:26, B1=[O[0]+rr,O[1]], B2=[O[0]+rr*Math.cos(th),O[1]-rr*Math.sin(th)];
+  out.push('<path class="fg-thin" d="M'+B1[0].toFixed(1)+' '+B1[1].toFixed(1)+' A'+rr+' '+rr+' 0 '+(sol.th>180?1:0)+' 0 '+B2[0].toFixed(1)+' '+B2[1].toFixed(1)+'"/>');
+  var mid=th/2, lr=rr+24; out.push(text(O[0]+lr*Math.cos(mid),O[1]-lr*Math.sin(mid),sol.th+"°"));
+  out.push(text((O[0]+A[0])/2,O[1]+18,fmt(sol.r)+"cm"));
+  out.push('</svg>'); return out.join("") }
+
+/* ---------- 2つの半円を重ねた形 ---------- */
+// "8, 4, まわり"  : small semicircle diameter 8, the big one is 4 longer (diameter 12); shaded = big minus small
+function solveHalfRing(data){
+  var t=String(data).normalize("NFKC").split(/[,、，\s]+/).filter(Boolean);
+  if(t.length!==3)return {err:"「小さい半円の直径, 残りの長さ, 聞くこと（まわり・面積）」の3つを書いてください（例 8, 4, まわり）。"};
+  var a=parseNum(t[0]), b=parseNum(t[1]), ask=t[2];
+  if(!a||!b||!(a.n>0)||!(b.n>0))return {err:"長さを数で書いてください。"};
+  if(["まわり","面積"].indexOf(ask)<0)return {err:"聞くことは まわり か 面積 にしてください。"};
+  var D=qAdd(a,b), ex=["大きい半円の直径は "+fmt(a)+"＋"+fmt(b)+"＝"+fmt(D)+"cm"], k, ans;
+  if(ask==="まわり"){ k=Q(D.n*a.d+a.n*D.d,D.d*a.d*2); var arcs=piTimes(k); ans=qAdd(arcs,b);
+    ex.push(fmt(D)+"×3.14×1/2＋"+fmt(a)+"×3.14×1/2＝"+fmt(k)+"×3.14＝"+fmt(arcs)+"cm（弧の部分の和）");
+    ex.push("直線部分 "+fmt(b)+"cm をたして、"+fmt(arcs)+"＋"+fmt(b)+"＝"+fmt(ans)+"cm") }
+  else{ var R=Q(D.n,D.d*2), r=Q(a.n,a.d*2); k=qMul(qSub(qMul(R,R),qMul(r,r)),Q(1,2)); ans=piTimes(k);
+    ex.push("大きい半円の半径は "+fmt(R)+"cm、小さい半円の半径は "+fmt(r)+"cm");
+    ex.push(fmt(R)+"×"+fmt(R)+"×3.14×1/2−"+fmt(r)+"×"+fmt(r)+"×3.14×1/2＝"+fmt(k)+"×3.14＝"+fmt(ans)+"cm²") }
+  if(k.d!==1)return {err:"3.14にかける数が整数になりません（"+fmt(k)+"）。長さを変えてください。"};
+  return {a:a,b:b,D:D,answer:ans,unit:ask==="面積"?"cm²":"cm",
+    text:"下の図は、2つの半円を重ねてかいたものです。かげの部分の"+(ask==="面積"?"面積は何cm²ですか。":"まわりの長さは何cmですか。"),explain:ex.join("\n")} }
+function drawHalfRing(sol){
+  var W=380,H=230,M=30, D=sol.D.n/sol.D.d, a=sol.a.n/sol.a.d, sc=(W-2*M)/D, base=H-46;
+  var R=D/2*sc, r=a/2*sc, x0=M;
+  var out=['<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="2つの半円の図">'];
+  out.push('<path class="fg-shade" d="M'+x0+' '+base+' A'+R+' '+R+' 0 0 1 '+(x0+2*R)+' '+base+' Z"/>');
+  out.push('<path class="fg-hole" d="M'+x0+' '+base+' A'+r+' '+r+' 0 0 1 '+(x0+2*r)+' '+base+' Z"/>');
+  out.push(text(x0+r,base+20,fmt(sol.a)+"cm")); out.push(text(x0+2*r+(2*R-2*r)/2,base+20,fmt(sol.b)+"cm"));
+  out.push('<line class="fg-thin" x1="'+(x0+2*r)+'" y1="'+(base+6)+'" x2="'+(x0+2*r)+'" y2="'+(base+30)+'" stroke-dasharray="3 3"/>');
+  out.push('</svg>'); return out.join("") }
+
+/* ---------- 正方形の中の半円・四分円 ---------- */
+// "4, 半円"  : two semicircles on the left and right sides, shaded = the rest
+// "20, 四分円" : four quarter circles at the corners (radius = half the side), shaded = the middle
+function solveSquareArcs(data){
+  var t=String(data).normalize("NFKC").split(/[,、，\s]+/).filter(Boolean);
+  if(t.length!==2)return {err:"「正方形の1辺, 半円 か 四分円」の2つを書いてください（例 4, 半円）。"};
+  var s=parseNum(t[0]), kind=t[1];
+  if(!s||!(s.n>0))return {err:"1辺の長さを数で書いてください。"};
+  if(["半円","四分円"].indexOf(kind)<0)return {err:"2つ目は 半円 か 四分円 にしてください。"};
+  var r=Q(s.n,s.d*2), k=qMul(r,r), circ=piTimes(k), sq=qMul(s,s), ans=qSub(sq,circ);
+  if(k.d!==1)return {err:"3.14にかける数が整数になりません。1辺を偶数にしてください。"};
+  var ex=[(kind==="半円"?"半円2つを合わせると":"四分円4つを合わせると")+"、半径 "+fmt(r)+"cm の円1つ分になります。",
+    "正方形 "+fmt(s)+"×"+fmt(s)+"＝"+fmt(sq)+"cm² から、円 "+fmt(r)+"×"+fmt(r)+"×3.14＝"+fmt(circ)+"cm² をひいて "+fmt(ans)+"cm²"];
+  return {s:s,kind:kind,answer:ans,unit:"cm²",
+    text:kind==="半円"?"下の図は、正方形の中に、同じ大きさの半円を2つかいたものです。かげの部分の面積の和は何cm²ですか。":"下の図は、正方形の中に、同じ大きさの四分円を4つかいたものです。かげの部分の面積は何cm²ですか。",
+    explain:ex.join("\n")} }
+function drawSquareArcs(sol){
+  var W=320,H=320,M=36,S=W-2*M, h=S/2, out=['<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="正方形と円の図">'];
+  out.push('<rect class="fg-shade" x="'+M+'" y="'+M+'" width="'+S+'" height="'+S+'"/>');
+  if(sol.kind==="半円"){
+    out.push('<path class="fg-hole" d="M'+M+' '+M+' A'+h+' '+h+' 0 0 1 '+M+' '+(M+S)+' Z"/>');
+    out.push('<path class="fg-hole" d="M'+(M+S)+' '+M+' A'+h+' '+h+' 0 0 0 '+(M+S)+' '+(M+S)+' Z"/>');
+  }else{
+    [[M,M],[M+S,M],[M,M+S],[M+S,M+S]].forEach(function(c){ var sx=c[0]===M?1:-1, sy=c[1]===M?1:-1;
+      out.push('<path class="fg-hole" d="M'+c[0]+' '+c[1]+' L'+(c[0]+sx*h)+' '+c[1]+' A'+h+' '+h+' 0 0 '+(sx*sy>0?1:0)+' '+c[0]+' '+(c[1]+sy*h)+' Z"/>') });
+  }
+  out.push('<rect x="'+M+'" y="'+M+'" width="'+S+'" height="'+S+'" fill="none" stroke="var(--fig)" stroke-width="2.4"/>');
+  out.push(text(M+h,M+S+20,fmt(sol.s)+"cm"));
+  out.push('</svg>'); return out.join("") }
+
 /* ---------- 文章: word problems with a typed answer ---------- */
 function solveText(row){
   if(!row.text)return {err:"文章問題は「問題文」が必要です。"};
@@ -584,7 +705,7 @@ function solveText(row){
   return {answer:a, unit:row.unit||"", text:row.text, explain:""} }
 
 /* ---------- one row -> problem ---------- */
-var TYPES=["角度","方眼","正多角形","三角形","文章"];
+var TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","文章"];
 function build(row){
   var type=String(row.type||"").trim(), sol, svg="";
   row=Object.assign({},row,{data:String(row.data||"").replace(/^'/,"")});
@@ -592,11 +713,14 @@ function build(row){
   else if(type==="方眼"){ sol=solveGrid(row.data); if(!sol.err)svg=drawGrid(sol.grid) }
   else if(type==="正多角形"){ sol=solveRegular(row.data); if(!sol.err)svg=drawRegular(sol) }
   else if(type==="三角形"){ sol=solveTriangle(row.data); if(!sol.err)svg=drawTriangle(sol) }
+  else if(type==="おうぎ形"){ sol=solveSector(row.data); if(!sol.err)svg=drawSector(sol) }
+  else if(type==="半円重ね"){ sol=solveHalfRing(row.data); if(!sol.err)svg=drawHalfRing(sol) }
+  else if(type==="正方形と円"){ sol=solveSquareArcs(row.data); if(!sol.err)svg=drawSquareArcs(sol) }
   else if(type==="文章"){ sol=solveText(row) }
   else sol={err:"種類「"+type+"」は使えません（"+TYPES.join("・")+"）。"};
   if(sol.err)return {ok:false, err:sol.err, row:row, partial:sol};
   if(type!=="文章"&&String(row.answer||"").trim()){
-    var given=parseNum(String(row.answer).replace(/[°度cm²㎠平方センチメートル\s]/g,""));
+    var given=parseNum(String(row.answer).replace(/[°度cm²㎠㎡平方センチメートル\s]/g,""));
     if(!given||!qEq(given,sol.answer))return {ok:false, row:row, err:"答えの列（"+row.answer+"）と、図から計算した答え（"+fmt(sol.answer)+(sol.unit||"")+"）が合いません。"} }
   var exp=[sol.explain,row.explain].filter(function(s){return s&&String(s).trim()}).join("\n");
   return {ok:true, row:row, type:type, text:String(row.text||"").trim()||sol.text, svg:svg, answer:sol.answer, unit:sol.unit,
@@ -832,8 +956,11 @@ var HELP={
   "方眼":"「横x縦:」のあとに点を (横,縦) で書きます。左下が (0,0)。図形を分けるときは / で区切ります。\n下の図の交わる点をタップしても点を足せます。\n例：6x4: (0,0)(1,4)(3,0) / (3,0)(6,4)(5,0)",
   "正多角形":"「辺の数, ABの長さ, 聞くこと」を書きます。聞くことは 角・三角形・全体 のどれか。\n例：12, 20, 三角形",
   "三角形":"「辺, 辺, その間の角（30・90・150）」を書きます。面積を聞く問題になります。\n後ろに 底角（間の角のかわりに両はしの角を書く）・全角（3つとも書く）・辺1（辺の長さを1つだけ書く）をつけられます（二等辺三角形のときだけ）。\n例：8, 10, 30　／　14, 14, 150, 底角",
+  "おうぎ形":"「半径6（または直径12）, 中心角, 聞くこと」を書きます。中心角を360にすると円になります。\n聞くこと：おうぎ形は 弧・まわり・面積、円は 円周・面積\n例：半径6, 300, まわり　／　直径12, 360, 面積",
+  "半円重ね":"「小さい半円の直径, 残りの長さ, 聞くこと（まわり・面積）」を書きます。\n例：8, 4, まわり",
+  "正方形と円":"「正方形の1辺, 半円 か 四分円」を書きます。かげの部分の面積を聞く問題になります。\n例：4, 半円　／　20, 四分円",
   "文章":"データは空でかまいません。問題文と答え（12、2.5、3/4 など）を入れてください。"};
-var SAMPLE_DATA={"角度":"50, 直角, ア, 115","方眼":"6x4: ","正多角形":"12, 20, 三角形","三角形":"8, 10, 30","文章":""};
+var SAMPLE_DATA={"角度":"50, 直角, ア, 115","方眼":"6x4: ","正多角形":"12, 20, 三角形","三角形":"8, 10, 30","おうぎ形":"半径6, 300, まわり","半円重ね":"8, 4, まわり","正方形と円":"4, 半円","文章":""};
 function mRow(){return {type:$("mType").value, data:$("mData").value.trim(), text:$("mText").value.trim(), answer:$("mAns").value.trim(),
   unit:$("mUnit").value.trim(), explain:$("mExp").value.trim(), confirmed:$("mOk").checked?"○":"", tangen:$("mTangen").value.trim()}}
 function renderMake(){
