@@ -723,7 +723,8 @@ function build(row){
     var given=parseNum(String(row.answer).replace(/[°度cm²㎠㎡平方センチメートル\s]/g,""));
     if(!given||!qEq(given,sol.answer))return {ok:false, row:row, err:"答えの列（"+row.answer+"）と、図から計算した答え（"+fmt(sol.answer)+(sol.unit||"")+"）が合いません。"} }
   var exp=[sol.explain,row.explain].filter(function(s){return s&&String(s).trim()}).join("\n");
-  return {ok:true, row:row, type:type, text:String(row.text||"").trim()||sol.text, svg:svg, answer:sol.answer, unit:sol.unit,
+  var at=fmt(sol.answer); if(/\//.test(String(row.answer||"")))at=sol.answer.d===1?String(sol.answer.n):sol.answer.n+"/"+sol.answer.d;   // keep fractions when the sheet wrote one
+  return {ok:true, row:row, type:type, text:String(row.text||"").trim()||sol.text, svg:svg, answer:sol.answer, answerText:at, unit:sol.unit,
     explain:exp, confirmed:/^(○|◯|o|O|ok|OK|済|1|true)$/.test(String(row.confirmed||"").trim())} }
 
 return {build:build, parseNum:parseNum, fmt:fmt, qEq:qEq, Q:Q, parseGrid:parseGrid, drawGrid:drawGrid, solveGrid:solveGrid, TYPES:TYPES};
@@ -897,7 +898,7 @@ function submit(){
     svg.appendChild(c); $("qcard").appendChild(svg); ex.hidden=true;
   }else{
     $("verdict").textContent="ざんねん…"; $("verdict").className="verdict ng";
-    $("rightAns").textContent="正しい答えは "+Engine.fmt(p.answer)+(p.unit?" "+p.unit:"");
+    $("rightAns").textContent="正しい答えは "+p.answerText+(p.unit?" "+p.unit:"");
     if(p.explain){ ex.textContent=""; ex.appendChild(el("b",null,"かいせつ")); ex.appendChild(document.createTextNode(p.explain)); ex.hidden=false } else ex.hidden=true;
   } }
 function flash(){ var a=$("answer"); a.animate&&a.animate([{transform:"translateX(0)"},{transform:"translateX(-8px)"},{transform:"translateX(8px)"},{transform:"translateX(0)"}],{duration:220}) }
@@ -917,7 +918,7 @@ function showResult(){
   $("rMsg").textContent=right===total?"ぜんぶ正解！ はなまる！":right>=total*0.8?"あとすこしで全問正解！":"まちがえた問題をもう一回やってみよう。";
   var ul=$("rMiss"); ul.textContent="";
   miss.forEach(function(it){ var li=el("li"); li.appendChild(el("p","q",it.p.text));
-    var a=el("p","a"); a.appendChild(document.createTextNode("正解：")); a.appendChild(el("b",null,Engine.fmt(it.p.answer)+(it.p.unit?" "+it.p.unit:"")));
+    var a=el("p","a"); a.appendChild(document.createTextNode("正解：")); a.appendChild(el("b",null,it.p.answerText+(it.p.unit?" "+it.p.unit:"")));
     a.appendChild(document.createTextNode("　きみの答え："+it.given)); li.appendChild(a);
     if(it.p.explain)li.appendChild(el("p","note",it.p.explain)); ul.appendChild(li) });
   game.missed=miss.map(function(it){return it.p}); $("retryMiss").hidden=!miss.length;
@@ -938,7 +939,7 @@ function renderCheck(){
     if(!p.ok){ li.appendChild(el("p","note err",p.err)); ul.appendChild(li); return }
     li.appendChild(el("p","q",p.text));
     if(p.svg){var m=el("div","mini"); m.innerHTML=p.svg; li.appendChild(m)}
-    var a=el("p","a"); a.appendChild(document.createTextNode("答え：")); a.appendChild(el("b",null,Engine.fmt(p.answer)+" "+(p.unit||""))); li.appendChild(a);
+    var a=el("p","a"); a.appendChild(document.createTextNode("答え：")); a.appendChild(el("b",null,p.answerText+" "+(p.unit||""))); li.appendChild(a);
     if(p.explain)li.appendChild(el("p","note",p.explain));
     if(flags[p.key]){ li.appendChild(el("p","note err","子どもの答え："+(flags[p.key].given||"（なし）")+"　報告："+new Date(flags[p.key].t).toLocaleString("ja-JP")));
       var b=el("button","plain","問題なし。また出題する"); b.type="button"; b.addEventListener("click",function(){delete flags[p.key]; lsSet("sq.flags",flags); renderCheck()}); li.appendChild(b) }
@@ -971,7 +972,7 @@ function renderMake(){
   $("mCopy").disabled=false;
   pv.appendChild(el("p","q",p.text));
   if(p.svg&&r.type!=="方眼"){var m=el("div"); m.innerHTML=p.svg; pv.appendChild(m)}
-  var a=el("p","a"); a.appendChild(document.createTextNode("答え：")); a.appendChild(el("b",null,Engine.fmt(p.answer)+" "+(p.unit||""))); pv.appendChild(a);
+  var a=el("p","a"); a.appendChild(document.createTextNode("答え：")); a.appendChild(el("b",null,p.answerText+" "+(p.unit||""))); pv.appendChild(a);
   if(p.explain)pv.appendChild(el("p","note",p.explain)) }
 function bindTap(svg){ if(!svg)return;
   svg.addEventListener("click",function(e){ var c=+svg.dataset.cell, M=+svg.dataset.m, H=+svg.dataset.h, pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
