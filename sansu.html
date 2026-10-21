@@ -132,6 +132,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 .tag{align-self:flex-start; font-size:.8rem; font-weight:900; border-radius:999px; padding:2px 10px}
 .tag.ok{background:var(--pen-bg); color:var(--pen)} .tag.wait{background:var(--x-bg); color:var(--x)} .tag.bad{background:var(--ink); color:var(--card)}
 .head{display:flex; align-items:center; gap:12px}
+.empty{background:var(--card); border:2px dashed var(--line); border-radius:16px; padding:20px 16px; text-align:center; color:var(--sub)}
 .head h1{font-family:var(--display); font-weight:400; font-size:1.5rem}
 .preview{background:var(--card); border:2px dashed var(--line); border-radius:14px; padding:12px; display:flex; flex-direction:column; gap:8px}
 .preview svg{width:100%; max-height:340px}
@@ -171,6 +172,8 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
   </div>
   <div class="sets" id="setList" role="group" aria-label="問題セット"></div>
   <div class="units" id="unitList" role="group" aria-label="単元" hidden></div>
+  <div class="empty" id="noSet" hidden>まだ問題セットがありません。下の「問題セットを追加・更新する」から、スプレッドシートを登録してください。</div>
+  <div class="screen" id="playArea">
   <div class="tally">
     <div><b id="tAll">0</b><span>出題できる問題</span></div>
     <div><b id="tDone">0</b><span>やった問題</span></div>
@@ -186,11 +189,14 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
     <p id="weakInfo"></p>
     <button class="go" id="startWeak" type="button">スタート</button>
   </div>
+  <button class="plain" id="resetHist" type="button">解答履歴をリセット</button>
+  <p class="note" id="resetNote" aria-live="polite"></p>
+  </div>
   <div class="links">
     <button class="plain" id="openCheck" type="button">問題チェック（大人用）</button>
     <button class="plain" id="openMake" type="button">問題をつくる（大人用）</button>
   </div>
-  <details>
+  <details id="setBox">
     <summary>問題セットを追加・更新する</summary>
     <div class="form">
       <label for="setName">セットの名前（例：角度、面積）</label>
@@ -600,22 +606,6 @@ return {build:build, parseNum:parseNum, fmt:fmt, qEq:qEq, Q:Q, parseGrid:parseGr
 })();
 </script>
 
-<script type="application/json" id="sampleData">[
- {"tangen":"角度","type":"角度","data":"55, 直角, ア, 120","confirmed":"○"},
- {"tangen":"角度","type":"角度","data":"外50, イ, 85, 160, 直角","confirmed":"○"},
- {"tangen":"角度","type":"角度","data":"70, 45, ア","confirmed":"○"},
- {"tangen":"角度","type":"角度","data":"外60, 100, 直角, ウ","confirmed":"○"},
- {"tangen":"面積","type":"方眼","data":"6x4: (0,0)(1,4)(3,0) / (3,0)(6,4)(5,0)","confirmed":"○"},
- {"tangen":"面積","type":"方眼","data":"5x5: (0,3)(1,5)(5,0)","confirmed":"○"},
- {"tangen":"面積","type":"方眼","data":"6x5: (1,1)(5,1)(3,4)","confirmed":"○"},
- {"tangen":"正多角形","type":"正多角形","data":"12, 24, 角","confirmed":"○"},
- {"tangen":"正多角形","type":"正多角形","data":"12, 24, 三角形","confirmed":"○"},
- {"tangen":"正多角形","type":"正多角形","data":"12, 24, 全体","confirmed":"○"},
- {"tangen":"文章題","type":"文章","text":"1本80円のえんぴつを6本と、120円のノートを1さつ買いました。代金は全部で何円ですか。","answer":"600","unit":"円","explain":"80×6＝480円、480＋120＝600円","confirmed":"○"},
- {"tangen":"文章題","type":"文章","text":"2/3 L のジュースを4人で同じ量ずつ分けます。1人分は何Lですか。（分数で答えましょう）","answer":"1/6","unit":"L","explain":"2/3÷4＝2/12＝1/6 L","confirmed":"○"},
- {"tangen":"文章題","type":"文章","text":"時速45kmで2.4時間走ると、何km進みますか。","answer":"108","unit":"km","explain":"45×2.4＝108 km","confirmed":"○"}
-]</script>
-
 <script>
 (function(){
 "use strict";
@@ -629,13 +619,12 @@ function keyOf(s){var h=5381; for(var i=0;i<s.length;i++){h=((h<<5)+h+s.charCode
 function rowKey(r){return keyOf([r.type,r.data,r.text].map(function(x){return String(x||"").trim()}).join("|"))}
 
 /* ---------- problem sets ---------- */
-var SAMPLE=JSON.parse($("sampleData").textContent);
-var sets=lsGet("sq.sets",[]), cur=lsGet("sq.cur","sample");
+var sets=lsGet("sq.sets",[]), cur=lsGet("sq.cur","");
 var hist=lsGet("sq.hist",{}), flags=lsGet("sq.flags",{});
 var bank=[];   // built problems of the current set
 function curSet(){for(var i=0;i<sets.length;i++)if(sets[i].id===cur)return sets[i]; return null}
-function useCur(){ var s=curSet(); if(!s)cur="sample";
-  var rows=s?s.rows:SAMPLE;
+function useCur(){ var s=curSet()||sets[0]||null; cur=s?s.id:"";
+  var rows=s?s.rows:[];
   bank=rows.map(function(r){var p=Engine.build(r); p.key=rowKey(r); return p}) }
 var unitSel=lsGet("sq.unit",{});   // set id -> chosen 単元 ("" = all)
 function curUnit(){ var u=unitSel[cur]||""; return units().indexOf(u)>=0?u:"" }
@@ -698,13 +687,14 @@ $("reloadBtn").addEventListener("click",function(){var s=curSet(); if(s)syncSet(
 var removeArmed=false;
 $("removeBtn").addEventListener("click",function(){ var s=curSet(); if(!s)return;
   if(!removeArmed){removeArmed=true; this.textContent="ほんとうに外す？ もう一度おすと外れます"; return}
-  sets=sets.filter(function(x){return x.id!==s.id}); cur="sample"; lsSet("sq.sets",sets); lsSet("sq.cur",cur); useCur(); renderHome(); msg("「"+s.name+"」を外しました。") });
+  sets=sets.filter(function(x){return x.id!==s.id}); cur=sets[0]?sets[0].id:""; lsSet("sq.sets",sets); lsSet("sq.cur",cur); useCur(); renderHome(); msg("「"+s.name+"」を外しました。") });
 
 /* ---------- home ---------- */
 function show(id){ ["home","quiz","result","check","make"].forEach(function(s){$(s).hidden=(s!==id)}); $("app").classList.toggle("wide",id==="quiz"); window.scrollTo(0,0) }
 function renderHome(){
   var pl=playable(), done=0, wrong=0; pl.forEach(function(p){var s=stat(p); if(s.w+s.r)done++; if(s.w)wrong++});
-  var s=curSet(), cu=curUnit(); $("bankInfo").textContent="「"+(s?s.name:"サンプル")+"」"+(cu?" ・ "+cu:"")+" "+pl.length+"問";
+  var s=curSet(), cu=curUnit(); $("bankInfo").textContent=s?"「"+s.name+"」"+(cu?" ・ "+cu:"")+" "+pl.length+"問":"問題セットがまだありません";
+  $("noSet").hidden=!!s; $("playArea").hidden=!s; if(!s)$("setBox").open=true;
   var ul=$("unitList"), us=units(); ul.textContent=""; ul.hidden=us.length<2;
   if(us.length>=2){ ul.appendChild(el("span","lbl","単元"));
     [""].concat(us).forEach(function(u){ var on=(u===cu), b=el("button","chip"+(on?" on":""),u||"すべて"); b.type="button"; b.setAttribute("aria-pressed",String(on));
@@ -714,10 +704,17 @@ function renderHome(){
   $("newInfo").textContent=np?"あてはまる問題："+np+"問":"ぜんぶ一度は正解しました！"; $("startNew").disabled=!np;
   $("weakInfo").textContent=wp?"あてはまる問題："+wp+"問":"まちがえた問題はまだありません。"; $("startWeak").disabled=!wp;
   var sl=$("setList"); sl.textContent="";
-  [{id:"sample",name:"サンプル"}].concat(sets).forEach(function(x){ var on=(x.id===cur), b=el("button","chip"+(on?" on":""),x.name); b.type="button";
+  sets.forEach(function(x){ var on=(x.id===cur), b=el("button","chip"+(on?" on":""),x.name); b.type="button";
     b.addEventListener("click",function(){ if(on)return; cur=x.id; lsSet("sq.cur",cur); useCur(); msg(""); renderHome(); if(curSet())syncSet(curSet(),true) }); sl.appendChild(b) });
-  $("reloadBtn").hidden=$("removeBtn").hidden=!s; removeArmed=false; $("removeBtn").textContent="いまのセットを一覧から外す";
+  $("reloadBtn").hidden=$("removeBtn").hidden=!s; removeArmed=false;
+  resetArmed=false; $("resetHist").textContent="解答履歴をリセット（「"+(s?s.name:"")+"」）"; $("removeBtn").textContent="いまのセットを一覧から外す";
 }
+var resetArmed=false;
+$("resetHist").addEventListener("click",function(){
+  var s=curSet(); if(!s)return;
+  if(!resetArmed){ resetArmed=true; this.textContent="ほんとうに消す？ もう一度おすと「"+s.name+"」の履歴が消えます"; return }
+  var n=0; bank.forEach(function(p){ if(hist[p.key]){delete hist[p.key]; n++} }); lsSet("sq.hist",hist);
+  renderHome(); $("resetNote").textContent="「"+s.name+"」の解答履歴を消しました（"+n+"問分）。" });
 function newPool(){return playable().filter(function(p){return !(stat(p).r>0)})}
 function weakPool(){return playable().filter(function(p){return stat(p).w>0})}
 
