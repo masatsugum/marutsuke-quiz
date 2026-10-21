@@ -1,0 +1,798 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f4f7fb">
+<title>まるつけ算数</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yusei+Magic&family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
+<style>
+:root{color-scheme:light; padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+:root{
+  --paper:#f4f7fb; --grid:rgba(60,95,170,.09); --card:#ffffff; --ink:#1c2740; --sub:#5b6781; --line:#d3dbea;
+  --pen:#e0352b; --pen-bg:#fdecea; --x:#3f58c4; --x-bg:#e9edfb;
+  --marker:#ffe04a; --marker-edge:#e2bd00; --on-marker:#1c2740;
+  --shade:#b9c2d4; --fig:#1c2740;
+  --display:"Yusei Magic","Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+  --body:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#131928; --grid:rgba(140,170,240,.07); --card:#1d2537; --ink:#eef1f8; --sub:#9da8c0; --line:#34415d;
+  --pen:#ff6f61; --pen-bg:#3b2125; --x:#93a6ff; --x-bg:#232c4d;
+  --marker:#ffe04a; --marker-edge:#b89a00; --on-marker:#1c2740; --shade:#4a5672; --fig:#eef1f8; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --paper:#131928; --grid:rgba(140,170,240,.07); --card:#1d2537; --ink:#eef1f8; --sub:#9da8c0; --line:#34415d;
+  --pen:#ff6f61; --pen-bg:#3b2125; --x:#93a6ff; --x-bg:#232c4d;
+  --marker:#ffe04a; --marker-edge:#b89a00; --on-marker:#1c2740; --shade:#4a5672; --fig:#eef1f8; color-scheme:dark }
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px; color:var(--ink); font-family:var(--body); font-weight:500; font-size:17px; line-height:1.6;
+  min-height:100vh; -webkit-tap-highlight-color:transparent;
+}
+.app{max-width:34rem; margin:0 auto; padding-inline:16px; padding-block:20px 32px}
+.app.wide{max-width:1240px}
+.screen{display:flex; flex-direction:column; gap:16px}
+button{font:inherit; color:inherit; cursor:pointer; touch-action:manipulation}
+button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible,summary:focus-visible{outline:3px solid var(--x); outline-offset:2px}
+h1,h2{margin:0; text-wrap:balance}
+.note{margin:0; font-size:.9rem; color:var(--sub); overflow-wrap:anywhere; white-space:pre-line}
+.note.err{color:var(--pen); font-weight:700}
+.brand{display:flex; align-items:center; gap:12px; padding-block:8px 4px}
+.brand svg{flex:none; width:52px; height:52px}
+.brand h1{font-family:var(--display); font-weight:400; font-size:1.9rem; line-height:1.2}
+.brand p{margin:0; color:var(--sub); font-size:.9rem}
+.tally{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.tally div{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 4px; text-align:center}
+.tally b{display:block; font-family:var(--display); font-weight:400; font-size:1.5rem; line-height:1.2}
+.tally span{font-size:.75rem; color:var(--sub)}
+.mode{background:var(--card); border:2px solid var(--ink); border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:12px}
+.mode h2{font-size:1.15rem; font-weight:900}
+.mode p{margin:0; color:var(--sub); font-size:.9rem}
+.go{background:var(--marker); color:var(--on-marker); border:2px solid var(--on-marker); border-radius:14px; box-shadow:0 4px 0 var(--marker-edge); font-weight:900; font-size:1.15rem; padding:14px 16px; min-height:58px; width:100%}
+.go:active{transform:translateY(3px); box-shadow:0 1px 0 var(--marker-edge)}
+.go:disabled{opacity:.45; box-shadow:none; cursor:not-allowed; transform:none}
+.plain{background:var(--card); border:2px solid var(--line); border-radius:14px; padding:12px 16px; min-height:52px; font-weight:700; width:100%}
+.links{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.sets{display:flex; flex-wrap:wrap; gap:8px}
+.chip{border:2px solid var(--ink); background:var(--card); border-radius:999px; padding:8px 16px; min-height:44px; font-weight:700; max-width:100%; overflow-wrap:anywhere; text-align:left}
+.chip.on{background:var(--marker); color:var(--on-marker); border-color:var(--on-marker)}
+details{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:4px 16px}
+summary{font-weight:700; padding-block:12px; cursor:pointer}
+.form{display:flex; flex-direction:column; gap:10px; padding-bottom:14px}
+.form label{font-size:.85rem; color:var(--sub)}
+.form input,.form select,.form textarea{font:inherit; font-size:1rem; width:100%; padding:10px 12px; border-radius:10px; border:2px solid var(--line); background:var(--paper); color:var(--ink)}
+.form textarea{min-height:4.5em; resize:vertical}
+.row2{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.check{display:flex; align-items:center; gap:10px; font-weight:700}
+.check input{width:26px; height:26px}
+
+/* ---------- quiz ---------- */
+.bar{display:flex; align-items:center; gap:12px}
+.quit{flex:none; width:52px; height:52px; border-radius:50%; border:2px solid var(--line); background:var(--card); font-size:1.3rem; font-weight:900; line-height:1}
+.dots{flex:1; display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; min-width:0}
+.dots i{height:12px; border-radius:6px; background:var(--line)}
+.dots i.now{background:var(--ink)} .dots i.ok{background:var(--pen)} .dots i.ng{background:var(--x)}
+.count{flex:none; font-family:var(--display); font-size:1.4rem}
+.qcard{position:relative; background:var(--card); border:2px solid var(--ink); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:12px; min-height:0}
+.qtext{margin:0; font-size:1.45rem; font-weight:700; line-height:1.65; overflow-wrap:anywhere; white-space:pre-line}
+.fig{display:flex; justify-content:center; min-height:0; flex:1}
+.fig svg{width:100%; height:100%; max-height:46vh; display:block}
+.past{align-self:flex-start; font-size:.85rem; font-weight:700; color:var(--x); background:var(--x-bg); border-radius:999px; padding:2px 12px}
+.maru{position:absolute; inset:0; margin:auto; width:170px; height:170px; pointer-events:none; opacity:.92}
+.maru circle{fill:none; stroke:var(--pen); stroke-width:9; stroke-linecap:round; stroke-dasharray:400; stroke-dashoffset:400; animation:draw .38s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.flag{align-self:flex-start; background:none; border:none; color:var(--sub); font-size:.85rem; text-decoration:underline; padding:4px 0}
+
+.answer{background:var(--card); border:2px solid var(--ink); border-radius:16px; padding:10px 16px; display:flex; align-items:center; justify-content:flex-end; gap:12px; min-height:84px}
+.answer .lbl{margin-right:auto; color:var(--sub); font-weight:700}
+.answer .val{font-family:var(--display); font-size:2.6rem; line-height:1; min-width:1ch; text-align:right; display:flex; align-items:center; gap:6px}
+.answer .val.empty{color:var(--line)}
+.answer .unit{font-size:1.4rem; font-weight:700}
+.answer.ok{border-color:var(--pen); background:var(--pen-bg)} .answer.ng{border-color:var(--x); background:var(--x-bg)}
+.frac{display:inline-flex; flex-direction:column; align-items:center; font-size:.8em; line-height:1.05}
+.frac i{font-style:normal; min-width:1.2ch; text-align:center; padding:0 4px}
+.frac i:first-child{border-bottom:3px solid currentColor}
+.frac i.cur{background:var(--marker); color:var(--on-marker); border-radius:4px}
+.pad{display:grid; grid-template-columns:repeat(4,1fr); gap:12px}
+.key{background:var(--card); border:2px solid var(--ink); border-radius:14px; box-shadow:0 3px 0 var(--line); min-height:68px; font-family:var(--display); font-size:2rem; line-height:1}
+.key.fn{font-family:var(--body); font-weight:900; font-size:.95rem; background:var(--paper); white-space:nowrap; padding:0 4px; letter-spacing:-.02em}
+.key.ok{grid-column:span 2; background:var(--marker); color:var(--on-marker); border-color:var(--on-marker); box-shadow:0 4px 0 var(--marker-edge); font-family:var(--body); font-weight:900; font-size:1.35rem}
+.key:active{transform:translateY(2px); box-shadow:0 1px 0 var(--line)}
+.key:disabled{opacity:.4}
+.after{display:flex; flex-direction:column; gap:12px}
+.verdict{margin:0; text-align:center; font-family:var(--display); font-size:1.9rem}
+.verdict.ok{color:var(--pen)} .verdict.ng{color:var(--x)}
+.explain{margin:0; background:var(--x-bg); border-left:4px solid var(--x); border-radius:10px; padding:12px 16px; font-size:1.1rem; line-height:1.8; white-space:pre-line; overflow-wrap:anywhere}
+.explain b{display:block; color:var(--x); font-size:.85rem; font-weight:900}
+.hint{margin:0; text-align:center; color:var(--sub); font-weight:700}
+
+/* ---------- result / lists ---------- */
+.score{background:var(--card); border:2px solid var(--ink); border-radius:16px; padding:20px 16px; text-align:center}
+.score .big{font-family:var(--display); font-size:4.2rem; line-height:1.1; color:var(--pen)}
+.score .big small{font-size:1.6rem; color:var(--sub)}
+.score p{margin:4px 0 0; font-weight:700}
+.list{display:flex; flex-direction:column; gap:10px; margin:0; padding:0; list-style:none}
+.list li{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:6px}
+.list .q{margin:0; font-weight:700; white-space:pre-line; overflow-wrap:anywhere}
+.list .a{margin:0; color:var(--sub)}
+.list .a b{color:var(--pen)}
+.list .mini svg{width:100%; max-height:220px}
+.tag{align-self:flex-start; font-size:.8rem; font-weight:900; border-radius:999px; padding:2px 10px}
+.tag.ok{background:var(--pen-bg); color:var(--pen)} .tag.wait{background:var(--x-bg); color:var(--x)} .tag.bad{background:var(--ink); color:var(--card)}
+.head{display:flex; align-items:center; gap:12px}
+.head h1{font-family:var(--display); font-weight:400; font-size:1.5rem}
+.preview{background:var(--card); border:2px dashed var(--line); border-radius:14px; padding:12px; display:flex; flex-direction:column; gap:8px}
+.preview svg{width:100%; max-height:340px}
+
+/* ---------- figures ---------- */
+.fg-line{fill:none; stroke:var(--fig); stroke-width:2.4; stroke-linejoin:round; stroke-linecap:round}
+.fg-thin{fill:none; stroke:var(--fig); stroke-width:1.6}
+.fg-shade{fill:var(--shade); stroke:var(--fig); stroke-width:2; stroke-linejoin:round}
+.fg-grid{stroke:var(--fig); stroke-width:1; opacity:.55}
+.fg-text{fill:var(--fig); font-family:var(--body); font-weight:700; font-size:19px; text-anchor:middle; dominant-baseline:central}
+.fg-ask{fill:var(--pen); font-family:var(--body); font-weight:900; font-size:22px; text-anchor:middle; dominant-baseline:central}
+.fg-dot{fill:var(--x)}
+
+/* ---------- iPad sideways: problem left, answer pad right ---------- */
+@media (min-width:900px) and (orientation:landscape){
+  .app.wide{padding-block:12px}
+  #quiz{display:grid; height:calc(100dvh - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); min-height:460px;
+    grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); column-gap:36px; row-gap:12px;
+    grid-template-rows:auto minmax(0,1fr) auto; grid-template-areas:"bar bar" "q right" "flag right"}
+  #quiz .bar{grid-area:bar} #qcard{grid-area:q} #flagBtn{grid-area:flag} #right{grid-area:right; min-height:0; display:flex; flex-direction:column; gap:14px}
+  #right .pad{flex:1; min-height:0; grid-auto-rows:1fr}
+  .key{min-height:0}
+  .fig svg{max-height:none}
+  #after{min-height:0; overflow:auto}
+}
+@media (prefers-reduced-motion: reduce){ .maru circle{animation:none; stroke-dashoffset:0} .go:active,.key:active{transform:none} }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+<!-- ================= HOME ================= -->
+<section class="screen" id="home">
+  <div class="brand">
+    <svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="23" fill="none" stroke="var(--pen)" stroke-width="7" stroke-linecap="round" stroke-dasharray="138 8" transform="rotate(-70 30 30)"/></svg>
+    <div><h1>まるつけ算数</h1><p id="bankInfo">問題を読みこんでいます…</p></div>
+  </div>
+  <div class="sets" id="setList" role="group" aria-label="問題セット"></div>
+  <div class="tally">
+    <div><b id="tAll">0</b><span>出題できる問題</span></div>
+    <div><b id="tDone">0</b><span>やった問題</span></div>
+    <div><b id="tWrong">0</b><span>まちがえた問題</span></div>
+  </div>
+  <div class="mode">
+    <h2>まだ正解していない問題から10問</h2>
+    <p id="newInfo"></p>
+    <button class="go" id="startNew" type="button">スタート</button>
+  </div>
+  <div class="mode">
+    <h2>まちがえたことがある問題から10問</h2>
+    <p id="weakInfo"></p>
+    <button class="go" id="startWeak" type="button">スタート</button>
+  </div>
+  <div class="links">
+    <button class="plain" id="openCheck" type="button">問題チェック（大人用）</button>
+    <button class="plain" id="openMake" type="button">問題をつくる（大人用）</button>
+  </div>
+  <details>
+    <summary>問題セットを追加・更新する</summary>
+    <div class="form">
+      <label for="setName">セットの名前（例：角度、面積）</label>
+      <input id="setName" type="text" maxlength="20" autocomplete="off" placeholder="角度">
+      <label for="sheetUrl">Google スプレッドシートのURL。列は 種類・データ・問題文・答え・単位・解説・確認 の順。共有は「リンクを知っている全員が閲覧可」にしてください。</label>
+      <input id="sheetUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…">
+      <button class="plain" id="addBtn" type="button">読みこんで登録する</button>
+      <p class="note" id="syncNote" aria-live="polite"></p>
+      <button class="plain" id="reloadBtn" type="button" hidden>いまのセットを読みこみ直す</button>
+      <button class="plain" id="removeBtn" type="button" hidden>いまのセットを一覧から外す</button>
+    </div>
+  </details>
+</section>
+
+<!-- ================= QUIZ ================= -->
+<section class="screen" id="quiz" hidden>
+  <div class="bar">
+    <button class="quit" id="quitBtn" type="button" aria-label="やめる">✕</button>
+    <div class="dots" id="dots"></div>
+    <div class="count" id="count">1/10</div>
+  </div>
+  <div class="qcard" id="qcard">
+    <span class="past" id="past" hidden></span>
+    <p class="qtext" id="qtext"></p>
+    <div class="fig" id="qfig"></div>
+  </div>
+  <button class="flag" id="flagBtn" type="button">この問題、へんかも？（おうちの人に知らせる）</button>
+  <div id="right">
+    <div class="answer" id="answer"><span class="lbl">こたえ</span><span class="val empty" id="aval">？</span><span class="unit" id="aunit"></span></div>
+    <div class="pad" id="pad">
+      <button class="key" type="button" data-k="7">7</button><button class="key" type="button" data-k="8">8</button><button class="key" type="button" data-k="9">9</button><button class="key fn" type="button" data-k="back">1文字けす</button>
+      <button class="key" type="button" data-k="4">4</button><button class="key" type="button" data-k="5">5</button><button class="key" type="button" data-k="6">6</button><button class="key fn" type="button" data-k="clear">ぜんぶけす</button>
+      <button class="key" type="button" data-k="1">1</button><button class="key" type="button" data-k="2">2</button><button class="key" type="button" data-k="3">3</button><button class="key fn" type="button" data-k="frac">分数</button>
+      <button class="key" type="button" data-k="0">0</button><button class="key" type="button" data-k=".">.</button><button class="key ok" type="button" data-k="enter">こたえる</button>
+    </div>
+    <div class="after" id="after" hidden>
+      <p class="verdict" id="verdict"></p>
+      <p class="hint" id="rightAns"></p>
+      <p class="explain" id="explain" hidden></p>
+      <button class="go" id="nextBtn" type="button">つぎへ</button>
+    </div>
+  </div>
+</section>
+
+<!-- ================= RESULT ================= -->
+<section class="screen" id="result" hidden>
+  <div class="score"><div class="big"><span id="rScore">0</span><small> / <span id="rTotal">10</span></small></div><p id="rMsg"></p></div>
+  <ul class="list" id="rMiss"></ul>
+  <button class="go" id="retryMiss" type="button" hidden>まちがえた問題をもう一回</button>
+  <button class="plain" id="homeBtn" type="button">ホームにもどる</button>
+</section>
+
+<!-- ================= CHECK (adults) ================= -->
+<section class="screen" id="check" hidden>
+  <div class="head"><button class="quit" id="checkBack" type="button" aria-label="もどる">←</button><h1>問題チェック</h1></div>
+  <p class="note" id="checkNote"></p>
+  <ul class="list" id="checkList"></ul>
+</section>
+
+<!-- ================= MAKE (adults) ================= -->
+<section class="screen" id="make" hidden>
+  <div class="head"><button class="quit" id="makeBack" type="button" aria-label="もどる">←</button><h1>問題をつくる</h1></div>
+  <div class="form">
+    <label for="mType">種類</label>
+    <select id="mType"><option>角度</option><option>方眼</option><option>正多角形</option><option>文章</option></select>
+    <p class="note" id="mHelp"></p>
+    <label for="mData">データ</label>
+    <textarea id="mData" autocomplete="off" spellcheck="false"></textarea>
+    <div class="row2" id="gridTools" hidden>
+      <button class="plain" id="mNextShape" type="button">次の図形を始める</button>
+      <button class="plain" id="mUndo" type="button">点を1つもどす</button>
+    </div>
+    <label for="mText">問題文（空なら自動でつくります。文章問題では必要）</label>
+    <textarea id="mText" autocomplete="off"></textarea>
+    <div class="row2">
+      <div><label for="mAns">答え（図の問題は空でOK。入れると計算と照合）</label><input id="mAns" type="text" autocomplete="off"></div>
+      <div><label for="mUnit">単位（文章問題用。例：cm、円、人）</label><input id="mUnit" type="text" autocomplete="off"></div>
+    </div>
+    <label for="mExp">解説（空なら自動。図の問題では自動の解説の後ろにつけ足します）</label>
+    <textarea id="mExp" autocomplete="off"></textarea>
+  </div>
+  <div class="preview" id="mPreview"></div>
+  <label class="check"><input type="checkbox" id="mOk"> 図と答えをたしかめた（確認列に ○ が入ります）</label>
+  <button class="go" id="mCopy" type="button">スプレッドシートに貼る1行をコピー</button>
+  <button class="plain" id="mCopyHead" type="button">見出しの行をコピー（新しいシートを作るとき）</button>
+  <p class="note" id="mNote" aria-live="polite"></p>
+</section>
+
+</div>
+
+<script>
+/* =====================================================================
+   ENGINE: turns one spreadsheet row into a checked problem.
+   Every figure is drawn from the same numbers the answer is computed from,
+   and anything that cannot be a correct problem is refused with a reason.
+   ===================================================================== */
+var Engine=(function(){
+"use strict";
+function gcd(a,b){a=Math.abs(a);b=Math.abs(b);while(b){var t=a%b;a=b;b=t}return a||1}
+function Q(n,d){ if(d===undefined)d=1; if(d<0){n=-n;d=-d} var g=gcd(n,d); return {n:n/g,d:d/g} }
+function qEq(a,b){return a&&b&&a.n*b.d===b.n*a.d}
+function fromDecimal(str){ // "12.5" -> 125/10, exact
+  var m=String(str).match(/^(\d*)(?:\.(\d+))?$/); if(!m||(m[1]===""&&!m[2]))return null;
+  var dec=m[2]||"", den=Math.pow(10,dec.length); return Q(parseInt((m[1]||"0")+dec,10),den) }
+function parseNum(s){ // "12", "12.5", "3/4", "2と1/3", "2 1/3" -> exact fraction
+  s=String(s==null?"":s).normalize("NFKC").replace(/\s+/g," ").trim().replace(/,/g,"");
+  if(!s)return null;
+  var m=s.match(/^(\d+)\s*(?:と|\s)\s*(\d+)\s*\/\s*(\d+)$/);
+  if(m){var d=+m[3]; if(!d)return null; return Q(+m[1]*d+ +m[2],d)}
+  m=s.match(/^(\d*\.?\d+)\s*\/\s*(\d*\.?\d+)$/);
+  if(m){var a=fromDecimal(m[1]),b=fromDecimal(m[2]); if(!a||!b||!b.n)return null; return Q(a.n*b.d,a.d*b.n)}
+  return fromDecimal(s) }
+function fmt(q){ if(!q)return ""; if(q.d===1)return String(q.n);
+  var d=q.d; while(d%2===0)d/=2; while(d%5===0)d/=5;
+  if(d===1){var v=q.n/q.d; return String(+v.toFixed(6))}
+  return q.n+"/"+q.d }
+function niceQ(x){ // float that should be a short decimal -> exact fraction, or null
+  var r=Math.round(x*100); if(Math.abs(x*100-r)>1e-6)return null; return Q(r,100) }
+var KANJI_N={3:"三",4:"四",5:"五",6:"六",7:"七",8:"八",9:"九",10:"十",12:"十二"};
+function nName(n){return (KANJI_N[n]||String(n))+"角形"}
+function esc(s){return String(s).replace(/[&<>"]/g,function(c){return {"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]})}
+
+/* ---------- 角度: polygon angles ---------- */
+// data like "50, 直角, ア, 115"  /  "外50, イ, 85, 160, 直角"
+function parseAngles(data){
+  var toks=String(data).normalize("NFKC").split(/[,、，\s]+/).filter(Boolean), out=[];
+  for(var i=0;i<toks.length;i++){ var t=toks[i], ext=false, m;
+    if(/^外/.test(t)){ext=true; t=t.slice(1)}
+    if(t==="直角"){ if(ext)return {err:"「外直角」は使えません。"}; out.push({val:90,ext:false}); continue }
+    if((m=t.match(/^(\d+(?:\.\d+)?)°?$/))){ out.push({val:+m[1],ext:ext}); continue }
+    if(/^[ア-ンa-zA-Z]$/.test(t)){ out.push({ask:t,ext:ext}); continue }
+    return {err:"「"+toks[i]+"」がわかりません。数字・直角・外50・ア のように書いてください。"} }
+  return {list:out} }
+function solveAngles(data){
+  var p=parseAngles(data); if(p.err)return {err:p.err};
+  var L=p.list, n=L.length;
+  if(n<3||n>8)return {err:"角の数は3〜8こにしてください（いま "+n+"こ）。"};
+  var asks=L.filter(function(a){return a.ask});
+  if(asks.length!==1)return {err:"聞く角（ア など）は1つだけにしてください（いま "+asks.length+"こ）。"};
+  var total=180*(n-2), known=0, steps=[], parts=[];
+  for(var i=0;i<n;i++){ var a=L[i];
+    if(a.ask)continue;
+    if(a.val<=0||a.val>=180)return {err:"角度 "+a.val+"° は図にできません（0°より大きく180°より小さくしてください）。"};
+    a.inner=a.ext?180-a.val:a.val; known+=a.inner; parts.push(a.inner);
+    if(a.ext)steps.push("外側の "+a.val+"° のとなりの角は、180−"+a.val+"＝"+a.inner+"°") }
+  var x=total-known, A=asks[0];
+  if(!(x>0&&x<180))return {err:"この数字では "+nName(n)+" になりません（"+A.ask+" の内側の角が "+x+"° になります）。数字をたしかめてください。"};
+  if(Math.abs(x-Math.round(x))>1e-9)return {err:"答えが整数になりません（"+x+"°）。"};
+  A.inner=x;
+  var ans=A.ext?180-x:x;
+  var exp=steps.concat([nName(n)+"の角の和は、180×("+n+"−2)＝"+total+"°",
+    A.ask+(A.ext?" のとなりの内側の角":"")+"は、"+total+"−("+parts.join("＋")+")＝"+x+"°"]);
+  if(A.ext)exp.push(A.ask+" は外側の角なので、180−"+x+"＝"+ans+"°");
+  return {list:L, n:n, answer:Q(Math.round(ans)), unit:"°", ask:A.ask,
+    text:"下の図の角"+A.ask+"の大きさは何度ですか。", explain:exp.join("\n")} }
+
+function polygonFromAngles(inner){ // side lengths close to equal; null if no good shape
+  var n=inner.length, dirs=[], h=0;
+  for(var i=0;i<n;i++){ dirs.push([Math.cos(h),Math.sin(h)]); h+=Math.PI-inner[(i+1)%n]*Math.PI/180 }
+  function solve(t){ // least squares: L closest to t with sum L_i*dir_i = 0
+    var a=0,b=0,c=0,ux=0,uy=0;
+    for(var i=0;i<n;i++){ var x=dirs[i][0],y=dirs[i][1]; a+=x*x; b+=x*y; c+=y*y; ux+=t[i]*x; uy+=t[i]*y }
+    var det=a*c-b*b; if(Math.abs(det)<1e-12)return null;
+    var l1=( c*ux-b*uy)/det, l2=(-b*ux+a*uy)/det;
+    return t.map(function(v,i){return v-(l1*dirs[i][0]+l2*dirs[i][1])}) }
+  var best=null, bestMin=-1, seed=1;
+  function rnd(){seed=(seed*16807)%2147483647; return seed/2147483647}
+  for(var k=0;k<600;k++){
+    var t=[]; for(var i=0;i<n;i++)t.push(k===0?1:0.55+rnd()*0.9);
+    var L=solve(t); if(!L)continue;
+    var mx=Math.max.apply(null,L), mn=Math.min.apply(null,L)/mx;
+    if(mn>bestMin){bestMin=mn; best=L} if(k>40&&bestMin>0.55)break }
+  if(!best||bestMin<0.18)return null;
+  var pts=[[0,0]]; for(var i=0;i<n-1;i++){var p=pts[i]; pts.push([p[0]+best[i]*dirs[i][0], p[1]+best[i]*dirs[i][1]])}
+  // vertex i of the data sits where side i-1 meets side i -> pts are ordered so pts[i] is vertex for inner[i]
+  return pts }
+
+function drawAngles(sol){
+  var L=sol.list, n=sol.n, inner=L.map(function(a){return a.inner});
+  var raw=polygonFromAngles(inner); if(!raw)return null;
+  // put the longest side at the bottom
+  var li=0, ll=0; for(var i=0;i<n;i++){var a=raw[i],b=raw[(i+1)%n],d=Math.hypot(b[0]-a[0],b[1]-a[1]); if(d>ll){ll=d;li=i}}
+  var a0=raw[li], b0=raw[(li+1)%n], rot=-Math.atan2(b0[1]-a0[1],b0[0]-a0[0]);
+  var pts=raw.map(function(p){return [p[0]*Math.cos(rot)-p[1]*Math.sin(rot), p[0]*Math.sin(rot)+p[1]*Math.cos(rot)]});
+  // exterior extension lines: extend side (i-1 -> i) beyond vertex i
+  var W=420,H=320,M=58, xs=pts.map(function(p){return p[0]}), ys=pts.map(function(p){return p[1]});
+  var minx=Math.min.apply(null,xs),maxx=Math.max.apply(null,xs),miny=Math.min.apply(null,ys),maxy=Math.max.apply(null,ys);
+  var s=Math.min((W-2*M)/(maxx-minx||1),(H-2*M)/(maxy-miny||1));
+  var P=pts.map(function(p){return [M+(p[0]-minx)*s+((W-2*M)-(maxx-minx)*s)/2, H-M-(p[1]-miny)*s-((H-2*M)-(maxy-miny)*s)/2]});
+  var out=['<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="図">'];
+  out.push('<polygon class="fg-line" points="'+P.map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1)}).join(" ")+'"/>');
+  for(var i=0;i<n;i++){
+    var V=P[i], Pp=P[(i-1+n)%n], N=P[(i+1)%n], a=L[i];
+    var u1=unit([Pp[0]-V[0],Pp[1]-V[1]]), u2=unit([N[0]-V[0],N[1]-V[1]]);
+    var side=Math.min(dist(V,Pp),dist(V,N)), r=Math.max(14,Math.min(30,side*0.22));
+    var label=a.ask?a.ask:(a.ext?a.val+"°":a.inner+"°"), cls=a.ask?"fg-ask":"fg-text";
+    if(a.ext){
+      var ue=unit([V[0]-Pp[0],V[1]-Pp[1]]), len=Math.min(70,side*0.55);
+      out.push('<line class="fg-line" x1="'+V[0].toFixed(1)+'" y1="'+V[1].toFixed(1)+'" x2="'+(V[0]+ue[0]*len).toFixed(1)+'" y2="'+(V[1]+ue[1]*len).toFixed(1)+'"/>');
+      out.push(arc(V,ue,u2,r));
+      var bi=unit([ue[0]+u2[0],ue[1]+u2[1]]); out.push(text(V[0]+bi[0]*(r+20),V[1]+bi[1]*(r+20),label,cls));
+    }else{
+      var bi2=unit([u1[0]+u2[0],u1[1]+u2[1]]);
+      if(!a.ask&&a.inner===90){ var q=12;
+        out.push('<path class="fg-thin" d="M'+(V[0]+u1[0]*q).toFixed(1)+' '+(V[1]+u1[1]*q).toFixed(1)+' L'+(V[0]+(u1[0]+u2[0])*q).toFixed(1)+' '+(V[1]+(u1[1]+u2[1])*q).toFixed(1)+' L'+(V[0]+u2[0]*q).toFixed(1)+' '+(V[1]+u2[1]*q).toFixed(1)+'"/>');
+      }else{
+        out.push(arc(V,u1,u2,r));
+        var dlab=r+(label.length>3?24:19); out.push(text(V[0]+bi2[0]*dlab,V[1]+bi2[1]*dlab,label,cls));
+      }
+    }
+  }
+  out.push('</svg>'); return out.join("") }
+function unit(v){var l=Math.hypot(v[0],v[1])||1; return [v[0]/l,v[1]/l]}
+function dist(a,b){return Math.hypot(a[0]-b[0],a[1]-b[1])}
+function arc(V,u1,u2,r){ var sx=V[0]+u1[0]*r, sy=V[1]+u1[1]*r, ex=V[0]+u2[0]*r, ey=V[1]+u2[1]*r, cr=u1[0]*u2[1]-u1[1]*u2[0];
+  return '<path class="fg-thin" d="M'+sx.toFixed(1)+' '+sy.toFixed(1)+' A'+r+' '+r+' 0 0 '+(cr>0?1:0)+' '+ex.toFixed(1)+' '+ey.toFixed(1)+'"/>' }
+function text(x,y,t,cls){return '<text class="'+(cls||"fg-text")+'" x="'+x.toFixed(1)+'" y="'+y.toFixed(1)+'">'+esc(t)+'</text>'}
+
+/* ---------- 方眼: shapes on 1cm grid paper ---------- */
+// data like "6x4: (0,0)(1,4)(3,0) / (3,0)(5,4)(5,0)"   (x from the left, y from the bottom)
+function parseGrid(data){
+  var s=String(data).normalize("NFKC"), m=s.match(/^\s*(\d+)\s*[x×*]\s*(\d+)\s*[:：]?(.*)$/i);
+  if(!m)return {err:"最初に方眼の大きさを「横x縦:」で書いてください（例 6x4: (0,0)(1,4)(3,0)）。"};
+  var W=+m[1], H=+m[2]; if(W<1||H<1||W>14||H>12)return {err:"方眼は横14・縦12マスまでにしてください。"};
+  var shapes=[], parts=m[3].split("/");
+  for(var i=0;i<parts.length;i++){ var pts=[], re=/\(\s*(-?\d+)\s*,\s*(-?\d+)\s*\)/g, mm;
+    while((mm=re.exec(parts[i])))pts.push([+mm[1],+mm[2]]);
+    if(!pts.length&&!parts[i].trim())continue;
+    if(pts.length<3)return {err:(i+1)+"つ目の図形の点が "+pts.length+"こです。3こ以上にしてください。",W:W,H:H,shapes:shapes.concat([pts])};
+    shapes.push(pts) }
+  if(!shapes.length)return {err:"点がまだありません。(横,縦) の形で点を書くか、図をタップしてください。",W:W,H:H,shapes:[]};
+  return {W:W,H:H,shapes:shapes} }
+function area2(p){var s=0; for(var i=0;i<p.length;i++){var a=p[i],b=p[(i+1)%p.length]; s+=a[0]*b[1]-b[0]*a[1]} return s}
+function segX(a,b,c,d){ function o(p,q,r){var v=(q[0]-p[0])*(r[1]-p[1])-(q[1]-p[1])*(r[0]-p[0]); return v>0?1:v<0?-1:0}
+  return o(a,b,c)*o(a,b,d)<0&&o(c,d,a)*o(c,d,b)<0 }
+function inside(pt,p){var c=false; for(var i=0,j=p.length-1;i<p.length;j=i++){var a=p[i],b=p[j];
+  if(((a[1]>pt[1])!==(b[1]>pt[1]))&&(pt[0]<(b[0]-a[0])*(pt[1]-a[1])/(b[1]-a[1])+a[0]))c=!c} return c}
+function solveGrid(data){
+  var g=parseGrid(data); if(g.err)return {err:g.err, grid:g};
+  var total2=0, exp=[], names=[];
+  for(var i=0;i<g.shapes.length;i++){ var p=g.shapes[i];
+    for(var k=0;k<p.length;k++)if(p[k][0]<0||p[k][1]<0||p[k][0]>g.W||p[k][1]>g.H)return {err:"点 ("+p[k]+") が方眼の外に出ています。",grid:g};
+    for(var e=0;e<p.length;e++)for(var f=e+2;f<p.length;f++){ if(e===0&&f===p.length-1)continue;
+      if(segX(p[e],p[(e+1)%p.length],p[f],p[(f+1)%p.length]))return {err:(i+1)+"つ目の図形の辺が交差しています。点の順番をたしかめてください。",grid:g} }
+    var a2=Math.abs(area2(p)); if(!a2)return {err:(i+1)+"つ目の図形がつぶれています（点が一直線）。",grid:g};
+    total2+=a2; names.push(p.length===3?"三角形":p.length===4?"四角形":"図形");
+    exp.push(gridExplain(p,a2,g.shapes.length>1?(i+1)+"つ目の"+names[i]:"")) }
+  // shaded shapes must not overlap
+  for(var i=0;i<g.shapes.length;i++)for(var j=i+1;j<g.shapes.length;j++)
+    for(var x=0.05;x<g.W;x+=0.1)for(var y=0.05;y<g.H;y+=0.1)
+      if(inside([x,y],g.shapes[i])&&inside([x,y],g.shapes[j]))return {err:(i+1)+"つ目と"+(j+1)+"つ目の図形が重なっています。",grid:g};
+  var ans=Q(total2,2), multi=g.shapes.length>1;
+  if(multi)exp.push("合わせて "+fmt(ans)+"cm²");
+  return {grid:g, answer:ans, unit:"cm²",
+    text:"方眼の1目もりは1cmです。\n"+(multi?"かげの部分の面積の和は何cm²ですか。":"かげをつけた"+names[0]+"の面積は何cm²ですか。"),
+    explain:exp.join("\n")} }
+function gridExplain(p,a2,pre){
+  var A=Q(a2,2), head=pre?pre+"：":"";
+  if(p.length===3){
+    for(var i=0;i<3;i++){ var a=p[i],b=p[(i+1)%3],c=p[(i+2)%3];
+      if(a[1]===b[1]){var base=Math.abs(a[0]-b[0]),h=Math.abs(c[1]-a[1]); return head+"底辺 "+base+"cm、高さ "+h+"cm なので "+base+"×"+h+"÷2＝"+fmt(A)+"cm²"}
+      if(a[0]===b[0]){var base2=Math.abs(a[1]-b[1]),h2=Math.abs(c[0]-a[0]); return head+"底辺 "+base2+"cm、高さ "+h2+"cm なので "+base2+"×"+h2+"÷2＝"+fmt(A)+"cm²"} }
+    var xs=p.map(function(q){return q[0]}), ys=p.map(function(q){return q[1]});
+    var x0=Math.min.apply(null,xs),x1=Math.max.apply(null,xs),y0=Math.min.apply(null,ys),y1=Math.max.apply(null,ys);
+    var onEdge=p.every(function(q){return q[0]===x0||q[0]===x1||q[1]===y0||q[1]===y1});
+    if(onEdge){ var W=x1-x0,H=y1-y0, cut=[];
+      for(var i=0;i<3;i++){var a=p[i],b=p[(i+1)%3]; var w=Math.abs(a[0]-b[0]),h=Math.abs(a[1]-b[1]); if(w&&h)cut.push(w+"×"+h+"÷2")}
+      return head+"まわりの長方形 "+W+"×"+H+"＝"+(W*H)+"cm² から、はみ出した直角三角形（"+cut.join("、")+"）をひいて "+fmt(A)+"cm²" } }
+  return head+"面積は "+fmt(A)+"cm²" }
+function drawGrid(g,opts){
+  opts=opts||{}; var c=Math.min(380/g.W,280/g.H,60), M=20, W=g.W*c+2*M, H=g.H*c+2*M;
+  function X(x){return M+x*c} function Y(y){return M+(g.H-y)*c}
+  var out=['<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="方眼の図"'+(opts.tap?' data-cell="'+c+'" data-m="'+M+'" data-h="'+g.H+'"':'')+'>'];
+  out.push('<rect x="0" y="0" width="'+W+'" height="'+H+'" fill="transparent"/>');
+  for(var i=0;i<=g.W;i++)out.push('<line class="fg-grid" x1="'+X(i)+'" y1="'+Y(0)+'" x2="'+X(i)+'" y2="'+Y(g.H)+'"/>');
+  for(var j=0;j<=g.H;j++)out.push('<line class="fg-grid" x1="'+X(0)+'" y1="'+Y(j)+'" x2="'+X(g.W)+'" y2="'+Y(j)+'"/>');
+  (g.shapes||[]).forEach(function(p){
+    if(p.length>=3)out.push('<polygon class="fg-shade" points="'+p.map(function(q){return X(q[0])+","+Y(q[1])}).join(" ")+'"/>');
+    else if(p.length===2)out.push('<line class="fg-line" x1="'+X(p[0][0])+'" y1="'+Y(p[0][1])+'" x2="'+X(p[1][0])+'" y2="'+Y(p[1][1])+'"/>');
+    if(opts.tap)p.forEach(function(q){out.push('<circle class="fg-dot" cx="'+X(q[0])+'" cy="'+Y(q[1])+'" r="5"/>')}) });
+  out.push('<rect x="'+X(0)+'" y="'+Y(g.H)+'" width="'+g.W*c+'" height="'+g.H*c+'" fill="none" stroke="var(--fig)" stroke-width="1.6"/>');
+  out.push('</svg>'); return out.join("") }
+
+/* ---------- 正多角形: regular polygon with two diagonals through the center ---------- */
+// data like "12, 20, 三角形"  (sides, length of AB, what to ask: 角 / 三角形 / 全体)
+function solveRegular(data){
+  var t=String(data).normalize("NFKC").split(/[,、，\s]+/).filter(Boolean);
+  if(t.length!==3)return {err:"「辺の数, ABの長さ, 聞くこと」の3つを書いてください（例 12, 20, 三角形）。"};
+  var n=+t[0], d=parseNum(t[1]), ask=t[2];
+  if(!(n>=4&&n<=24&&n%2===0))return {err:"辺の数は4〜24の偶数にしてください（ABが中心を通る対角線になるように）。"};
+  if(!d||!(d.n>0))return {err:"ABの長さを数で書いてください。"};
+  if(["角","三角形","全体"].indexOf(ask)<0)return {err:"聞くことは 角・三角形・全体 のどれかにしてください。"};
+  var name="正"+nName(n), D=d.n/d.d, r=D/2, ang=360/n;
+  var base=name+"の中に、2本の対角線AB、CDを引きました。OはABとCDが交わる点です。ABの長さが"+fmt(d)+"cmのとき、";
+  var ex1=name+"の頂点は中心Oのまわりを"+n+"等分しているので、角AOC＝360÷"+n+"＝"+fmt(niceQ(ang)||Q(360,n))+"°";
+  if(ask==="角"){ var aq=Q(360,n); return {n:n,D:D,ask:ask,answer:aq,unit:"°",text:base+"角AOCの大きさは何度ですか。",explain:ex1} }
+  var tri=r*r*Math.sin(2*Math.PI/n)/2, triQ=niceQ(tri);
+  if(!triQ)return {err:"正"+nName(n)+"では、三角形AOCの面積が小学校の計算で出せる数になりません。正十二角形か正方形にしてください。"};
+  var rq=niceQ(r), exTri;
+  if(n===12)exTri="OA＝OC＝"+fmt(rq)+"cm。CからOAに垂直な線をひくと、角AOC＝30°なので、高さはOCの半分の "+fmt(niceQ(r/2))+"cm（正三角形を半分にした形）。\n三角形AOC＝"+fmt(rq)+"×"+fmt(niceQ(r/2))+"÷2＝"+fmt(triQ)+"cm²";
+  else if(n===4)exTri="OA＝OC＝"+fmt(rq)+"cm で、角AOC＝90°なので、三角形AOC＝"+fmt(rq)+"×"+fmt(rq)+"÷2＝"+fmt(triQ)+"cm²";
+  else exTri="三角形AOC＝"+fmt(triQ)+"cm²";
+  if(ask==="三角形")return {n:n,D:D,ask:ask,answer:triQ,unit:"cm²",text:base+"三角形AOCの面積は何cm²ですか。",explain:ex1+"\n"+exTri};
+  var all=niceQ(tri*n); if(!all)return {err:"全体の面積がきれいな数になりません。"};
+  return {n:n,D:D,ask:ask,answer:all,unit:"cm²",text:base+name+"の面積は何cm²ですか。",
+    explain:ex1+"\n"+exTri+"\n"+name+"は三角形AOCと同じ三角形 "+n+"こに分けられるので、"+fmt(triQ)+"×"+n+"＝"+fmt(all)+"cm²"} }
+function drawRegular(sol){
+  var n=sol.n, W=360,H=360, cx=180, cy=182, R=140, pts=[];
+  for(var i=0;i<n;i++){var th=-Math.PI/2+2*Math.PI*i/n; pts.push([cx+R*Math.cos(th),cy+R*Math.sin(th)])}
+  var A=pts[0], C=pts[1], B=pts[n/2], D=pts[1+n/2];
+  var out=['<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="正多角形の図">'];
+  if(sol.ask==="三角形")out.push('<polygon class="fg-shade" points="'+[A,[cx,cy],C].map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1)}).join(" ")+'"/>');
+  out.push('<polygon class="fg-line" points="'+pts.map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1)}).join(" ")+'"/>');
+  out.push('<line class="fg-line" x1="'+A[0]+'" y1="'+A[1]+'" x2="'+B[0]+'" y2="'+B[1]+'"/>');
+  out.push('<line class="fg-line" x1="'+C[0].toFixed(1)+'" y1="'+C[1].toFixed(1)+'" x2="'+D[0].toFixed(1)+'" y2="'+D[1].toFixed(1)+'"/>');
+  function lab(p,t){var v=unit([p[0]-cx,p[1]-cy]); out.push(text(p[0]+v[0]*18,p[1]+v[1]*18,t))}
+  lab(A,"A"); lab(B,"B"); lab(C,"C"); lab(D,"D");
+  out.push(text(cx-16,cy+4,"O"));
+  out.push('</svg>'); return out.join("") }
+
+/* ---------- 文章: word problems with a typed answer ---------- */
+function solveText(row){
+  if(!row.text)return {err:"文章問題は「問題文」が必要です。"};
+  var a=parseNum(row.answer); if(!a)return {err:"答え「"+(row.answer||"")+"」を数として読めません（例 12、2.5、3/4、2と1/3）。"};
+  return {answer:a, unit:row.unit||"", text:row.text, explain:""} }
+
+/* ---------- one row -> problem ---------- */
+var TYPES=["角度","方眼","正多角形","文章"];
+function build(row){
+  var type=String(row.type||"").trim(), sol, svg="";
+  if(type==="角度"){ sol=solveAngles(row.data); if(!sol.err){ svg=drawAngles(sol); if(!svg)sol={err:"この角度では、きれいな図がかけません。数字をたしかめてください。"} } }
+  else if(type==="方眼"){ sol=solveGrid(row.data); if(!sol.err)svg=drawGrid(sol.grid) }
+  else if(type==="正多角形"){ sol=solveRegular(row.data); if(!sol.err)svg=drawRegular(sol) }
+  else if(type==="文章"){ sol=solveText(row) }
+  else sol={err:"種類「"+type+"」は使えません（"+TYPES.join("・")+"）。"};
+  if(sol.err)return {ok:false, err:sol.err, row:row, partial:sol};
+  if(type!=="文章"&&String(row.answer||"").trim()){
+    var given=parseNum(String(row.answer).replace(/[°度cm²㎠平方センチメートル\s]/g,""));
+    if(!given||!qEq(given,sol.answer))return {ok:false, row:row, err:"答えの列（"+row.answer+"）と、図から計算した答え（"+fmt(sol.answer)+(sol.unit||"")+"）が合いません。"} }
+  var exp=[sol.explain,row.explain].filter(function(s){return s&&String(s).trim()}).join("\n");
+  return {ok:true, row:row, type:type, text:String(row.text||"").trim()||sol.text, svg:svg, answer:sol.answer, unit:sol.unit,
+    explain:exp, confirmed:/^(○|◯|o|O|ok|OK|済|1|true)$/.test(String(row.confirmed||"").trim())} }
+
+return {build:build, parseNum:parseNum, fmt:fmt, qEq:qEq, Q:Q, parseGrid:parseGrid, drawGrid:drawGrid, solveGrid:solveGrid, TYPES:TYPES};
+})();
+</script>
+
+<script type="application/json" id="sampleData">[
+ {"type":"角度","data":"55, 直角, ア, 120","confirmed":"○"},
+ {"type":"角度","data":"外50, イ, 85, 160, 直角","confirmed":"○"},
+ {"type":"角度","data":"70, 45, ア","confirmed":"○"},
+ {"type":"角度","data":"外60, 100, 直角, ウ","confirmed":"○"},
+ {"type":"方眼","data":"6x4: (0,0)(1,4)(3,0) / (3,0)(6,4)(5,0)","confirmed":"○"},
+ {"type":"方眼","data":"5x5: (0,3)(1,5)(5,0)","confirmed":"○"},
+ {"type":"方眼","data":"6x5: (1,1)(5,1)(3,4)","confirmed":"○"},
+ {"type":"正多角形","data":"12, 24, 角","confirmed":"○"},
+ {"type":"正多角形","data":"12, 24, 三角形","confirmed":"○"},
+ {"type":"正多角形","data":"12, 24, 全体","confirmed":"○"},
+ {"type":"文章","text":"1本80円のえんぴつを6本と、120円のノートを1さつ買いました。代金は全部で何円ですか。","answer":"600","unit":"円","explain":"80×6＝480円、480＋120＝600円","confirmed":"○"},
+ {"type":"文章","text":"2/3 L のジュースを4人で同じ量ずつ分けます。1人分は何Lですか。（分数で答えましょう）","answer":"1/6","unit":"L","explain":"2/3÷4＝2/12＝1/6 L","confirmed":"○"},
+ {"type":"文章","text":"時速45kmで2.4時間走ると、何km進みますか。","answer":"108","unit":"km","explain":"45×2.4＝108 km","confirmed":"○"}
+]</script>
+
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id)};
+var GAME_SIZE=10;
+function el(tag,cls,text){var e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e}
+function lsGet(k,d){try{var v=localStorage.getItem(k); return v==null?d:JSON.parse(v)}catch(e){return d}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function shuffle(a){a=a.slice(); for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t} return a}
+function keyOf(s){var h=5381; for(var i=0;i<s.length;i++){h=((h<<5)+h+s.charCodeAt(i))|0} return "p"+(h>>>0).toString(36)}
+function rowKey(r){return keyOf([r.type,r.data,r.text].map(function(x){return String(x||"").trim()}).join("|"))}
+
+/* ---------- problem sets ---------- */
+var SAMPLE=JSON.parse($("sampleData").textContent);
+var sets=lsGet("sq.sets",[]), cur=lsGet("sq.cur","sample");
+var hist=lsGet("sq.hist",{}), flags=lsGet("sq.flags",{});
+var bank=[];   // built problems of the current set
+function curSet(){for(var i=0;i<sets.length;i++)if(sets[i].id===cur)return sets[i]; return null}
+function useCur(){ var s=curSet(); if(!s)cur="sample";
+  var rows=s?s.rows:SAMPLE;
+  bank=rows.map(function(r){var p=Engine.build(r); p.key=rowKey(r); return p}) }
+function playable(){return bank.filter(function(p){return p.ok&&p.confirmed&&!flags[p.key]})}
+function stat(p){return hist[p.key]||{w:0,r:0}}
+
+/* ---------- spreadsheet ---------- */
+function parseCsv(text){
+  var rows=[], row=[], cell="", q=false, i, c; text=String(text||"").replace(/^﻿/,"");
+  for(i=0;i<text.length;i++){ c=text.charAt(i);
+    if(q){ if(c==='"'){ if(text.charAt(i+1)==='"'){cell+='"'; i++} else q=false } else cell+=c }
+    else if(c==='"')q=true; else if(c===","){row.push(cell); cell=""}
+    else if(c==="\n"||c==="\r"){ if(c==="\r"&&text.charAt(i+1)==="\n")i++; row.push(cell); rows.push(row); row=[]; cell="" }
+    else cell+=c }
+  if(cell!==""||row.length){row.push(cell); rows.push(row)}
+  return rows }
+var COLS=["type","data","text","answer","unit","explain","confirmed"];
+function parseSheet(t){ var out=[];
+  parseCsv(t).forEach(function(r){ var c=r.map(function(x){return String(x).trim()});
+    if(c.every(function(x){return !x}))return; if(c[0]==="種類")return;
+    var o={}; COLS.forEach(function(k,i){o[k]=c[i]||""}); out.push(o) });
+  return out }
+function sheetCsvUrls(url){
+  var m=url.match(/\/d\/([\w-]{20,})/)||url.match(/^([\w-]{20,})$/); if(!m)return null;
+  var g=url.match(/[#&?]gid=(\d+)/), gid=g?g[1]:"", base="https://docs.google.com/spreadsheets/d/"+m[1];
+  return [base+"/gviz/tq?tqx=out:csv&headers=1"+(gid?"&gid="+gid:""), base+"/export?format=csv"+(gid?"&gid="+gid:"")] }
+function fetchCsv(urls,i){
+  return fetch(urls[i],{credentials:"omit",cache:"no-store"}).then(function(r){
+    if(!r.ok)throw {code:"http",status:r.status};
+    return r.text().then(function(t){ if(/^\s*<(!doctype|html)/i.test(t))throw {code:"private"}; return t });
+  }).catch(function(e){ if(i+1<urls.length)return fetchCsv(urls,i+1); throw e }) }
+function loadSheet(url){ var urls=sheetCsvUrls(url); if(!urls)return Promise.reject({code:"url"});
+  return fetchCsv(urls,0).then(function(t){var rows=parseSheet(t); if(!rows.length)throw {code:"empty"}; return rows}) }
+function errText(e){ var c=e&&e.code;
+  if(c==="url")return "スプレッドシートのURLを入れてください。";
+  if(c==="empty")return "問題が見つかりませんでした。列を 種類・データ・問題文・答え・単位・解説・確認 の順にしてください。";
+  if(c==="private"||(c==="http"&&(e.status===401||e.status===403||e.status===404)))return "スプレッドシートを開けませんでした。共有を「リンクを知っている全員が閲覧可」にして、URLをたしかめてください。";
+  return "読みこめませんでした。通信の状態と、シートの共有設定をたしかめてください。" }
+function setKey(url){var m=url.match(/\/d\/([\w-]{20,})/); if(!m)return null; var g=url.match(/[#&?]gid=(\d+)/); return m[1]+"|"+(g?g[1]:"")}
+function msg(t,err){var n=$("syncNote"); n.textContent=t||""; n.className="note"+(err?" err":"")}
+function summary(){ var ok=0,wait=0,bad=0; bank.forEach(function(p){ if(!p.ok)bad++; else if(!p.confirmed)wait++; else ok++ });
+  return ok+"問を出題します。"+(wait?"確認待ち "+wait+"問。":"")+(bad?"エラー "+bad+"行（問題チェックで理由を見られます）。":"") }
+var busy=false;
+function syncSet(s,quiet){ if(busy)return; busy=true; if(!quiet)msg("読みこんでいます…");
+  loadSheet(s.url).then(function(rows){ s.rows=rows; s.at=Date.now(); lsSet("sq.sets",sets); if(s.id===cur&&!game){useCur(); renderHome()} if(!quiet)msg("「"+s.name+"」 "+summary()) })
+  .catch(function(e){ if(!quiet)msg(errText(e),true) }).then(function(){busy=false}) }
+$("addBtn").addEventListener("click",function(){
+  var name=$("setName").value.trim(), url=$("sheetUrl").value.trim(), key=setKey(url), ex=null;
+  if(!key){msg(errText({code:"url"}),true); return}
+  sets.forEach(function(s){if(setKey(s.url)===key)ex=s});
+  busy=true; msg("読みこんでいます…");
+  loadSheet(url).then(function(rows){
+    var s=ex||{id:"s"+Date.now().toString(36),name:"",url:url,rows:[]};
+    s.name=name||s.name||("セット"+(sets.length+1)); s.url=url; s.rows=rows; s.at=Date.now();
+    if(!ex)sets.push(s); cur=s.id; lsSet("sq.sets",sets); lsSet("sq.cur",cur); $("setName").value=""; $("sheetUrl").value="";
+    useCur(); renderHome(); msg("「"+s.name+"」を"+(ex?"更新":"登録")+"しました。"+summary())
+  }).catch(function(e){msg(errText(e),true)}).then(function(){busy=false}) });
+$("reloadBtn").addEventListener("click",function(){var s=curSet(); if(s)syncSet(s,false)});
+var removeArmed=false;
+$("removeBtn").addEventListener("click",function(){ var s=curSet(); if(!s)return;
+  if(!removeArmed){removeArmed=true; this.textContent="ほんとうに外す？ もう一度おすと外れます"; return}
+  sets=sets.filter(function(x){return x.id!==s.id}); cur="sample"; lsSet("sq.sets",sets); lsSet("sq.cur",cur); useCur(); renderHome(); msg("「"+s.name+"」を外しました。") });
+
+/* ---------- home ---------- */
+function show(id){ ["home","quiz","result","check","make"].forEach(function(s){$(s).hidden=(s!==id)}); $("app").classList.toggle("wide",id==="quiz"); window.scrollTo(0,0) }
+function renderHome(){
+  var pl=playable(), done=0, wrong=0; pl.forEach(function(p){var s=stat(p); if(s.w+s.r)done++; if(s.w)wrong++});
+  var s=curSet(); $("bankInfo").textContent="「"+(s?s.name:"サンプル")+"」 "+pl.length+"問";
+  $("tAll").textContent=pl.length; $("tDone").textContent=done; $("tWrong").textContent=wrong;
+  var np=newPool().length, wp=weakPool().length;
+  $("newInfo").textContent=np?"あてはまる問題："+np+"問":"ぜんぶ一度は正解しました！"; $("startNew").disabled=!np;
+  $("weakInfo").textContent=wp?"あてはまる問題："+wp+"問":"まちがえた問題はまだありません。"; $("startWeak").disabled=!wp;
+  var sl=$("setList"); sl.textContent="";
+  [{id:"sample",name:"サンプル"}].concat(sets).forEach(function(x){ var on=(x.id===cur), b=el("button","chip"+(on?" on":""),x.name); b.type="button";
+    b.addEventListener("click",function(){ if(on)return; cur=x.id; lsSet("sq.cur",cur); useCur(); msg(""); renderHome(); if(curSet())syncSet(curSet(),true) }); sl.appendChild(b) });
+  $("reloadBtn").hidden=$("removeBtn").hidden=!s; removeArmed=false; $("removeBtn").textContent="いまのセットを一覧から外す";
+}
+function newPool(){return playable().filter(function(p){return !(stat(p).r>0)})}
+function weakPool(){return playable().filter(function(p){return stat(p).w>0})}
+
+/* ---------- quiz ---------- */
+var game=null, input="", shownAt=0, answeredAt=0;
+function startGame(pool){ if(!pool.length)return;
+  game={items:shuffle(pool).slice(0,GAME_SIZE).map(function(p){return {p:p,ok:null,given:""}}), i:0};
+  show("quiz"); renderQuestion() }
+function renderDots(){var d=$("dots"); d.textContent=""; game.items.forEach(function(it,i){var c=el("i"); if(it.ok===true)c.className="ok"; else if(it.ok===false)c.className="ng"; else if(i===game.i)c.className="now"; d.appendChild(c)})}
+function renderQuestion(){
+  var it=game.items[game.i], p=it.p, s=stat(p); shownAt=Date.now(); input="";
+  renderDots(); $("count").textContent=(game.i+1)+"/"+game.items.length;
+  $("qtext").textContent=p.text; $("qfig").innerHTML=p.svg||""; $("qfig").hidden=!p.svg;
+  $("past").hidden=!s.w; $("past").textContent="これまで "+s.w+"回まちがえた";
+  var old=$("qcard").querySelector(".maru"); if(old)old.remove();
+  $("aunit").textContent=p.unit||""; $("answer").className="answer";
+  $("pad").hidden=false; $("after").hidden=true; $("flagBtn").hidden=false; $("flagBtn").textContent="この問題、へんかも？（おうちの人に知らせる）"; flagArmed=false;
+  paintInput() }
+function paintInput(){
+  var v=$("aval"); v.textContent=""; v.className="val"+(input?"":" empty");
+  if(!input){v.textContent="？"; return}
+  var k=input.indexOf("/");
+  if(k<0){v.textContent=input; return}
+  var f=el("span","frac"), num=el("i",null,input.slice(0,k)||" "), den=el("i","cur",input.slice(k+1)||" ");
+  f.appendChild(num); f.appendChild(den); v.appendChild(f) }
+function press(k){
+  if(!game||game.items[game.i].ok!==null)return;
+  if(k==="enter"){ submit(); return }
+  if(k==="back"){input=input.slice(0,-1)}
+  else if(k==="clear"){input=""}
+  else if(k==="frac"){ if(input&&input.indexOf("/")<0&&input.indexOf(".")<0)input+="/" }
+  else if(k==="."){ var part=input.split("/").pop(); if(input.indexOf("/")<0&&part.indexOf(".")<0)input+=(part?"":"0")+"." }
+  else if(/^\d$/.test(k)){ if(input.replace(/[^\d]/g,"").length<9)input+=k }
+  paintInput() }
+Array.prototype.forEach.call(document.querySelectorAll("#pad .key"),function(b){ b.addEventListener("click",function(){ if(Date.now()-shownAt<300)return; press(b.dataset.k) }) });
+document.addEventListener("keydown",function(e){ if($("quiz").hidden)return;
+  var m={"Enter":"enter","Backspace":"back","Escape":"clear","/":"frac",".":"."}; var k=m[e.key]||(/^\d$/.test(e.key)?e.key:null);
+  if(k){e.preventDefault(); if(game&&game.items[game.i].ok!==null){ if(k==="enter")$("nextBtn").click(); return } press(k)} });
+function submit(){
+  var it=game.items[game.i], p=it.p;
+  if(!input||/[\/.]$/.test(input)){ flash(); return }
+  var q=Engine.parseNum(input); if(!q){flash(); return}
+  var ok=Engine.qEq(q,p.answer); it.ok=ok; it.given=input; answeredAt=Date.now();
+  record(p,ok); renderDots();
+  $("pad").hidden=true; $("after").hidden=false; $("flagBtn").hidden=false;
+  $("answer").className="answer "+(ok?"ok":"ng");
+  var last=(game.i===game.items.length-1); $("nextBtn").textContent=last?"けっかを見る":"つぎへ";
+  var ex=$("explain");
+  if(ok){
+    $("verdict").textContent="せいかい！"; $("verdict").className="verdict ok";
+    var unred=(input.indexOf("/")>0&&(function(){var a=input.split("/");return +a[1]!==q.d})());
+    $("rightAns").textContent=unred?"約分すると "+Engine.fmt(q)+" になるね。":"";
+    var ns="http://www.w3.org/2000/svg", svg=document.createElementNS(ns,"svg"), c=document.createElementNS(ns,"circle");
+    svg.setAttribute("class","maru"); svg.setAttribute("viewBox","0 0 150 150");
+    c.setAttribute("cx","75"); c.setAttribute("cy","75"); c.setAttribute("r","60"); c.setAttribute("transform","rotate(-80 75 75)");
+    svg.appendChild(c); $("qcard").appendChild(svg); ex.hidden=true;
+  }else{
+    $("verdict").textContent="ざんねん…"; $("verdict").className="verdict ng";
+    $("rightAns").textContent="正しい答えは "+Engine.fmt(p.answer)+(p.unit?" "+p.unit:"");
+    if(p.explain){ ex.textContent=""; ex.appendChild(el("b",null,"かいせつ")); ex.appendChild(document.createTextNode(p.explain)); ex.hidden=false } else ex.hidden=true;
+  } }
+function flash(){ var a=$("answer"); a.animate&&a.animate([{transform:"translateX(0)"},{transform:"translateX(-8px)"},{transform:"translateX(8px)"},{transform:"translateX(0)"}],{duration:220}) }
+function record(p,ok){var s=hist[p.key]||{w:0,r:0}; hist[p.key]={w:s.w+(ok?0:1),r:s.r+(ok?1:0),t:Date.now()}; lsSet("sq.hist",hist)}
+$("nextBtn").addEventListener("click",function(){ if(Date.now()-answeredAt<400)return; if(game.i<game.items.length-1){game.i++; renderQuestion()} else showResult() });
+var flagArmed=false;
+$("flagBtn").addEventListener("click",function(){
+  if(!flagArmed){flagArmed=true; this.textContent="もう一度おすと、この問題を出さないようにして、おうちの人に知らせます"; return}
+  var it=game.items[game.i]; flags[it.p.key]={t:Date.now(), given:it.given||input}; lsSet("sq.flags",flags);
+  this.textContent="知らせました。この問題はとばします。"; this.hidden=false;
+  setTimeout(function(){ if(!game)return; game.items.splice(game.i,1); if(!game.items.length){game=null; renderHome(); show("home"); return}
+    if(game.i>=game.items.length){showResult(); return} renderQuestion() },700) });
+$("quitBtn").addEventListener("click",function(){game=null; renderHome(); show("home")});
+function showResult(){
+  var items=game.items, total=items.length, right=items.filter(function(it){return it.ok}).length, miss=items.filter(function(it){return it.ok===false});
+  $("rScore").textContent=right; $("rTotal").textContent=total;
+  $("rMsg").textContent=right===total?"ぜんぶ正解！ はなまる！":right>=total*0.8?"あとすこしで全問正解！":"まちがえた問題をもう一回やってみよう。";
+  var ul=$("rMiss"); ul.textContent="";
+  miss.forEach(function(it){ var li=el("li"); li.appendChild(el("p","q",it.p.text));
+    var a=el("p","a"); a.appendChild(document.createTextNode("正解：")); a.appendChild(el("b",null,Engine.fmt(it.p.answer)+(it.p.unit?" "+it.p.unit:"")));
+    a.appendChild(document.createTextNode("　きみの答え："+it.given)); li.appendChild(a);
+    if(it.p.explain)li.appendChild(el("p","note",it.p.explain)); ul.appendChild(li) });
+  game.missed=miss.map(function(it){return it.p}); $("retryMiss").hidden=!miss.length;
+  show("result") }
+$("retryMiss").addEventListener("click",function(){startGame(game.missed)});
+$("homeBtn").addEventListener("click",function(){game=null; renderHome(); show("home")});
+$("startNew").addEventListener("click",function(){startGame(newPool())});
+$("startWeak").addEventListener("click",function(){startGame(weakPool())});
+
+/* ---------- check screen (adults) ---------- */
+function renderCheck(){
+  var ul=$("checkList"); ul.textContent="";
+  var flagged=bank.filter(function(p){return flags[p.key]}), bad=bank.filter(function(p){return !p.ok}),
+      wait=bank.filter(function(p){return p.ok&&!p.confirmed&&!flags[p.key]}), good=bank.filter(function(p){return p.ok&&p.confirmed&&!flags[p.key]});
+  $("checkNote").textContent="子どもから報告 "+flagged.length+"・エラー "+bad.length+"・確認待ち "+wait.length+"・出題中 "+good.length+"\n確認待ちの問題は、図と答えを見て正しければ、スプレッドシートの「確認」列に ○ を入れてください。";
+  function item(p,tag,cls){ var li=el("li"); li.appendChild(el("span","tag "+cls,tag));
+    var r=p.row; li.appendChild(el("p","note","種類："+r.type+(r.data?"　データ："+r.data:"")));
+    if(!p.ok){ li.appendChild(el("p","note err",p.err)); ul.appendChild(li); return }
+    li.appendChild(el("p","q",p.text));
+    if(p.svg){var m=el("div","mini"); m.innerHTML=p.svg; li.appendChild(m)}
+    var a=el("p","a"); a.appendChild(document.createTextNode("答え：")); a.appendChild(el("b",null,Engine.fmt(p.answer)+" "+(p.unit||""))); li.appendChild(a);
+    if(p.explain)li.appendChild(el("p","note",p.explain));
+    if(flags[p.key]){ li.appendChild(el("p","note err","子どもの答え："+(flags[p.key].given||"（なし）")+"　報告："+new Date(flags[p.key].t).toLocaleString("ja-JP")));
+      var b=el("button","plain","問題なし。また出題する"); b.type="button"; b.addEventListener("click",function(){delete flags[p.key]; lsSet("sq.flags",flags); renderCheck()}); li.appendChild(b) }
+    ul.appendChild(li) }
+  flagged.forEach(function(p){item(p,"子どもから報告","bad")});
+  bad.forEach(function(p){item(p,"エラー（出題しません）","bad")});
+  wait.forEach(function(p){item(p,"確認待ち（出題しません）","wait")});
+  good.forEach(function(p){item(p,"出題中","ok")}) }
+$("openCheck").addEventListener("click",function(){renderCheck(); show("check")});
+$("checkBack").addEventListener("click",function(){renderHome(); show("home")});
+
+/* ---------- make screen (adults) ---------- */
+var HELP={
+  "角度":"角を図形のまわりの順に、カンマで区切って書きます。\n数字＝内側の角、直角＝90°（四角い印）、外50＝外側の角、ア＝聞く角（1つだけ）\n例：50, 直角, ア, 115　／　外50, イ, 85, 160, 直角",
+  "方眼":"「横x縦:」のあとに点を (横,縦) で書きます。左下が (0,0)。図形を分けるときは / で区切ります。\n下の図の交わる点をタップしても点を足せます。\n例：6x4: (0,0)(1,4)(3,0) / (3,0)(6,4)(5,0)",
+  "正多角形":"「辺の数, ABの長さ, 聞くこと」を書きます。聞くことは 角・三角形・全体 のどれか。\n例：12, 20, 三角形",
+  "文章":"データは空でかまいません。問題文と答え（12、2.5、3/4 など）を入れてください。"};
+var SAMPLE_DATA={"角度":"50, 直角, ア, 115","方眼":"6x4: ","正多角形":"12, 20, 三角形","文章":""};
+function mRow(){return {type:$("mType").value, data:$("mData").value.trim(), text:$("mText").value.trim(), answer:$("mAns").value.trim(),
+  unit:$("mUnit").value.trim(), explain:$("mExp").value.trim(), confirmed:$("mOk").checked?"○":""}}
+function renderMake(){
+  var r=mRow(); $("mHelp").textContent=HELP[r.type]; $("gridTools").hidden=r.type!=="方眼";
+  var pv=$("mPreview"); pv.textContent=""; var p=Engine.build(r);
+  if(r.type==="方眼"){ var g=Engine.parseGrid(r.data); if(g.W){ var wrap=el("div"); wrap.innerHTML=Engine.drawGrid(g,{tap:true}); pv.appendChild(wrap); bindTap(wrap.firstChild) } }
+  if(!p.ok){ pv.appendChild(el("p","note err",p.err)); $("mCopy").disabled=true; return }
+  $("mCopy").disabled=false;
+  pv.appendChild(el("p","q",p.text));
+  if(p.svg&&r.type!=="方眼"){var m=el("div"); m.innerHTML=p.svg; pv.appendChild(m)}
+  var a=el("p","a"); a.appendChild(document.createTextNode("答え：")); a.appendChild(el("b",null,Engine.fmt(p.answer)+" "+(p.unit||""))); pv.appendChild(a);
+  if(p.explain)pv.appendChild(el("p","note",p.explain)) }
+function bindTap(svg){ if(!svg)return;
+  svg.addEventListener("click",function(e){ var c=+svg.dataset.cell, M=+svg.dataset.m, H=+svg.dataset.h, pt=svg.createSVGPoint(); pt.x=e.clientX; pt.y=e.clientY;
+    var q=pt.matrixTransform(svg.getScreenCTM().inverse()), x=Math.round((q.x-M)/c), y=H-Math.round((q.y-M)/c);
+    var g=Engine.parseGrid($("mData").value); if(!g.W)return; if(x<0||y<0||x>g.W||y>g.H)return;
+    $("mData").value=$("mData").value.replace(/\s*$/,"")+"("+x+","+y+")"; renderMake() }) }
+["mType","mData","mText","mAns","mUnit","mExp","mOk"].forEach(function(id){ $(id).addEventListener("input",function(){
+  if(id==="mType"){ $("mData").value=SAMPLE_DATA[$("mType").value]; $("mOk").checked=false } renderMake() }) });
+$("mNextShape").addEventListener("click",function(){ var v=$("mData").value.replace(/\s*$/,""); if(/\)$/.test(v)){$("mData").value=v+" / "; renderMake()} });
+$("mUndo").addEventListener("click",function(){ $("mData").value=$("mData").value.replace(/\s*\/?\s*\(\s*-?\d+\s*,\s*-?\d+\s*\)\s*$/,""); renderMake() });
+function copyText(t,done){ function fallback(){ var ta=el("textarea"); ta.value=t; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy")}catch(e){} ta.remove(); done() }
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done,fallback); else fallback() }
+$("mCopy").addEventListener("click",function(){ var r=mRow();
+  var line=COLS.map(function(k){return String(r[k]||"").replace(/[\t\r\n]+/g," ")}).join("\t");
+  copyText(line,function(){ $("mNote").textContent="コピーしました。スプレッドシートの空いている行のA列をタップして貼り付けてください。"+(r.confirmed?"":"\n（「たしかめた」にチェックしていないので、確認待ちになります）") }) });
+$("mCopyHead").addEventListener("click",function(){ copyText("種類\tデータ\t問題文\t答え\t単位\t解説\t確認",function(){ $("mNote").textContent="見出しの行をコピーしました。新しいシートの1行目に貼り付けてください。" }) });
+$("openMake").addEventListener("click",function(){ if(!$("mData").value)$("mData").value=SAMPLE_DATA[$("mType").value]; renderMake(); show("make") });
+$("makeBack").addEventListener("click",function(){renderHome(); show("home")});
+
+useCur(); renderHome();
+if(curSet())syncSet(curSet(),true);
+})();
+</script>
+</body>
+</html>
