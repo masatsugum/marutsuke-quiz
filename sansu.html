@@ -62,6 +62,10 @@ h1,h2{margin:0; text-wrap:balance}
 .sets{display:flex; flex-wrap:wrap; gap:8px}
 .chip{border:2px solid var(--ink); background:var(--card); border-radius:999px; padding:8px 16px; min-height:44px; font-weight:700; max-width:100%; overflow-wrap:anywhere; text-align:left}
 .chip.on{background:var(--marker); color:var(--on-marker); border-color:var(--on-marker)}
+.units{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.units .lbl{font-weight:900; font-size:.9rem; color:var(--sub); margin-right:2px}
+.units .chip{border-width:2px; border-color:var(--line); padding:6px 14px; min-height:42px}
+.units .chip.on{border-color:var(--on-marker)}
 details{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:4px 16px}
 summary{font-weight:700; padding-block:12px; cursor:pointer}
 .form{display:flex; flex-direction:column; gap:10px; padding-bottom:14px}
@@ -82,6 +86,8 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 .qcard{position:relative; background:var(--card); border:2px solid var(--ink); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:12px; min-height:0}
 .qtext{margin:0; font-size:1.45rem; font-weight:700; line-height:1.65; overflow-wrap:anywhere; white-space:pre-line}
 .fig{display:flex; justify-content:center; min-height:0; flex:1}
+.qcard.nofig{justify-content:center}
+.qcard.nofig .qtext{font-size:clamp(1.6rem,2.2vw + .6rem,2.3rem); line-height:1.75}
 .fig svg{width:100%; height:100%; max-height:46vh; display:block}
 .past{align-self:flex-start; font-size:.85rem; font-weight:700; color:var(--x); background:var(--x-bg); border-radius:999px; padding:2px 12px}
 .maru{position:absolute; inset:0; margin:auto; width:170px; height:170px; pointer-events:none; opacity:.92}
@@ -164,6 +170,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
     <div><h1>まるつけ算数</h1><p id="bankInfo">問題を読みこんでいます…</p></div>
   </div>
   <div class="sets" id="setList" role="group" aria-label="問題セット"></div>
+  <div class="units" id="unitList" role="group" aria-label="単元" hidden></div>
   <div class="tally">
     <div><b id="tAll">0</b><span>出題できる問題</span></div>
     <div><b id="tDone">0</b><span>やった問題</span></div>
@@ -188,7 +195,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
     <div class="form">
       <label for="setName">セットの名前（例：角度、面積）</label>
       <input id="setName" type="text" maxlength="20" autocomplete="off" placeholder="角度">
-      <label for="sheetUrl">Google スプレッドシートのURL。列は 種類・データ・問題文・答え・単位・解説・確認 の順。共有は「リンクを知っている全員が閲覧可」にしてください。</label>
+      <label for="sheetUrl">Google スプレッドシートのURL。列は 種類・データ・問題文・答え・単位・解説・確認・単元 の順。共有は「リンクを知っている全員が閲覧可」にしてください。</label>
       <input id="sheetUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…">
       <button class="plain" id="addBtn" type="button">読みこんで登録する</button>
       <p class="note" id="syncNote" aria-live="polite"></p>
@@ -248,7 +255,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
   <div class="head"><button class="quit" id="makeBack" type="button" aria-label="もどる">←</button><h1>問題をつくる</h1></div>
   <div class="form">
     <label for="mType">種類</label>
-    <select id="mType"><option>角度</option><option>方眼</option><option>正多角形</option><option>文章</option></select>
+    <select id="mType"><option>角度</option><option>方眼</option><option>正多角形</option><option>三角形</option><option>文章</option></select>
     <p class="note" id="mHelp"></p>
     <label for="mData">データ</label>
     <textarea id="mData" autocomplete="off" spellcheck="false"></textarea>
@@ -262,6 +269,8 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
       <div><label for="mAns">答え（図の問題は空でOK。入れると計算と照合）</label><input id="mAns" type="text" autocomplete="off"></div>
       <div><label for="mUnit">単位（文章問題用。例：cm、円、人）</label><input id="mUnit" type="text" autocomplete="off"></div>
     </div>
+    <label for="mTangen">単元（例：角度、面積、割合。ホーム画面の切り替えに使います）</label>
+    <input id="mTangen" type="text" autocomplete="off">
     <label for="mExp">解説（空なら自動。図の問題では自動の解説の後ろにつけ足します）</label>
     <textarea id="mExp" autocomplete="off"></textarea>
   </div>
@@ -504,6 +513,64 @@ function drawRegular(sol){
   out.push(text(cx-16,cy+4,"O"));
   out.push('</svg>'); return out.join("") }
 
+
+/* ---------- 三角形: two sides and the angle between them ---------- */
+// data like "8, 10, 30"  (side a, side b, angle between them: 30 / 90 / 150)
+// options after that: 底角 = show the two base angles instead of the angle between (needs a = b)
+//                     全角 = show all three angles (needs a = b)
+//                     辺1  = show only one side length (needs a = b and the base angles shown)
+function solveTriangle(data){
+  var t=String(data).normalize("NFKC").split(/[,、，\s]+/).filter(Boolean);
+  if(t.length<3)return {err:"「辺, 辺, その間の角」の3つを書いてください（例 8, 10, 30）。"};
+  var a=parseNum(t[0]), b=parseNum(t[1]), th=+t[2], opts=t.slice(3);
+  if(!a||!b||!(a.n>0)||!(b.n>0))return {err:"辺の長さを数で書いてください。"};
+  if([30,90,150].indexOf(th)<0)return {err:"間の角は 30・90・150 のどれかにしてください（小学校の計算で高さが出せる角）。"};
+  for(var i=0;i<opts.length;i++)if(["底角","全角","辺1"].indexOf(opts[i])<0)return {err:"「"+opts[i]+"」がわかりません（使えるのは 底角・全角・辺1）。"};
+  var iso=qEq(a,b), showBase=opts.indexOf("底角")>=0||opts.indexOf("全角")>=0, showTop=opts.indexOf("底角")<0, oneSide=opts.indexOf("辺1")>=0;
+  if(showBase&&!iso)return {err:"底角・全角を使うのは、2つの辺が同じ長さ（二等辺三角形）のときだけです。"};
+  if(oneSide&&!showBase)return {err:"辺1 を使うときは、底角か全角もつけて、二等辺三角形だとわかるようにしてください。"};
+  var A=a.n/a.d, B=b.n/b.d, base=(180-th)/2, area=th===90?Q(a.n*b.n,a.d*b.d*2):Q(a.n*b.n,a.d*b.d*4);
+  var ex=[];
+  if(!showTop)ex.push("二等辺三角形なので、2つの辺の間の角は 180−"+base+"×2＝"+th+"°");
+  if(oneSide)ex.push("角が "+base+"° と "+base+"° で等しいので二等辺三角形。もう1つの辺も "+fmt(a)+"cm");
+  if(th===90)ex.push("直角をはさむ2辺が "+fmt(b)+"cm と "+fmt(a)+"cm なので、"+fmt(b)+"×"+fmt(a)+"÷2＝"+fmt(area)+"cm²");
+  else{ var h=Q(a.n,a.d*2);
+    if(th===30)ex.push(fmt(b)+"cmの辺を底辺にします。反対の頂点から底辺に垂直な線をひくと、30°・60°・90°の直角三角形（正三角形を半分にした形）ができるので、高さは "+fmt(a)+"cm の半分の "+fmt(h)+"cm");
+    else ex.push(fmt(b)+"cmの辺を底辺にして、底辺を外側にのばします。のばした線と "+fmt(a)+"cm の辺の間の角は 180−150＝30° なので、高さは "+fmt(a)+"cm の半分の "+fmt(h)+"cm（正三角形を半分にした形）");
+    ex.push(fmt(b)+"×"+fmt(h)+"÷2＝"+fmt(area)+"cm²") }
+  return {a:a,b:b,th:th,showBase:showBase,showTop:showTop,oneSide:oneSide,base:base,
+    answer:area, unit:"cm²", text:"下の図の三角形の面積は何cm²ですか。", explain:ex.join("\n")} }
+function drawTriangle(sol){
+  var A=sol.a.n/sol.a.d, B=sol.b.n/sol.b.d, r=sol.th*Math.PI/180;
+  // O = vertex with the given angle, P on side b, R on side a
+  var O=[0,0], P=[B,0], R=[A*Math.cos(r),A*Math.sin(r)];
+  var V=[O,P,R], sides=[[0,1],[1,2],[2,0]], L=sides.map(function(s){return dist(V[s[0]],V[s[1]])});
+  var li=L.indexOf(Math.max.apply(null,L)), s0=V[sides[li][0]], s1=V[sides[li][1]], ang=-Math.atan2(s1[1]-s0[1],s1[0]-s0[0]);
+  var W=V.map(function(p){var x=p[0]-s0[0],y=p[1]-s0[1]; return [x*Math.cos(ang)-y*Math.sin(ang), x*Math.sin(ang)+y*Math.cos(ang)]});
+  var third=W[3-sides[li][0]-sides[li][1]]; if(third[1]<0)W=W.map(function(p){return [p[0],-p[1]]});
+  var Wd=440,Hd=300,M=46, xs=W.map(function(p){return p[0]}), ys=W.map(function(p){return p[1]});
+  var minx=Math.min.apply(null,xs),maxx=Math.max.apply(null,xs),miny=Math.min.apply(null,ys),maxy=Math.max.apply(null,ys);
+  var sc=Math.min((Wd-2*M)/(maxx-minx||1),(Hd-2*M)/(maxy-miny||1));
+  var S=W.map(function(p){return [M+(p[0]-minx)*sc+((Wd-2*M)-(maxx-minx)*sc)/2, Hd-M-(p[1]-miny)*sc-((Hd-2*M)-(maxy-miny)*sc)/2]});
+  var cx=(S[0][0]+S[1][0]+S[2][0])/3, cy=(S[0][1]+S[1][1]+S[2][1])/3;
+  var out=['<svg viewBox="0 0 '+Wd+' '+Hd+'" role="img" aria-label="三角形の図">'];
+  out.push('<polygon class="fg-line" points="'+S.map(function(p){return p[0].toFixed(1)+","+p[1].toFixed(1)}).join(" ")+'"/>');
+  function sideLabel(i,j,txt){ var m=[(S[i][0]+S[j][0])/2,(S[i][1]+S[j][1])/2], d=unit([S[j][0]-S[i][0],S[j][1]-S[i][1]]), nrm=[-d[1],d[0]];
+    if((m[0]-cx)*nrm[0]+(m[1]-cy)*nrm[1]<0)nrm=[-nrm[0],-nrm[1]];
+    out.push(text(m[0]+nrm[0]*20,m[1]+nrm[1]*20,txt)) }
+  function angLabel(k,deg){ var Vk=S[k], u1=unit([S[(k+1)%3][0]-Vk[0],S[(k+1)%3][1]-Vk[1]]), u2=unit([S[(k+2)%3][0]-Vk[0],S[(k+2)%3][1]-Vk[1]]);
+    if(deg===90){ var q=13; out.push('<path class="fg-thin" d="M'+(Vk[0]+u1[0]*q).toFixed(1)+' '+(Vk[1]+u1[1]*q).toFixed(1)+' L'+(Vk[0]+(u1[0]+u2[0])*q).toFixed(1)+' '+(Vk[1]+(u1[1]+u2[1])*q).toFixed(1)+' L'+(Vk[0]+u2[0]*q).toFixed(1)+' '+(Vk[1]+u2[1]*q).toFixed(1)+'"/>'); return }
+    var rr=deg<25?54:deg<50?34:24, bi=unit([u1[0]+u2[0],u1[1]+u2[1]]);
+    out.push(arc(Vk,u1,u2,rr));
+    if(deg>100){ out.push(text(Vk[0],Vk[1]-17,deg+"°")); return }   // flat triangle: no room inside, write it just above the corner
+    if(deg<25){ var flat=Math.abs(u1[1])<Math.abs(u2[1])?u1:u2;      // narrow corner on the bottom side: write it just under the base
+      out.push(text(Vk[0]+flat[0]*(rr-14),Vk[1]+17,deg+"°")); return }
+    out.push(text(Vk[0]+bi[0]*(rr+18),Vk[1]+bi[1]*(rr+18),deg+"°")) }
+  sideLabel(0,1,fmt(sol.b)+"cm"); if(!sol.oneSide)sideLabel(0,2,fmt(sol.a)+"cm");
+  if(sol.showTop)angLabel(0,sol.th);
+  if(sol.showBase){angLabel(1,sol.base); angLabel(2,sol.base)}
+  out.push('</svg>'); return out.join("") }
+
 /* ---------- 文章: word problems with a typed answer ---------- */
 function solveText(row){
   if(!row.text)return {err:"文章問題は「問題文」が必要です。"};
@@ -511,12 +578,14 @@ function solveText(row){
   return {answer:a, unit:row.unit||"", text:row.text, explain:""} }
 
 /* ---------- one row -> problem ---------- */
-var TYPES=["角度","方眼","正多角形","文章"];
+var TYPES=["角度","方眼","正多角形","三角形","文章"];
 function build(row){
   var type=String(row.type||"").trim(), sol, svg="";
+  row=Object.assign({},row,{data:String(row.data||"").replace(/^'/,"")});
   if(type==="角度"){ sol=solveAngles(row.data); if(!sol.err){ svg=drawAngles(sol); if(!svg)sol={err:"この角度では、きれいな図がかけません。数字をたしかめてください。"} } }
   else if(type==="方眼"){ sol=solveGrid(row.data); if(!sol.err)svg=drawGrid(sol.grid) }
   else if(type==="正多角形"){ sol=solveRegular(row.data); if(!sol.err)svg=drawRegular(sol) }
+  else if(type==="三角形"){ sol=solveTriangle(row.data); if(!sol.err)svg=drawTriangle(sol) }
   else if(type==="文章"){ sol=solveText(row) }
   else sol={err:"種類「"+type+"」は使えません（"+TYPES.join("・")+"）。"};
   if(sol.err)return {ok:false, err:sol.err, row:row, partial:sol};
@@ -532,19 +601,19 @@ return {build:build, parseNum:parseNum, fmt:fmt, qEq:qEq, Q:Q, parseGrid:parseGr
 </script>
 
 <script type="application/json" id="sampleData">[
- {"type":"角度","data":"55, 直角, ア, 120","confirmed":"○"},
- {"type":"角度","data":"外50, イ, 85, 160, 直角","confirmed":"○"},
- {"type":"角度","data":"70, 45, ア","confirmed":"○"},
- {"type":"角度","data":"外60, 100, 直角, ウ","confirmed":"○"},
- {"type":"方眼","data":"6x4: (0,0)(1,4)(3,0) / (3,0)(6,4)(5,0)","confirmed":"○"},
- {"type":"方眼","data":"5x5: (0,3)(1,5)(5,0)","confirmed":"○"},
- {"type":"方眼","data":"6x5: (1,1)(5,1)(3,4)","confirmed":"○"},
- {"type":"正多角形","data":"12, 24, 角","confirmed":"○"},
- {"type":"正多角形","data":"12, 24, 三角形","confirmed":"○"},
- {"type":"正多角形","data":"12, 24, 全体","confirmed":"○"},
- {"type":"文章","text":"1本80円のえんぴつを6本と、120円のノートを1さつ買いました。代金は全部で何円ですか。","answer":"600","unit":"円","explain":"80×6＝480円、480＋120＝600円","confirmed":"○"},
- {"type":"文章","text":"2/3 L のジュースを4人で同じ量ずつ分けます。1人分は何Lですか。（分数で答えましょう）","answer":"1/6","unit":"L","explain":"2/3÷4＝2/12＝1/6 L","confirmed":"○"},
- {"type":"文章","text":"時速45kmで2.4時間走ると、何km進みますか。","answer":"108","unit":"km","explain":"45×2.4＝108 km","confirmed":"○"}
+ {"tangen":"角度","type":"角度","data":"55, 直角, ア, 120","confirmed":"○"},
+ {"tangen":"角度","type":"角度","data":"外50, イ, 85, 160, 直角","confirmed":"○"},
+ {"tangen":"角度","type":"角度","data":"70, 45, ア","confirmed":"○"},
+ {"tangen":"角度","type":"角度","data":"外60, 100, 直角, ウ","confirmed":"○"},
+ {"tangen":"面積","type":"方眼","data":"6x4: (0,0)(1,4)(3,0) / (3,0)(6,4)(5,0)","confirmed":"○"},
+ {"tangen":"面積","type":"方眼","data":"5x5: (0,3)(1,5)(5,0)","confirmed":"○"},
+ {"tangen":"面積","type":"方眼","data":"6x5: (1,1)(5,1)(3,4)","confirmed":"○"},
+ {"tangen":"正多角形","type":"正多角形","data":"12, 24, 角","confirmed":"○"},
+ {"tangen":"正多角形","type":"正多角形","data":"12, 24, 三角形","confirmed":"○"},
+ {"tangen":"正多角形","type":"正多角形","data":"12, 24, 全体","confirmed":"○"},
+ {"tangen":"文章題","type":"文章","text":"1本80円のえんぴつを6本と、120円のノートを1さつ買いました。代金は全部で何円ですか。","answer":"600","unit":"円","explain":"80×6＝480円、480＋120＝600円","confirmed":"○"},
+ {"tangen":"文章題","type":"文章","text":"2/3 L のジュースを4人で同じ量ずつ分けます。1人分は何Lですか。（分数で答えましょう）","answer":"1/6","unit":"L","explain":"2/3÷4＝2/12＝1/6 L","confirmed":"○"},
+ {"tangen":"文章題","type":"文章","text":"時速45kmで2.4時間走ると、何km進みますか。","answer":"108","unit":"km","explain":"45×2.4＝108 km","confirmed":"○"}
 ]</script>
 
 <script>
@@ -568,7 +637,10 @@ function curSet(){for(var i=0;i<sets.length;i++)if(sets[i].id===cur)return sets[
 function useCur(){ var s=curSet(); if(!s)cur="sample";
   var rows=s?s.rows:SAMPLE;
   bank=rows.map(function(r){var p=Engine.build(r); p.key=rowKey(r); return p}) }
-function playable(){return bank.filter(function(p){return p.ok&&p.confirmed&&!flags[p.key]})}
+var unitSel=lsGet("sq.unit",{});   // set id -> chosen 単元 ("" = all)
+function curUnit(){ var u=unitSel[cur]||""; return units().indexOf(u)>=0?u:"" }
+function units(){ var seen={}, out=[]; bank.forEach(function(p){ var u=String(p.row.tangen||"").trim(); if(p.ok&&p.confirmed&&u&&!seen[u]){seen[u]=1; out.push(u)} }); return out }
+function playable(){ var u=curUnit(); return bank.filter(function(p){return p.ok&&p.confirmed&&!flags[p.key]&&(!u||String(p.row.tangen||"").trim()===u)}) }
 function stat(p){return hist[p.key]||{w:0,r:0}}
 
 /* ---------- spreadsheet ---------- */
@@ -581,7 +653,7 @@ function parseCsv(text){
     else cell+=c }
   if(cell!==""||row.length){row.push(cell); rows.push(row)}
   return rows }
-var COLS=["type","data","text","answer","unit","explain","confirmed"];
+var COLS=["type","data","text","answer","unit","explain","confirmed","tangen"];
 function parseSheet(t){ var out=[];
   parseCsv(t).forEach(function(r){ var c=r.map(function(x){return String(x).trim()});
     if(c.every(function(x){return !x}))return; if(c[0]==="種類")return;
@@ -600,7 +672,7 @@ function loadSheet(url){ var urls=sheetCsvUrls(url); if(!urls)return Promise.rej
   return fetchCsv(urls,0).then(function(t){var rows=parseSheet(t); if(!rows.length)throw {code:"empty"}; return rows}) }
 function errText(e){ var c=e&&e.code;
   if(c==="url")return "スプレッドシートのURLを入れてください。";
-  if(c==="empty")return "問題が見つかりませんでした。列を 種類・データ・問題文・答え・単位・解説・確認 の順にしてください。";
+  if(c==="empty")return "問題が見つかりませんでした。列を 種類・データ・問題文・答え・単位・解説・確認・単元 の順にしてください。";
   if(c==="private"||(c==="http"&&(e.status===401||e.status===403||e.status===404)))return "スプレッドシートを開けませんでした。共有を「リンクを知っている全員が閲覧可」にして、URLをたしかめてください。";
   return "読みこめませんでした。通信の状態と、シートの共有設定をたしかめてください。" }
 function setKey(url){var m=url.match(/\/d\/([\w-]{20,})/); if(!m)return null; var g=url.match(/[#&?]gid=(\d+)/); return m[1]+"|"+(g?g[1]:"")}
@@ -632,7 +704,11 @@ $("removeBtn").addEventListener("click",function(){ var s=curSet(); if(!s)return
 function show(id){ ["home","quiz","result","check","make"].forEach(function(s){$(s).hidden=(s!==id)}); $("app").classList.toggle("wide",id==="quiz"); window.scrollTo(0,0) }
 function renderHome(){
   var pl=playable(), done=0, wrong=0; pl.forEach(function(p){var s=stat(p); if(s.w+s.r)done++; if(s.w)wrong++});
-  var s=curSet(); $("bankInfo").textContent="「"+(s?s.name:"サンプル")+"」 "+pl.length+"問";
+  var s=curSet(), cu=curUnit(); $("bankInfo").textContent="「"+(s?s.name:"サンプル")+"」"+(cu?" ・ "+cu:"")+" "+pl.length+"問";
+  var ul=$("unitList"), us=units(); ul.textContent=""; ul.hidden=us.length<2;
+  if(us.length>=2){ ul.appendChild(el("span","lbl","単元"));
+    [""].concat(us).forEach(function(u){ var on=(u===cu), b=el("button","chip"+(on?" on":""),u||"すべて"); b.type="button"; b.setAttribute("aria-pressed",String(on));
+      b.addEventListener("click",function(){ if(on)return; unitSel[cur]=u; lsSet("sq.unit",unitSel); renderHome() }); ul.appendChild(b) }) }
   $("tAll").textContent=pl.length; $("tDone").textContent=done; $("tWrong").textContent=wrong;
   var np=newPool().length, wp=weakPool().length;
   $("newInfo").textContent=np?"あてはまる問題："+np+"問":"ぜんぶ一度は正解しました！"; $("startNew").disabled=!np;
@@ -654,7 +730,7 @@ function renderDots(){var d=$("dots"); d.textContent=""; game.items.forEach(func
 function renderQuestion(){
   var it=game.items[game.i], p=it.p, s=stat(p); shownAt=Date.now(); input="";
   renderDots(); $("count").textContent=(game.i+1)+"/"+game.items.length;
-  $("qtext").textContent=p.text; $("qfig").innerHTML=p.svg||""; $("qfig").hidden=!p.svg;
+  $("qtext").textContent=p.text; $("qfig").innerHTML=p.svg||""; $("qfig").hidden=!p.svg; $("qcard").classList.toggle("nofig",!p.svg);
   $("past").hidden=!s.w; $("past").textContent="これまで "+s.w+"回まちがえた";
   var old=$("qcard").querySelector(".maru"); if(old)old.remove();
   $("aunit").textContent=p.unit||""; $("answer").className="answer";
@@ -737,7 +813,7 @@ function renderCheck(){
       wait=bank.filter(function(p){return p.ok&&!p.confirmed&&!flags[p.key]}), good=bank.filter(function(p){return p.ok&&p.confirmed&&!flags[p.key]});
   $("checkNote").textContent="子どもから報告 "+flagged.length+"・エラー "+bad.length+"・確認待ち "+wait.length+"・出題中 "+good.length+"\n確認待ちの問題は、図と答えを見て正しければ、スプレッドシートの「確認」列に ○ を入れてください。";
   function item(p,tag,cls){ var li=el("li"); li.appendChild(el("span","tag "+cls,tag));
-    var r=p.row; li.appendChild(el("p","note","種類："+r.type+(r.data?"　データ："+r.data:"")));
+    var r=p.row; li.appendChild(el("p","note",(r.tangen?"単元："+r.tangen+"　":"")+"種類："+r.type+(r.data?"　データ："+r.data:"")));
     if(!p.ok){ li.appendChild(el("p","note err",p.err)); ul.appendChild(li); return }
     li.appendChild(el("p","q",p.text));
     if(p.svg){var m=el("div","mini"); m.innerHTML=p.svg; li.appendChild(m)}
@@ -758,10 +834,11 @@ var HELP={
   "角度":"角を図形のまわりの順に、カンマで区切って書きます。\n数字＝内側の角、直角＝90°（四角い印）、外50＝外側の角、ア＝聞く角（1つだけ）\n例：50, 直角, ア, 115　／　外50, イ, 85, 160, 直角",
   "方眼":"「横x縦:」のあとに点を (横,縦) で書きます。左下が (0,0)。図形を分けるときは / で区切ります。\n下の図の交わる点をタップしても点を足せます。\n例：6x4: (0,0)(1,4)(3,0) / (3,0)(6,4)(5,0)",
   "正多角形":"「辺の数, ABの長さ, 聞くこと」を書きます。聞くことは 角・三角形・全体 のどれか。\n例：12, 20, 三角形",
+  "三角形":"「辺, 辺, その間の角（30・90・150）」を書きます。面積を聞く問題になります。\n後ろに 底角（間の角のかわりに両はしの角を書く）・全角（3つとも書く）・辺1（辺の長さを1つだけ書く）をつけられます（二等辺三角形のときだけ）。\n例：8, 10, 30　／　14, 14, 150, 底角",
   "文章":"データは空でかまいません。問題文と答え（12、2.5、3/4 など）を入れてください。"};
-var SAMPLE_DATA={"角度":"50, 直角, ア, 115","方眼":"6x4: ","正多角形":"12, 20, 三角形","文章":""};
+var SAMPLE_DATA={"角度":"50, 直角, ア, 115","方眼":"6x4: ","正多角形":"12, 20, 三角形","三角形":"8, 10, 30","文章":""};
 function mRow(){return {type:$("mType").value, data:$("mData").value.trim(), text:$("mText").value.trim(), answer:$("mAns").value.trim(),
-  unit:$("mUnit").value.trim(), explain:$("mExp").value.trim(), confirmed:$("mOk").checked?"○":""}}
+  unit:$("mUnit").value.trim(), explain:$("mExp").value.trim(), confirmed:$("mOk").checked?"○":"", tangen:$("mTangen").value.trim()}}
 function renderMake(){
   var r=mRow(); $("mHelp").textContent=HELP[r.type]; $("gridTools").hidden=r.type!=="方眼";
   var pv=$("mPreview"); pv.textContent=""; var p=Engine.build(r);
@@ -777,16 +854,16 @@ function bindTap(svg){ if(!svg)return;
     var q=pt.matrixTransform(svg.getScreenCTM().inverse()), x=Math.round((q.x-M)/c), y=H-Math.round((q.y-M)/c);
     var g=Engine.parseGrid($("mData").value); if(!g.W)return; if(x<0||y<0||x>g.W||y>g.H)return;
     $("mData").value=$("mData").value.replace(/\s*$/,"")+"("+x+","+y+")"; renderMake() }) }
-["mType","mData","mText","mAns","mUnit","mExp","mOk"].forEach(function(id){ $(id).addEventListener("input",function(){
+["mType","mData","mText","mAns","mUnit","mExp","mOk","mTangen"].forEach(function(id){ $(id).addEventListener("input",function(){
   if(id==="mType"){ $("mData").value=SAMPLE_DATA[$("mType").value]; $("mOk").checked=false } renderMake() }) });
 $("mNextShape").addEventListener("click",function(){ var v=$("mData").value.replace(/\s*$/,""); if(/\)$/.test(v)){$("mData").value=v+" / "; renderMake()} });
 $("mUndo").addEventListener("click",function(){ $("mData").value=$("mData").value.replace(/\s*\/?\s*\(\s*-?\d+\s*,\s*-?\d+\s*\)\s*$/,""); renderMake() });
 function copyText(t,done){ function fallback(){ var ta=el("textarea"); ta.value=t; document.body.appendChild(ta); ta.select(); try{document.execCommand("copy")}catch(e){} ta.remove(); done() }
   if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(t).then(done,fallback); else fallback() }
 $("mCopy").addEventListener("click",function(){ var r=mRow();
-  var line=COLS.map(function(k){return String(r[k]||"").replace(/[\t\r\n]+/g," ")}).join("\t");
+  var line=COLS.map(function(k){var v=String(r[k]||"").replace(/[\t\r\n]+/g," "); return (k==="data"&&v)?"'"+v:v}).join("\t");
   copyText(line,function(){ $("mNote").textContent="コピーしました。スプレッドシートの空いている行のA列をタップして貼り付けてください。"+(r.confirmed?"":"\n（「たしかめた」にチェックしていないので、確認待ちになります）") }) });
-$("mCopyHead").addEventListener("click",function(){ copyText("種類\tデータ\t問題文\t答え\t単位\t解説\t確認",function(){ $("mNote").textContent="見出しの行をコピーしました。新しいシートの1行目に貼り付けてください。" }) });
+$("mCopyHead").addEventListener("click",function(){ copyText("種類\tデータ\t問題文\t答え\t単位\t解説\t確認\t単元",function(){ $("mNote").textContent="見出しの行をコピーしました。新しいシートの1行目に貼り付けてください。" }) });
 $("openMake").addEventListener("click",function(){ if(!$("mData").value)$("mData").value=SAMPLE_DATA[$("mType").value]; renderMake(); show("make") });
 $("makeBack").addEventListener("click",function(){renderHome(); show("home")});
 
