@@ -86,6 +86,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 .qcard{position:relative; background:var(--card); border:2px solid var(--ink); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:12px; min-height:0}
 .qtext{margin:0; font-size:1.45rem; font-weight:700; line-height:1.65; overflow-wrap:anywhere; white-space:pre-line}
 .fig{display:flex; justify-content:center; min-height:0; flex:1}
+.qcard .qtext{flex:none}
 .qcard.nofig{justify-content:center}
 .qcard.nofig .qtext{font-size:clamp(1.6rem,2.2vw + .6rem,2.3rem); line-height:1.75}
 .fig svg{width:100%; height:100%; max-height:46vh; display:block}
@@ -153,7 +154,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
   #quiz{display:grid; height:calc(100dvh - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); min-height:460px;
     grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); column-gap:36px; row-gap:12px;
     grid-template-rows:auto minmax(0,1fr) auto; grid-template-areas:"bar bar" "q right" "flag right"}
-  #quiz .bar{grid-area:bar} #qcard{grid-area:q} #flagBtn{grid-area:flag} #right{grid-area:right; min-height:0; display:flex; flex-direction:column; gap:14px}
+  #quiz .bar{grid-area:bar} #qcard{grid-area:q; overflow:hidden} #qcard .fig{min-height:170px} #flagBtn{grid-area:flag} #right{grid-area:right; min-height:0; display:flex; flex-direction:column; gap:14px}
   #right .pad{flex:1; min-height:0; grid-auto-rows:1fr}
   .key{min-height:0}
   .fig svg{max-height:none}
@@ -783,7 +784,16 @@ function fetchCsv(urls,i){
     return r.text().then(function(t){ if(/^\s*<(!doctype|html)/i.test(t))throw {code:"private"}; return t });
   }).catch(function(e){ if(i+1<urls.length)return fetchCsv(urls,i+1); throw e }) }
 function loadSheet(url){ var urls=sheetCsvUrls(url); if(!urls)return Promise.reject({code:"url"});
-  return fetchCsv(urls,0).then(function(t){var rows=parseSheet(t); if(!rows.length)throw {code:"empty"}; return rows}) }
+  return fetchCsv(urls,0).then(function(t){
+    var rows=parseSheet(t); if(!rows.length)throw {code:"empty"};
+    var missing=rows.some(function(r){return r.type==="文章"&&!String(r.answer||"").trim()});
+    if(!missing||urls.length<2)return rows;
+    // Google's quick export drops text cells (like "8/15") in a column that is mostly numbers; the plain export keeps them
+    return fetch(urls[1],{credentials:"omit",cache:"no-store"}).then(function(r){ if(!r.ok)throw 0; return r.text() }).then(function(t2){
+      if(/^\s*<(!doctype|html)/i.test(t2))return rows;
+      var full=parseSheet(t2); if(full.length!==rows.length)return rows;
+      rows.forEach(function(r,i){ COLS.forEach(function(k){ if(!String(r[k]||"").trim()&&String(full[i][k]||"").trim())r[k]=full[i][k] }) });
+      return rows }).catch(function(){ return rows }) }) }
 function errText(e){ var c=e&&e.code;
   if(c==="url")return "スプレッドシートのURLを入れてください。";
   if(c==="empty")return "問題が見つかりませんでした。列を 種類・データ・問題文・答え・単位・解説・確認・単元 の順にしてください。";
@@ -857,7 +867,13 @@ function renderQuestion(){
   var old=$("qcard").querySelector(".maru"); if(old)old.remove();
   $("aunit").textContent=p.unit||""; $("answer").className="answer";
   $("pad").hidden=false; $("after").hidden=true; $("flagBtn").hidden=false; $("flagBtn").textContent="この問題、へんかも？（おうちの人に知らせる）"; flagArmed=false;
-  paintInput() }
+  paintInput(); fitQ() }
+function fitQ(){   // make the question text smaller until the card shows everything
+  var c=$("qcard"), t=$("qtext"); t.style.fontSize=""; if($("quiz").hidden||!c.clientHeight)return;
+  var s=parseFloat(getComputedStyle(t).fontSize);
+  while(c.scrollHeight>c.clientHeight+1&&s>13){ s-=1; t.style.fontSize=s+"px" } }
+var fitT=null; window.addEventListener("resize",function(){clearTimeout(fitT); fitT=setTimeout(fitQ,120)});
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitQ);
 function paintInput(){
   var v=$("aval"); v.textContent=""; v.className="val"+(input?"":" empty");
   if(!input){v.textContent="？"; return}
