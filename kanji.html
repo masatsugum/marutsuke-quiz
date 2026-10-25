@@ -181,8 +181,9 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 
 /* ---------- iPad sideways: question left, writing right ---------- */
 /* upright (default): the quiz fills the screen so the squares get the room that is left */
-.app.wide #quiz{min-height:calc(100dvh - 52px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
-#wbox{flex:1} #squares{flex:1}
+.app.wide #quiz{height:calc(100dvh - 52px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); min-height:560px}
+.app.wide #quiz .bar,.app.wide #qcard{flex:none} .app.wide #qcard{max-height:48%; overflow:auto}
+#wbox{flex:1; min-height:0} #squares{flex:1; min-height:0}
 #ibox{display:flex; flex-direction:column; gap:12px}
 @media (min-width:900px) and (orientation:landscape){
   .app.wide{padding-block:12px}
@@ -190,8 +191,8 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
     grid-template-columns:minmax(0,1fr) minmax(0,1.05fr); column-gap:32px; row-gap:12px;
     grid-template-rows:auto minmax(0,1fr); grid-template-areas:"bar bar" "q right"}
   #quiz .bar{grid-area:bar} #qcard{grid-area:q; overflow:auto; justify-content:center} #wbox,#ibox{grid-area:right; min-height:0}
+  .app.wide #qcard{max-height:none}
   #squares{flex:1; min-height:0}
-  .app.wide #quiz.t-yomi{grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr)}
   #ibox{overflow:auto}
 
 }
@@ -386,7 +387,7 @@ function build(row){
     if(!alts.length){r.err="答え（よみ）がありません。"; return r}
     var badA=alts.filter(function(a){return !/^[ぁ-ゖー]+$/.test(a)});
     if(badA.length){r.err="読みの答えは ひらがな にしてください（いま：「"+badA.join("、")+"」）。別の読みも正解にするときは ／ で区切ります。"; return r}
-    r.blank=/^[□口◻︎]$/.test(r.mark); r.alts=alts; r.answerText=alts[0]; r.ok=true; return r }
+    r.blank=/^[□口◻︎]$/.test(r.mark); r.alts=alts; r.answerText=alts[0]; r.chars=chars(alts[0]); r.ok=true; return r }
   if(kind==="jun"){
     var d=data.split(/[,、，\s]+/).filter(Boolean), ch=d[0]||"", n=parseInt(zen2han(ans),10), bold=d[1]?parseInt(zen2han(d[1]),10):n;
     if(!ch||chars(ch).length!==1||!KANJI.test(ch)){r.err="書き順の問題は、データの列に漢字1字を入れてください（例：五）。"; return r}
@@ -654,7 +655,7 @@ function setState(s){
   $("tools").hidden=!(s==="write"||s==="trace"); $("showBtn").hidden=s!=="write"; $("judge").hidden=s!=="check"; $("nextBtn").hidden=s!=="trace";
   $("model").hidden=(s==="write");
   sq.forEach(function(b){ b.wrap.classList.toggle("lock",!(s==="write"||s==="trace")); b.ghost.style.visibility=(s==="trace")?"visible":"hidden" });
-  if(s==="write"){ a.textContent="「"+p.yomi+"」を 漢字で 書こう"; a.className="ask" }
+  if(s==="write"){ a.textContent=p.kind==="yomi"?(p.blank?"□に 入る ひらがなを 書こう":"線のところの よみを ひらがなで 書こう"):"「"+p.yomi+"」を 漢字で 書こう"; a.className="ask" }
   if(s==="check"){ a.textContent="おてほんと くらべよう。とめ・はね・はらい、形も 同じかな？"; a.className="ask" }
   if(s==="trace"){ a.textContent="おてほんを なぞって、もう1回 書こう"; a.className="ask ng";
     $("nextBtn").textContent=(game.i===game.items.length-1)?"かけた！ けっかを見る":"かけた！ つぎへ" }
@@ -665,11 +666,12 @@ function renderQuestion(){
   sentence($("sent"),p);
   $("past").hidden=!s.w; $("past").textContent="これまで "+s.w+"回まちがえた";
   var old=$("qcard").querySelector(".maru"); if(old)old.remove();
-  var kaki=(p.kind==="kaki");
+  var kaki=(p.kind==="kaki"||p.kind==="yomi");   // both are written by hand
   $("quiz").className="screen t-"+p.kind; $("wbox").hidden=!kaki; $("ibox").hidden=kaki; $("kfig").hidden=(p.kind!=="jun"); $("model").hidden=true;
   if(kaki){
     var mr=$("mrow"); mr.textContent=""; p.chars.forEach(function(ch){mr.appendChild(modelBox(ch,p.chars.length>2?120:150))});
-    var ex=$("explain"); ex.textContent=p.explain; ex.hidden=!p.explain;
+    var ext=p.explain; if(p.kind==="yomi"&&p.alts.length>1)ext="ほかの読み方："+p.alts.slice(1).join("、")+(ext?"\n"+ext:"");
+    var ex=$("explain"); ex.textContent=ext; ex.hidden=!ext;
     makeSquares(p.chars); setState("write"); return }
   sq=[]; $("squares").textContent=""; state="input"; stepAt=Date.now(); input=""; it.given="";
   $("after").hidden=true; $("abox").className="abox"; $("aunit").textContent="";
@@ -766,7 +768,7 @@ $("nextBtn").addEventListener("click",function(){ if(state!=="trace"||Date.now()
 function next(){ if(!game)return; if(game.i<game.items.length-1){game.i++; renderQuestion()} else showResult() }
 function record(p,ok,ink){
   var s=hist[p.key]||{w:0,r:0}, now=Date.now(); hist[p.key]={w:s.w+(ok?0:1),r:s.r+(ok?1:0),t:now}; lsSet("kj.hist",hist);
-  if(p.kind==="kaki"){ log.push({id:now.toString(36)+Math.random().toString(36).slice(2,6), t:now, k:p.key, q:p.text, a:p.answer, s:ok?1:0, ink:ink||[]});
+  if(p.kind==="kaki"||p.kind==="yomi"){ log.push({id:now.toString(36)+Math.random().toString(36).slice(2,6), t:now, k:p.key, q:p.text, a:p.answer, y:p.kind==="yomi"?1:0, s:ok?1:0, ink:ink||[]});
     if(log.length>LOG_MAX)log=log.slice(-LOG_MAX); saveLog() }
   cloudSoon() }
 function saveLog(){ lsSet("kj.log",log); lsSet("kj.rv",rv) }
@@ -777,7 +779,7 @@ function showResult(){
   $("rMsg").textContent=right===total?"ぜんぶ正解！ はなまる！":right>=total*0.8?"あとすこしで全問正解！":"まちがえた問題をもう一回やってみよう。";
   var ul=$("rMiss"); ul.textContent="";
   miss.forEach(function(it){ var p=it.p, li=el("li"), q=el("p","q"); sentence(q,p); li.appendChild(q);
-    if(p.kind==="kaki")li.appendChild(pairOf(p.chars,it.ink,96));
+    if(p.kind==="kaki"||p.kind==="yomi")li.appendChild(pairOf(p.chars,it.ink,96));
     else{ if(p.kind==="jun"){ var f=el("div"); strokeFig(f,p.ch,p.bold,120); li.appendChild(f) }
       var a=el("p","note"); a.appendChild(document.createTextNode("正解：")); a.appendChild(el("b",null,p.answerText)); a.appendChild(document.createTextNode("　きみの答え："+(it.given||"")+(p.kind==="jun"&&it.given?"画目":""))); li.appendChild(a) }
     ul.appendChild(li) });
@@ -810,7 +812,7 @@ function renderReview(){
   var list=log.filter(function(a){return rvAll||!rv[a.id]}).slice().reverse();
   if(!list.length){ ul.appendChild(el("li",null,rvAll?"まだ記録がありません。":"見ていない字はありません。")); return }
   list.forEach(function(a){
-    var li=el("li",rv[a.id]?"":"todo"), p=build({type:"書き",text:a.q,answer:a.a});
+    var li=el("li",rv[a.id]?"":"todo"), p=build({type:a.y?"読み":"書き",text:a.q,answer:a.a});
     var tag=el("span","tag "+(a.s?"ok":"ng"),"子どもの採点："+(a.s?"○":"×")+"　"+new Date(a.t).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})); li.appendChild(tag);
     var q=el("p","q"); if(p.ok)sentence(q,p); else q.textContent=a.q; li.appendChild(q);
     var pr=pairOf(p.ok?p.chars:chars(a.a),a.ink,(p.ok?p.chars:chars(a.a)).length>2?110:140); li.appendChild(pr);
@@ -834,8 +836,8 @@ function renderCheck(){
     if(!p.ok){ li.appendChild(el("p","q",p.text||"（問題文なし）")); li.appendChild(el("p","note err",p.err)); ul.appendChild(li); return }
     li.appendChild(el("p","note","種類："+p.row.type));
     var q=el("p","q"); sentence(q,p); li.appendChild(q);
-    if(p.kind==="kaki"){ var r=el("div","mrow"); p.chars.forEach(function(ch){r.appendChild(modelBox(ch,90))}); li.appendChild(r) }
-    if(p.kind==="yomi")li.appendChild(el("p","note","答え："+p.alts.join("／")));
+    if(p.kind==="kaki"||p.kind==="yomi"){ var r=el("div","mrow"); p.chars.forEach(function(ch){r.appendChild(modelBox(ch,90))}); li.appendChild(r) }
+    if(p.kind==="yomi"&&p.alts.length>1)li.appendChild(el("p","note","ほかの読み方も正解："+p.alts.slice(1).join("／")));
     if(p.kind==="sentaku")li.appendChild(el("p","note","選択肢："+p.choices.map(function(c,i){return (i+1)+" "+c+(i===p.correct?"（正解）":"")}).join("　")));
     if(p.kind==="jun"){ var f=el("div"), info=el("p","note","答え："+p.n+"画目"+(p.bold!==p.n?"（太くしているのは図の"+p.bold+"画目）":""));
       strokeFig(f,p.ch,p.bold,150,function(cnt){ if(!cnt){info.textContent+="　※図をよみこめませんでした"; info.className="note err"; return}
