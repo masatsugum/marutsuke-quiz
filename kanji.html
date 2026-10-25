@@ -92,6 +92,16 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 .model{display:flex; flex-direction:column; gap:8px}
 .model .lbl{font-weight:900; color:var(--pen); font-size:.95rem}
 .mrow{display:flex; flex-wrap:wrap; gap:10px}
+.mgrp{display:flex; flex-direction:column; gap:6px; align-items:center}
+.mpair{display:flex; gap:6px}
+.pts{display:block; border-radius:8px}
+.pts .fr{fill:var(--card); stroke:var(--line)} .pts .gd{stroke:#f3b9b3; stroke-dasharray:4 4; fill:none}
+.pts .st{fill:none; stroke:var(--ink); stroke-width:5; stroke-linecap:round; stroke-linejoin:round}
+.pts .st.hot{stroke-width:6.5}
+.pts .nm{font:900 11px var(--body); text-anchor:middle; paint-order:stroke; stroke:var(--card); stroke-width:2.5}
+.tips{display:flex; flex-wrap:wrap; gap:5px; justify-content:center; max-width:100%}
+.tip{display:inline-flex; align-items:center; gap:4px; font-weight:900; font-size:.95rem; color:var(--pen); background:var(--pen-bg); border-radius:99px; padding:2px 10px 2px 3px}
+.tip b{display:inline-block; min-width:20px; height:20px; line-height:20px; border-radius:99px; color:#fff; font-size:.75rem; text-align:center}
 .explain{margin:0; background:var(--x-bg); border-left:4px solid var(--x); border-radius:10px; padding:10px 14px; font-size:1.05rem; line-height:1.7; white-space:pre-line; overflow-wrap:anywhere}
 .maru{position:absolute; inset:0; margin:auto; width:190px; height:190px; pointer-events:none; opacity:.92}
 .maru circle{fill:none; stroke:var(--pen); stroke-width:9; stroke-linecap:round; stroke-dasharray:400; stroke-dashoffset:400; animation:draw .38s ease-out forwards}
@@ -611,6 +621,7 @@ function playOrder(svgs,btn){
       e.style.strokeDasharray=L; e.style.strokeDashoffset=L;
       if(e.animate){ e.animate([{strokeDashoffset:L},{strokeDashoffset:0}],{duration:dur,fill:"forwards",easing:"ease-in-out"}) } else e.style.strokeDashoffset=0 }
     setTimeout(step,dur+220) })() }
+function isKanji(ch){ var c=ch.codePointAt(0); return (c>=0x4e00&&c<=0x9fff)||(c>=0x3400&&c<=0x4dbf)||c===0x3005 }
 function modelBox(ch,px){ var w=el("div","sq show"); w.style.width=w.style.height=px+"px"; var g=el("div","ghost",ch); g.style.fontSize=Math.round(px*0.84)+"px"; w.appendChild(g); return w }
 function sentence(node,p){ node.textContent="";
   if(p.mark==null){ node.textContent=p.text; return }
@@ -622,17 +633,67 @@ function sentence(node,p){ node.textContent="";
 /* ---------- stroke order pictures (KanjiVG, fetched once per kanji and kept on this device) ---------- */
 var KVG_TAG="r20250816", kvgMem={};
 function kvgHex(ch){ var h=ch.codePointAt(0).toString(16); while(h.length<5)h="0"+h; return h }
-function loadStrokes(ch){
+function loadKvg(ch){   // -> [[d,type],...] in stroke order
   if(kvgMem[ch])return kvgMem[ch];
-  var hex=kvgHex(ch), cached=lsGet("kj.kvg."+hex,null);
+  var hex=kvgHex(ch), cached=lsGet("kj.kvg2."+hex,null);
   if(cached&&cached.length)return (kvgMem[ch]=Promise.resolve(cached));
+  try{localStorage.removeItem("kj.kvg."+hex)}catch(e){}
   var urls=["https://cdn.jsdelivr.net/gh/KanjiVG/kanjivg@"+KVG_TAG+"/kanji/"+hex+".svg","https://raw.githubusercontent.com/KanjiVG/kanjivg/"+KVG_TAG+"/kanji/"+hex+".svg"];
   function get(i){ return fetch(urls[i],{credentials:"omit"}).then(function(r){ if(!r.ok)throw 0; return r.text() })
     .then(function(t){ var doc=new DOMParser().parseFromString(t,"image/svg+xml"), out=[];
-      Array.prototype.forEach.call(doc.querySelectorAll("path[id]"),function(e){ var m=e.getAttribute("id").match(/-s(\d+)$/); if(m)out.push([+m[1],e.getAttribute("d")]) });
-      out.sort(function(a,b){return a[0]-b[0]}); out=out.map(function(x){return x[1]}); if(!out.length)throw 0; lsSet("kj.kvg."+hex,out); return out })
+      Array.prototype.forEach.call(doc.querySelectorAll("path[id]"),function(e){ var m=e.getAttribute("id").match(/-s(\d+)$/);
+        if(m)out.push([+m[1],e.getAttribute("d"),e.getAttribute("kvg:type")||e.getAttributeNS("http://kanjivg.tagaini.net","type")||""]) });
+      out.sort(function(a,b){return a[0]-b[0]}); out=out.map(function(x){return [x[1],x[2]]}); if(!out.length)throw 0; lsSet("kj.kvg2."+hex,out); return out })
     .catch(function(e){ if(i+1<urls.length)return get(i+1); throw e }) }
   var pr=get(0); pr.catch(function(){ delete kvgMem[ch] }); return (kvgMem[ch]=pr) }
+function loadStrokes(ch){ return loadKvg(ch).then(function(a){return a.map(function(x){return x[0]})}) }
+
+/* writing tips on the model: stroke numbers + ながく / はねる / はらう.
+   はねる・はらう come from the stroke type in KanjiVG; ながく from comparing stroke lengths.
+   Kept on the safe side: types that differ between Japanese and Chinese style (子's first stroke, 七, 四…) get no tip. */
+var KCOL=["#e0356b","#2f5fd0","#1e9a52","#e07a1f","#7a3fc4","#1b8fb5","#c23b2a","#5a7d16","#b0478f","#3b6e8f","#b8860b","#6b4f2a"];
+function kTips(info){
+  var tips=[];
+  var hs=info.filter(function(o){return /^㇐/.test(o.t)&&Math.abs(o.dx)>Math.abs(o.dy)*3}).sort(function(a,b){return Math.abs(b.dx)-Math.abs(a.dx)});
+  if(hs.length>=2&&Math.abs(hs[0].dx)>=55&&Math.abs(hs[0].dx)>=Math.abs(hs[1].dx)*1.3) tips.push({i:hs[0].i,w:"ながく",p:0});
+  var vs=info.filter(function(o){return /^㇑/.test(o.t)&&Math.abs(o.dy)>Math.abs(o.dx)*3}).sort(function(a,b){return Math.abs(b.dy)-Math.abs(a.dy)});
+  if(vs.length>=2&&Math.abs(vs[0].dy)>=60&&Math.abs((vs[0].a.x+vs[0].b.x)/2-54.5)<14&&Math.abs(vs[0].dy)>=Math.abs(vs[1].dy)*1.5) tips.push({i:vs[0].i,w:"ながく",p:0});
+  info.forEach(function(o,k){
+    var t=o.t, prev=k?info[k-1].t:"", next=(info[k+1]||{}).t||"";
+    var hook=/^(㇚|㇆|㇈|㇂|㇉|㇃|㇖b)/.test(t)||/^㇟(\/|$)/.test(t)||(/^㇁/.test(t)&&!/^㇇/.test(prev));
+    var harai=/^(㇒|㇏)/.test(t)||(/^㇇/.test(t)&&!/^㇁/.test(next));
+    if(hook) tips.push({i:o.i,w:"はねる",p:1,L:o.L});
+    else if(harai&&o.L>=28) tips.push({i:o.i,w:"はらう",p:2,L:o.L});
+  });
+  tips.sort(function(a,b){return a.p-b.p||(b.L||0)-(a.L||0)});
+  return tips.slice(0,3).sort(function(a,b){return a.i-b.i}) }
+function pointsFig(ch,px){   // -> element; fills in once the strokes are loaded, removes itself if they can't be
+  var box=el("div","mgrp"), pair=el("div","mpair"), tipRow=el("div","tips");
+  pair.appendChild(modelBox(ch,px)); box.appendChild(pair); box.appendChild(tipRow);
+  var s=document.createElementNS(SVGNS,"svg"); s.setAttribute("viewBox","-12 -12 133 133"); s.setAttribute("width",px); s.setAttribute("height",px); s.setAttribute("class","pts");
+  s.setAttribute("aria-label",ch+"の 書き順と 注意点");
+  s.innerHTML='<rect class="fr" x="-11" y="-11" width="131" height="131" rx="6"/><path class="gd" d="M54.5 -10V119M-10 54.5H119"/>';
+  loadKvg(ch).then(function(strokes){
+    // measure in a hidden svg that is in the page, so path lengths work even while the model is hidden
+    var m=document.createElementNS(SVGNS,"svg"); m.setAttribute("style","position:absolute;width:0;height:0;visibility:hidden"); document.body.appendChild(m);
+    var info=strokes.map(function(st,i){ var p=document.createElementNS(SVGNS,"path"); p.setAttribute("d",st[0]); m.appendChild(p);
+      var L=p.getTotalLength(), a=p.getPointAtLength(0), b=p.getPointAtLength(L);
+      return {i:i,t:st[1]||"",d:st[0],L:L,a:{x:a.x,y:a.y},b:{x:b.x,y:b.y},dx:b.x-a.x,dy:b.y-a.y} });
+    m.remove();
+    var tips=kTips(info), hot={}; tips.forEach(function(t){hot[t.i]=1});
+    info.forEach(function(o){ var e=document.createElementNS(SVGNS,"path"); e.setAttribute("d",o.d); e.setAttribute("class","st"+(hot[o.i]?" hot":"")); if(hot[o.i])e.style.stroke=KCOL[o.i%KCOL.length]; s.appendChild(e) });
+    var many=info.length>9;   // with many strokes, only the strokes with a tip get a number so it stays readable
+    info.forEach(function(o){ var c=KCOL[o.i%KCOL.length]; if(many&&!hot[o.i])return;
+      var d=document.createElementNS(SVGNS,"circle"); d.setAttribute("cx",o.a.x); d.setAttribute("cy",o.a.y); d.setAttribute("r","2.4"); d.setAttribute("fill",c); s.appendChild(d);
+      var h=Math.abs(o.dx)>Math.abs(o.dy), nx=h?o.a.x-(o.dx>=0?7:-7):o.a.x-6, ny=h?o.a.y+4:o.a.y-3;
+      var tx=document.createElementNS(SVGNS,"text"); tx.setAttribute("x",Math.max(-8,Math.min(116,nx))); tx.setAttribute("y",Math.max(-3,Math.min(118,ny)));
+      tx.setAttribute("class","nm"); tx.setAttribute("fill",c); tx.textContent=o.i+1; s.appendChild(tx) });
+    pair.appendChild(s);
+    tips.forEach(function(t){ var e=el("span","tip"), n=el("b","",String(t.i+1)); n.style.background=KCOL[t.i%KCOL.length]; e.appendChild(n); e.appendChild(document.createTextNode(t.w)); tipRow.appendChild(e) });
+    if(!tips.length)tipRow.remove();
+    layoutSquares() })
+  .catch(function(){ tipRow.remove() });
+  return box }
 function strokeFig(node,ch,bold,px,done){   // draws the kanji with one stroke bold; done(count) after loading
   node.textContent="";
   var s=document.createElementNS(SVGNS,"svg"); s.setAttribute("viewBox","0 0 109 109"); if(px){s.setAttribute("width",px); s.setAttribute("height",px)}
@@ -669,7 +730,10 @@ function renderQuestion(){
   var kaki=(p.kind==="kaki"||p.kind==="yomi");   // both are written by hand
   $("quiz").className="screen t-"+p.kind; $("wbox").hidden=!kaki; $("ibox").hidden=kaki; $("kfig").hidden=(p.kind!=="jun"); $("model").hidden=true;
   if(kaki){
-    var mr=$("mrow"); mr.textContent=""; p.chars.forEach(function(ch){mr.appendChild(modelBox(ch,p.chars.length>2?120:150))});
+    var mr=$("mrow"); mr.textContent="";
+    var nk=p.kind==="kaki"?p.chars.filter(isKanji).length:0, slots=p.chars.length+nk, gaps=(nk*6)+(p.chars.length-1)*10,
+      px=Math.max(90,Math.min(160,Math.floor((($("qcard").clientWidth||360)-40-gaps)/slots)));
+    p.chars.forEach(function(ch){mr.appendChild(p.kind==="kaki"&&isKanji(ch)?pointsFig(ch,px):modelBox(ch,px))});
     var ext=p.explain; if(p.kind==="yomi"&&p.alts.length>1)ext="ほかの読み方："+p.alts.slice(1).join("、")+(ext?"\n"+ext:"");
     var ex=$("explain"); ex.textContent=ext; ex.hidden=!ext;
     makeSquares(p.chars); setState("write"); return }
