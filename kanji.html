@@ -116,6 +116,44 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 .jbtn b{font-family:var(--display); font-weight:400; font-size:2rem; line-height:1}
 .jbtn.ok{color:var(--pen); background:var(--pen-bg)} .jbtn.ng{color:var(--x); background:var(--x-bg)}
 
+/* answer box + keypads (読み・書き順) and choices (選択) */
+.abox{background:var(--card); border:2px solid var(--ink); border-radius:16px; padding:8px 16px; display:flex; align-items:center; gap:12px; min-height:76px}
+.abox .lbl{color:var(--sub); font-weight:700; flex:none}
+.abox .val{margin-left:auto; font-size:2.2rem; font-weight:700; line-height:1.1; letter-spacing:.06em; overflow-wrap:anywhere; text-align:right}
+.abox .val.empty{color:var(--line)}
+.abox .unit{font-size:1.3rem; font-weight:700; flex:none}
+.abox.ok{border-color:var(--pen); background:var(--pen-bg)} .abox.ng{border-color:var(--x); background:var(--x-bg)}
+.kana{display:grid; grid-template-columns:repeat(11,1fr); gap:6px}
+#kanaPad{display:flex; flex-direction:column; gap:8px}
+.kana button{min-height:clamp(50px,7.2vh,82px); border-radius:10px; border:2px solid var(--line); background:var(--card); font-size:1.45rem; font-weight:700; padding:0; line-height:1}
+.kana button.fn{background:var(--x-bg); color:var(--x); border-color:var(--x-bg); font-size:.8rem; font-weight:900; line-height:1.15; padding:0 2px}
+.kana i{display:block}
+.kfoot{display:grid; grid-template-columns:1fr 1fr 2fr; gap:8px}
+.num{display:grid; grid-template-columns:repeat(3,1fr); gap:10px}
+.num button{min-height:64px; border-radius:14px; border:2px solid var(--ink); background:var(--card); font-family:var(--display); font-size:2rem; box-shadow:0 3px 0 var(--line)}
+.kfoot button,.num button.fn{font-family:var(--body); font-weight:900; font-size:1rem; min-height:56px; border-radius:12px; border:2px solid var(--line); background:var(--paper); box-shadow:none}
+.kfoot button.ok,.num button.ok{background:var(--marker); color:var(--on-marker); border:2px solid var(--on-marker); box-shadow:0 4px 0 var(--marker-edge); font-size:1.2rem}
+.kana button:active,.num button:active,.kfoot button:active{transform:translateY(2px)}
+.choices{display:flex; flex-direction:column; gap:12px}
+.choice{display:flex; align-items:center; gap:14px; text-align:left; background:var(--card); border:2px solid var(--ink); border-radius:16px; padding:14px 16px; min-height:76px; font-size:1.7rem; font-weight:700; letter-spacing:.06em; box-shadow:0 3px 0 var(--line)}
+.choice .no{flex:none; width:44px; height:44px; border-radius:50%; border:2px solid var(--ink); display:flex; align-items:center; justify-content:center; font-family:var(--display); font-size:1.4rem; letter-spacing:0}
+.choice.ok{border-color:var(--pen); background:var(--pen-bg); color:var(--pen)} .choice.ng{border-color:var(--x); background:var(--x-bg); color:var(--x)}
+.choice:disabled{cursor:default}
+.after{display:flex; flex-direction:column; gap:12px}
+.verdict{margin:0; text-align:center; font-family:var(--display); font-size:1.9rem}
+.verdict.ok{color:var(--pen)} .verdict.ng{color:var(--x)}
+.hint{margin:0; text-align:center; font-weight:700; font-size:1.2rem}
+.hint b{color:var(--pen); font-size:1.5rem}
+.box1{display:inline-block; width:1.15em; height:1.15em; border:2px solid var(--ink); vertical-align:-.15em; margin:0 .08em; background:var(--marker)}
+.tgt.u{background:none; border-bottom:4px solid var(--pen); padding:0 .06em}
+.kfig{display:flex; justify-content:center; align-items:center; flex:1; min-height:200px}
+.kfig svg{width:min(100%,360px); height:auto; max-height:100%; aspect-ratio:1}
+.kv{fill:none; stroke:var(--ink); stroke-width:3.4; stroke-linecap:round; stroke-linejoin:round}
+.kv.bold{stroke-width:8.4}
+.kv-frame{fill:var(--card); stroke:var(--line); stroke-width:1}
+.kv-msg{font:700 7px var(--body); fill:var(--sub); text-anchor:middle}
+.credit{margin:0; font-size:.75rem; color:var(--sub)}
+
 /* ---------- result / lists ---------- */
 .score{background:var(--card); border:2px solid var(--ink); border-radius:16px; padding:20px 16px; text-align:center}
 .score .big{font-family:var(--display); font-size:4.2rem; line-height:1.1; color:var(--pen)}
@@ -131,6 +169,9 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 .ink{display:block}
 .tag{align-self:flex-start; font-size:.8rem; font-weight:900; border-radius:999px; padding:2px 10px}
 .tag.ok{background:var(--pen-bg); color:var(--pen)} .tag.ng,.tag.wait{background:var(--x-bg); color:var(--x)} .tag.bad{background:var(--ink); color:var(--card)}
+.ink .no{fill:var(--pen); font:900 26px var(--body); paint-order:stroke; stroke:var(--card); stroke-width:6px; text-anchor:middle}
+.plain.play{min-height:46px; padding:8px 12px; color:var(--pen); border-color:var(--pen)}
+.plain.play:disabled{opacity:.5}
 .rv{display:grid; grid-template-columns:1fr 1fr; gap:8px}
 .rv button{min-height:46px; border-radius:12px; border:2px solid var(--line); background:var(--card); font-weight:900}
 .rv button.on.ok{border-color:var(--pen); background:var(--pen-bg); color:var(--pen)}
@@ -142,13 +183,17 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 /* upright (default): the quiz fills the screen so the squares get the room that is left */
 .app.wide #quiz{min-height:calc(100dvh - 52px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
 #wbox{flex:1} #squares{flex:1}
+#ibox{display:flex; flex-direction:column; gap:12px}
 @media (min-width:900px) and (orientation:landscape){
   .app.wide{padding-block:12px}
   .app.wide #quiz{display:grid; height:calc(100dvh - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); min-height:460px;
     grid-template-columns:minmax(0,1fr) minmax(0,1.05fr); column-gap:32px; row-gap:12px;
     grid-template-rows:auto minmax(0,1fr); grid-template-areas:"bar bar" "q right"}
-  #quiz .bar{grid-area:bar} #qcard{grid-area:q; overflow:auto; justify-content:center} #wbox{grid-area:right; min-height:0}
+  #quiz .bar{grid-area:bar} #qcard{grid-area:q; overflow:auto; justify-content:center} #wbox,#ibox{grid-area:right; min-height:0}
   #squares{flex:1; min-height:0}
+  .app.wide #quiz.t-yomi{grid-template-columns:minmax(0,.78fr) minmax(0,1.22fr)}
+  #ibox{overflow:auto}
+
 }
 @media (prefers-reduced-motion: reduce){ .maru circle{animation:none; stroke-dashoffset:0} .go:active{transform:none} }
 </style>
@@ -208,9 +253,9 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
   <details id="setBox">
     <summary>問題セットを追加・更新する</summary>
     <div class="form">
-      <label for="setName">セットの名前（例：漢字3年、漢字テスト5）</label>
-      <input id="setName" type="text" maxlength="20" autocomplete="off" placeholder="漢字3年">
-      <label for="sheetUrl">Google スプレッドシートのURL。列は 問題文・答え・解説・確認・単元 の順。問題文の書く部分は［はれ］のように［ ］でかこみます。共有は「リンクを知っている全員が閲覧可」にしてください。</label>
+      <label for="setName">セットの名前（例：漢検10級）</label>
+      <input id="setName" type="text" maxlength="20" autocomplete="off" placeholder="漢検10級">
+      <label for="sheetUrl">Google スプレッドシートのURL。列は 種類・問題文・答え・データ・解説・確認・単元 の順。種類は 書き・読み・書き順・選択 のどれか。共有は「リンクを知っている全員が閲覧可」にしてください。</label>
       <input id="sheetUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…">
       <button class="plain" id="addBtn" type="button">読みこんで登録する</button>
       <p class="note" id="syncNote" aria-live="polite"></p>
@@ -230,6 +275,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
   <div class="qcard" id="qcard">
     <span class="past" id="past" hidden></span>
     <p class="sent" id="sent"></p>
+    <div class="kfig" id="kfig" hidden></div>
     <div class="model" id="model" hidden>
       <span class="lbl">おてほん</span>
       <div class="mrow" id="mrow"></div>
@@ -249,6 +295,19 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
       <button class="jbtn ng" id="ngBtn" type="button"><b>×</b>ちがってた</button>
     </div>
     <button class="go" id="nextBtn" type="button" hidden>つぎへ</button>
+  </div>
+  <div id="ibox" hidden>
+    <p class="ask" id="ask2"></p>
+    <div class="abox" id="abox" hidden><span class="lbl">こたえ</span><span class="val empty" id="aval">？</span><span class="unit" id="aunit"></span></div>
+    <div id="kanaPad" hidden></div>
+    <div id="numPad" hidden></div>
+    <div class="choices" id="choices" hidden></div>
+    <div class="after" id="after" hidden>
+      <p class="verdict" id="verdict"></p>
+      <p class="hint" id="rightAns"></p>
+      <p class="explain" id="explain2" hidden></p>
+      <button class="go" id="next2" type="button">つぎへ</button>
+    </div>
   </div>
 </section>
 
@@ -273,6 +332,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
   <div class="head"><button class="quit" id="checkBack" type="button" aria-label="もどる">←</button><h1>問題チェック</h1></div>
   <p class="note" id="checkNote"></p>
   <ul class="list" id="checkList"></ul>
+  <p class="credit">書き順の図：KanjiVG（Ulrich Apel ほか、CC BY-SA 3.0）のデータを使っています。</p>
 </section>
 
 </div>
@@ -290,24 +350,59 @@ function keyOf(s){var h=5381; for(var i=0;i<s.length;i++){h=((h<<5)+h+s.charCode
 function chars(s){return Array.from?Array.from(s):String(s).split("")}
 
 /* ---------- one sheet row -> one problem ----------
-   問題文 marks the part to write with ［よみ］ (or [よみ]); 答え is what goes in the squares, one character per square. */
-var KANJI=/[㐀-鿿豈-﫿々〆ヶ]/;
+   種類   問題文                         答え              データ
+   書き   きょうは［はれ］ですね。       晴                 –        handwriting, the child marks it, a parent can check
+   読み   ［二］じかん目のこくごで       に（別解は に／ふた） –        hiragana keypad, marked automatically
+          石がき … ［□］しがき            い                          ［□］ = one box to fill
+   書き順 （空なら決まった文）            4                 五         number keypad; that stroke is drawn bold
+                                                            五,4       (when the bold stroke differs from the answer number)
+   選択   「八本」の正しい読みは？        はっぽん           はつぽん／はっぽん   buttons */
+var KANJI=/[\u3400-\u9fff\uf900-\ufaff々〆ヶ]/;
+var KINDS={"書き":"kaki","書き取り":"kaki","かき":"kaki","読み":"yomi","よみ":"yomi","読み方":"yomi","書き順":"jun","筆順":"jun","かきじゅん":"jun","選択":"sentaku","選ぶ":"sentaku","えらぶ":"sentaku"};
+function splitAlt(s){ return String(s||"").split(/[／\/｜|]/).map(function(x){return x.trim()}).filter(Boolean) }
+function zen2han(s){ return String(s||"").replace(/[０-９]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0xFEE0)}) }
+function kata2hira(s){ return String(s||"").replace(/[ァ-ヶ]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0x60)}) }
 function build(row){
-  var text=String(row.text||"").trim(), ans=String(row.answer||"").replace(/\s+/g,"");
-  var r={row:row, key:keyOf(text+"|"+ans), text:text, answer:ans, explain:String(row.explain||"").trim(),
+  var text=String(row.text||"").trim(), ans=String(row.answer||"").replace(/\s+/g,""), data=String(row.data||"").trim();
+  var kind=KINDS[String(row.type||"").trim()]||"";
+  var r={row:row, kind:kind, key:keyOf(kind+"|"+text+"|"+ans+"|"+data), text:text, answer:ans, explain:String(row.explain||"").trim(),
     confirmed:/^(○|◯|o|O|ok|OK|済|1|true)$/.test(String(row.confirmed||"").trim())};
-  var m=text.match(/^([\s\S]*?)[［\[]([^［\]］\[]*)[\]］]([\s\S]*)$/);
-  if(!text){r.err="問題文がありません。"; return r}
-  if(!m){r.err="問題文に、書く部分を［ ］でかこんだところがありません。例：きょうは［はれ］です。"; return r}
-  if(/[［\[]/.test(m[3])){r.err="［ ］は1つの問題に1か所にしてください。"; return r}
-  var yomi=m[2].trim();
-  if(!yomi){r.err="［ ］の中に読みがありません。"; return r}
-  if(!/^[ぁ-ゖァ-ヺー・]+$/.test(yomi)){r.err="［ ］の中は、ひらがな（読み）にしてください。いま：「"+yomi+"」"; return r}
-  if(!ans){r.err="答え（書く漢字）がありません。"; return r}
-  var cs=chars(ans);
-  if(cs.length>6){r.err="答えが長すぎます（6文字まで）。"; return r}
-  if(!cs.some(function(c){return KANJI.test(c)})){r.err="答え「"+ans+"」に漢字がありません。"; return r}
-  r.ok=true; r.before=m[1]; r.yomi=yomi; r.after=m[3]; r.chars=cs; return r }
+  if(!kind){r.err="種類が読めません（"+(row.type||"空")+"）。書き・読み・書き順・選択 のどれかにしてください。"; return r}
+  function bracket(){ var m=text.match(/^([\s\S]*?)[［\[]([^［\]］\[]*)[\]］]([\s\S]*)$/);
+    if(!m)return "問題文に、［ ］でかこんだところがありません。";
+    if(/[［\[]/.test(m[3]))return "［ ］は1つの問題に1か所にしてください。";
+    r.before=m[1]; r.mark=m[2].trim(); r.after=m[3]; return r.mark?"":"［ ］の中が空です。" }
+  if(kind==="kaki"){
+    var e=bracket(); if(e){r.err=e+(e.indexOf("ありません")>0?"例：きょうは［はれ］です。":""); return r}
+    if(!/^[ぁ-ゖァ-ヺー・]+$/.test(r.mark)){r.err="書きの問題では［ ］の中は読み（ひらがな）にします。いま：「"+r.mark+"」"; return r}
+    if(!ans){r.err="答え（書く漢字）がありません。"; return r}
+    var cs=chars(ans);
+    if(cs.length>6){r.err="答えが長すぎます（6文字まで）。"; return r}
+    if(!cs.some(function(c){return KANJI.test(c)})){r.err="答え「"+ans+"」に漢字がありません。"; return r}
+    r.ok=true; r.yomi=r.mark; r.chars=cs; r.answerText=ans; return r }
+  if(kind==="yomi"){
+    var e2=bracket(); if(e2){r.err=e2+(e2.indexOf("ありません")>0?"例：［二］じかん目の　／　石がき … ［□］しがき":""); return r}
+    var alts=splitAlt(kata2hira(ans));
+    if(!alts.length){r.err="答え（よみ）がありません。"; return r}
+    var badA=alts.filter(function(a){return !/^[ぁ-ゖー]+$/.test(a)});
+    if(badA.length){r.err="読みの答えは ひらがな にしてください（いま：「"+badA.join("、")+"」）。別の読みも正解にするときは ／ で区切ります。"; return r}
+    r.blank=/^[□口◻︎]$/.test(r.mark); r.alts=alts; r.answerText=alts[0]; r.ok=true; return r }
+  if(kind==="jun"){
+    var d=data.split(/[,、，\s]+/).filter(Boolean), ch=d[0]||"", n=parseInt(zen2han(ans),10), bold=d[1]?parseInt(zen2han(d[1]),10):n;
+    if(!ch||chars(ch).length!==1||!KANJI.test(ch)){r.err="書き順の問題は、データの列に漢字1字を入れてください（例：五）。"; return r}
+    if(!(n>=1&&n<=40)||String(n)!==zen2han(ans)){r.err="書き順の答えは数字にしてください（いま：「"+ans+"」）。"; return r}
+    if(!(bold>=1&&bold<=40)){r.err="データの2つめ（太くする画）が数字ではありません。"; return r}
+    r.ch=ch; r.n=n; r.bold=bold; r.answerText=n+"画目"; r.text=text||"「"+ch+"」の 太いところは 何画目に 書きますか。"; r.ok=true; return r }
+  if(kind==="sentaku"){
+    var ch2=splitAlt(data);
+    if(ch2.length<2){r.err="選択の問題は、データの列に選択肢を ／ で区切って2つ以上入れてください。"; return r}
+    if(ch2.length>6){r.err="選択肢は6つまでです。"; return r}
+    if(!text){r.err="問題文がありません。"; return r}
+    var k=ch2.indexOf(ans); if(k<0&&/^[1-6１-６]$/.test(ans))k=parseInt(zen2han(ans),10)-1;
+    if(k<0||k>=ch2.length){r.err="答え「"+ans+"」が選択肢（"+ch2.join("／")+"）の中にありません。"; return r}
+    var m3=text.match(/^([\s\S]*?)[［\[]([^［\]］\[]*)[\]］]([\s\S]*)$/); if(m3){r.before=m3[1]; r.mark=m3[2]; r.after=m3[3]}
+    r.choices=ch2; r.correct=k; r.answerText=ch2[k]; r.ok=true; return r }
+  return r }
 
 /* ---------- problem sets ---------- */
 var sets=lsGet("kj.sets",[]), cur=lsGet("kj.cur","");
@@ -332,10 +427,10 @@ function parseCsv(text){
     else cell+=c }
   if(cell!==""||row.length){row.push(cell); rows.push(row)}
   return rows }
-var COLS=["text","answer","explain","confirmed","tangen"];
+var COLS=["type","text","answer","data","explain","confirmed","tangen"];
 function parseSheet(t){ var out=[];
   parseCsv(t).forEach(function(r){ var c=r.map(function(x){return String(x).trim()});
-    if(c.every(function(x){return !x}))return; if(c[0]==="問題文")return;
+    if(c.every(function(x){return !x}))return; if(c[0]==="種類")return;
     var o={}; COLS.forEach(function(k,i){o[k]=c[i]||""}); out.push(o) });
   return out }
 function sheetCsvUrls(url){
@@ -352,7 +447,7 @@ function loadSheet(url){ var urls=sheetCsvUrls(url); if(!urls)return Promise.rej
   return fetchCsv(urls,0).then(function(t){ var rows=parseSheet(t); if(!rows.length)throw {code:"empty"}; return rows }) }
 function errText(e){ var c=e&&e.code;
   if(c==="url")return "スプレッドシートのURLではないようです。https://docs.google.com/spreadsheets/d/… の形のURLを入れてください。";
-  if(c==="empty")return "シートに問題が見つかりませんでした。1行目が見出し（問題文・答え…）、2行目から問題です。";
+  if(c==="empty")return "シートに問題が見つかりませんでした。1行目が見出し（種類・問題文・答え…）、2行目から問題です。";
   if(c==="private"||(c==="http"&&(e.status===401||e.status===403||e.status===404)))return "スプレッドシートを開けませんでした。共有を「リンクを知っている全員が閲覧可」にして、URLをたしかめてください。";
   return "読みこめませんでした。通信の状態と、シートの共有設定をたしかめてください。" }
 function setKey(url){var m=String(url||"").match(/\/d\/([\w-]{20,})/); if(!m)return null; var g=url.match(/[#&?]gid=(\d+)/); return m[1]+"|"+(g?g[1]:"")}
@@ -479,6 +574,7 @@ function layoutSquares(){
   sq.forEach(function(b,i){ b.wrap.style.width=b.wrap.style.height=size+"px"; b.ghost.style.fontSize=Math.round(size*0.84)+"px";
     var px=Math.round((size-6)*dpr); if(b.cv.width!==px){b.cv.width=px; b.cv.height=px} redraw(i) }) }
 var layT=null; window.addEventListener("resize",function(){clearTimeout(layT); layT=setTimeout(layoutSquares,100)});
+if(window.ResizeObserver){ var lastBox=""; new ResizeObserver(function(){ var b=$("squares"), k=b.clientWidth+"x"+b.clientHeight; if(k!==lastBox){lastBox=k; layoutSquares()} }).observe($("squares")) }
 $("undoBtn").addEventListener("click",function(){ if(!order.length)return; var i=order.pop(); sq[i].strokes.pop(); redraw(i); paintTools() });
 $("clearBtn").addEventListener("click",function(){ sq.forEach(function(b){b.strokes=[]}); order=[]; redrawAll(); paintTools() });
 function inkOf(){ return sq.map(function(b){return b.strokes.slice()}) }
@@ -491,17 +587,65 @@ var SVGNS="http://www.w3.org/2000/svg";
 function inkSvg(strokes,px){
   var s=document.createElementNS(SVGNS,"svg"); s.setAttribute("viewBox","0 0 200 200"); s.setAttribute("width",px); s.setAttribute("height",px); s.setAttribute("class","ink");
   s.innerHTML='<rect x="2" y="2" width="196" height="196" rx="6" style="fill:var(--card);stroke:var(--ink);stroke-width:4"/><path d="M100 4V196M4 100H196" style="stroke:var(--guide);stroke-width:2.5;stroke-dasharray:8 7"/>';
+  s._st=[];
   (strokes||[]).forEach(function(p){
-    if(p.length===2){ var c=document.createElementNS(SVGNS,"circle"); c.setAttribute("cx",p[0]); c.setAttribute("cy",p[1]); c.setAttribute("r",W); c.setAttribute("style","fill:var(--write)"); s.appendChild(c); return }
-    var e=document.createElementNS(SVGNS,"path"); e.setAttribute("d",pathD(p)); e.setAttribute("style","fill:none;stroke:var(--write);stroke-width:"+(W*2)+";stroke-linecap:round;stroke-linejoin:round"); s.appendChild(e) });
+    s._st.push({p:p});
+    if(p.length===2){ var c=document.createElementNS(SVGNS,"circle"); s._st[s._st.length-1].e=c; c.setAttribute("cx",p[0]); c.setAttribute("cy",p[1]); c.setAttribute("r",W); c.setAttribute("style","fill:var(--write)"); s.appendChild(c); return }
+    var e=document.createElementNS(SVGNS,"path"); s._st[s._st.length-1].e=e; e.setAttribute("d",pathD(p)); e.setAttribute("style","fill:none;stroke:var(--write);stroke-width:"+(W*2)+";stroke-linecap:round;stroke-linejoin:round"); s.appendChild(e) });
   return s }
+/* replay the strokes in the order they were written, numbering each one where it starts */
+function playOrder(svgs,btn){
+  var steps=[]; svgs.forEach(function(svg){
+    Array.prototype.forEach.call(svg.querySelectorAll(".no"),function(n){n.remove()});
+    (svg._st||[]).forEach(function(st){ steps.push({svg:svg,st:st}); st.e.style.opacity="0" }) });
+  var n=0, k=0, cur=null; btn.disabled=true;
+  (function step(){
+    if(k>=steps.length){ btn.disabled=false; btn.textContent="▶ もう一度 書き順を見る"; return }
+    var o=steps[k++], e=o.st.e, p=o.st.p;
+    if(o.svg!==cur){cur=o.svg; n=0} n++;
+    var g=document.createElementNS(SVGNS,"text"), x=Math.max(14,Math.min(186,p[0]-14)), y=Math.max(20,Math.min(194,p[1]-10));
+    g.setAttribute("x",x); g.setAttribute("y",y); g.setAttribute("class","no"); g.textContent=n; o.svg.appendChild(g);
+    e.style.opacity="1"; var dur=300;
+    if(e.tagName==="path"&&e.getTotalLength){ var L=e.getTotalLength(); dur=Math.max(250,Math.min(900,L*4));
+      e.style.strokeDasharray=L; e.style.strokeDashoffset=L;
+      if(e.animate){ e.animate([{strokeDashoffset:L},{strokeDashoffset:0}],{duration:dur,fill:"forwards",easing:"ease-in-out"}) } else e.style.strokeDashoffset=0 }
+    setTimeout(step,dur+220) })() }
 function modelBox(ch,px){ var w=el("div","sq show"); w.style.width=w.style.height=px+"px"; var g=el("div","ghost",ch); g.style.fontSize=Math.round(px*0.84)+"px"; w.appendChild(g); return w }
-function sentence(node,p){ node.textContent=""; node.appendChild(document.createTextNode(p.before)); node.appendChild(el("span","tgt",p.yomi)); node.appendChild(document.createTextNode(p.after)) }
+function sentence(node,p){ node.textContent="";
+  if(p.mark==null){ node.textContent=p.text; return }
+  node.appendChild(document.createTextNode(p.before));
+  if(p.kind==="yomi"&&p.blank)node.appendChild(el("span","box1"));
+  else node.appendChild(el("span","tgt"+(p.kind==="kaki"?"":" u"),p.mark));
+  node.appendChild(document.createTextNode(p.after)) }
+
+/* ---------- stroke order pictures (KanjiVG, fetched once per kanji and kept on this device) ---------- */
+var KVG_TAG="r20250816", kvgMem={};
+function kvgHex(ch){ var h=ch.codePointAt(0).toString(16); while(h.length<5)h="0"+h; return h }
+function loadStrokes(ch){
+  if(kvgMem[ch])return kvgMem[ch];
+  var hex=kvgHex(ch), cached=lsGet("kj.kvg."+hex,null);
+  if(cached&&cached.length)return (kvgMem[ch]=Promise.resolve(cached));
+  var urls=["https://cdn.jsdelivr.net/gh/KanjiVG/kanjivg@"+KVG_TAG+"/kanji/"+hex+".svg","https://raw.githubusercontent.com/KanjiVG/kanjivg/"+KVG_TAG+"/kanji/"+hex+".svg"];
+  function get(i){ return fetch(urls[i],{credentials:"omit"}).then(function(r){ if(!r.ok)throw 0; return r.text() })
+    .then(function(t){ var doc=new DOMParser().parseFromString(t,"image/svg+xml"), out=[];
+      Array.prototype.forEach.call(doc.querySelectorAll("path[id]"),function(e){ var m=e.getAttribute("id").match(/-s(\d+)$/); if(m)out.push([+m[1],e.getAttribute("d")]) });
+      out.sort(function(a,b){return a[0]-b[0]}); out=out.map(function(x){return x[1]}); if(!out.length)throw 0; lsSet("kj.kvg."+hex,out); return out })
+    .catch(function(e){ if(i+1<urls.length)return get(i+1); throw e }) }
+  var pr=get(0); pr.catch(function(){ delete kvgMem[ch] }); return (kvgMem[ch]=pr) }
+function strokeFig(node,ch,bold,px,done){   // draws the kanji with one stroke bold; done(count) after loading
+  node.textContent="";
+  var s=document.createElementNS(SVGNS,"svg"); s.setAttribute("viewBox","0 0 109 109"); if(px){s.setAttribute("width",px); s.setAttribute("height",px)}
+  s.innerHTML='<rect class="kv-frame" x=".5" y=".5" width="108" height="108" rx="4"/><text class="kv-msg" x="54.5" y="56">よみこみ中…</text>'; node.appendChild(s);
+  loadStrokes(ch).then(function(ds){
+    s.innerHTML='<rect class="kv-frame" x=".5" y=".5" width="108" height="108" rx="4"/>';
+    ds.forEach(function(d,i){ var e=document.createElementNS(SVGNS,"path"); e.setAttribute("d",d); e.setAttribute("class","kv"+(i+1===bold?" bold":"")); s.appendChild(e) });
+    if(done)done(ds.length) })
+  .catch(function(){ s.innerHTML='<rect class="kv-frame" x=".5" y=".5" width="108" height="108" rx="4"/><text class="kv-msg" x="54.5" y="52">書き順の図を</text><text class="kv-msg" x="54.5" y="62">よみこめませんでした</text>'; if(done)done(0) }) }
 
 /* ---------- quiz ---------- */
-var game=null, stepAt=0;
+var game=null, stepAt=0, input="";
 function startGame(pool){ if(!pool.length)return;
-  game={items:shuffle(pool).slice(0,GAME_SIZE).map(function(p){return {p:p,ok:null,ink:null}}), i:0};
+  game={items:shuffle(pool).slice(0,GAME_SIZE).map(function(p){return {p:p,ok:null,ink:null,given:""}}), i:0};
   show("quiz"); renderQuestion() }
 function renderDots(){var d=$("dots"); d.textContent=""; game.items.forEach(function(it,i){var c=el("i"); if(it.ok===true)c.className="ok"; else if(it.ok===false)c.className="ng"; else if(i===game.i)c.className="now"; d.appendChild(c)})}
 function setState(s){
@@ -514,16 +658,95 @@ function setState(s){
   if(s==="check"){ a.textContent="おてほんと くらべよう。とめ・はね・はらい、形も 同じかな？"; a.className="ask" }
   if(s==="trace"){ a.textContent="おてほんを なぞって、もう1回 書こう"; a.className="ask ng";
     $("nextBtn").textContent=(game.i===game.items.length-1)?"かけた！ けっかを見る":"かけた！ つぎへ" }
-  paintTools() }
+  paintTools(); layoutSquares() }
 function renderQuestion(){
   var it=game.items[game.i], p=it.p, s=stat(p);
   renderDots(); $("count").textContent=(game.i+1)+"/"+game.items.length;
   sentence($("sent"),p);
   $("past").hidden=!s.w; $("past").textContent="これまで "+s.w+"回まちがえた";
   var old=$("qcard").querySelector(".maru"); if(old)old.remove();
-  var mr=$("mrow"); mr.textContent=""; p.chars.forEach(function(ch){mr.appendChild(modelBox(ch,p.chars.length>2?120:150))});
-  var ex=$("explain"); ex.textContent=p.explain; ex.hidden=!p.explain;
-  makeSquares(p.chars); setState("write") }
+  var kaki=(p.kind==="kaki");
+  $("quiz").className="screen t-"+p.kind; $("wbox").hidden=!kaki; $("ibox").hidden=kaki; $("kfig").hidden=(p.kind!=="jun"); $("model").hidden=true;
+  if(kaki){
+    var mr=$("mrow"); mr.textContent=""; p.chars.forEach(function(ch){mr.appendChild(modelBox(ch,p.chars.length>2?120:150))});
+    var ex=$("explain"); ex.textContent=p.explain; ex.hidden=!p.explain;
+    makeSquares(p.chars); setState("write"); return }
+  sq=[]; $("squares").textContent=""; state="input"; stepAt=Date.now(); input=""; it.given="";
+  $("after").hidden=true; $("abox").className="abox"; $("aunit").textContent="";
+  $("abox").hidden=(p.kind==="sentaku"); $("kanaPad").hidden=(p.kind!=="yomi"); $("numPad").hidden=(p.kind!=="jun"); $("choices").hidden=(p.kind!=="sentaku");
+  var a=$("ask2"); a.className="ask";
+  if(p.kind==="yomi"){ a.textContent=p.blank?"□に 入る ひらがなを 書こう":"線のところの よみを ひらがなで 書こう" }
+  if(p.kind==="jun"){ a.textContent="何画目かな？ 数字で こたえよう"; $("aunit").textContent="画目"; strokeFig($("kfig"),p.ch,p.bold,0) }
+  if(p.kind==="sentaku"){ a.textContent="正しいものを えらぼう"; renderChoices(p) }
+  paintInput() }
+function paintInput(){ var v=$("aval"); v.textContent=input||"？"; v.className="val"+(input?"":" empty") }
+
+/* hiragana keypad laid out like the あいうえお chart: あ column on the right */
+var KCOLS=[["あ","い","う","え","お"],["か","き","く","け","こ"],["さ","し","す","せ","そ"],["た","ち","つ","て","と"],["な","に","ぬ","ね","の"],
+  ["は","ひ","ふ","へ","ほ"],["ま","み","む","め","も"],["や","","ゆ","","よ"],["ら","り","る","れ","ろ"],["わ","を","ん","ー",""],["゛","゜","小","",""]];
+var KLABEL={"゛":"てん\nてん","゜":"まる","小":"小さい\n字"};
+var DAK={"か":"が","き":"ぎ","く":"ぐ","け":"げ","こ":"ご","さ":"ざ","し":"じ","す":"ず","せ":"ぜ","そ":"ぞ","た":"だ","ち":"ぢ","つ":"づ","て":"で","と":"ど","は":"ば","ひ":"び","ふ":"ぶ","へ":"べ","ほ":"ぼ","う":"ゔ"};
+var HAN={"は":"ぱ","ひ":"ぴ","ふ":"ぷ","へ":"ぺ","ほ":"ぽ"};
+var SMALL={"あ":"ぁ","い":"ぃ","う":"ぅ","え":"ぇ","お":"ぉ","つ":"っ","や":"ゃ","ゆ":"ゅ","よ":"ょ","わ":"ゎ"};
+function swapLast(map){ if(!input)return; var c=input.slice(-1), base=c, k;
+  for(k in DAK)if(DAK[k]===c)base=k; for(k in HAN)if(HAN[k]===c)base=k; for(k in SMALL)if(SMALL[k]===c)base=k;
+  var to=map[base]; input=input.slice(0,-1)+(to&&to!==c?to:base) }
+(function(){
+  var pad=$("kanaPad"), g=el("div","kana");
+  for(var r=0;r<5;r++)for(var c=KCOLS.length-1;c>=0;c--){ var ch=KCOLS[c][r];
+    if(!ch){g.appendChild(el("i")); continue}
+    var b=el("button",c===KCOLS.length-1?"fn":null); b.type="button"; b.dataset.k=ch;
+    if(KLABEL[ch]){ KLABEL[ch].split("\n").forEach(function(t){b.appendChild(el("i",null,t))}); b.setAttribute("aria-label",ch) } else b.textContent=ch;
+    g.appendChild(b) }
+  pad.appendChild(g);
+  var f=el("div","kfoot"); [["back","1文字けす"],["clear","ぜんぶけす"],["enter","こたえる"]].forEach(function(o){ var b=el("button",o[0]==="enter"?"ok":null,o[1]); b.type="button"; b.dataset.k=o[0]; f.appendChild(b) });
+  pad.appendChild(f);
+  var num=$("numPad"), n=el("div","num");
+  ["7","8","9","4","5","6","1","2","3","back","0","enter"].forEach(function(k){ var b=el("button",k==="back"?"fn":k==="enter"?"ok":null,k==="back"?"けす":k==="enter"?"こたえる":k); b.type="button"; b.dataset.k=k; n.appendChild(b) });
+  num.appendChild(n);
+  [pad,num].forEach(function(box){ box.addEventListener("click",function(e){ var b=e.target.closest("button"); if(!b||Date.now()-stepAt<300)return; press(b.dataset.k) }) });
+})();
+function press(k){
+  if(!game||state!=="input")return; var p=game.items[game.i].p;
+  if(k==="enter"){ submit(); return }
+  if(k==="back")input=input.slice(0,-1);
+  else if(k==="clear")input="";
+  else if(k==="゛")swapLast(DAK);
+  else if(k==="゜")swapLast(HAN);
+  else if(k==="小")swapLast(SMALL);
+  else if(p.kind==="jun"){ if(/^\d$/.test(k)&&input.length<2)input=(input+k).replace(/^0+/,"") }
+  else if(input.length<12)input+=k;
+  paintInput() }
+document.addEventListener("keydown",function(e){ if($("quiz").hidden||!game)return; var p=game.items[game.i].p;
+  if(state==="after"&&e.key==="Enter"){e.preventDefault(); $("next2").click(); return}
+  if(state!=="input")return;
+  if(e.key==="Enter"){e.preventDefault(); press("enter"); return} if(e.key==="Backspace"){e.preventDefault(); press("back"); return}
+  if(p.kind==="jun"&&/^\d$/.test(e.key))press(e.key) });
+function renderChoices(p){ var box=$("choices"); box.textContent="";
+  p.choices.forEach(function(c,i){ var b=el("button","choice"); b.type="button"; b.appendChild(el("span","no",String(i+1))); b.appendChild(el("span",null,c));
+    b.addEventListener("click",function(){ if(state!=="input"||Date.now()-stepAt<300)return; input=c; submit(i) }); box.appendChild(b) }) }
+function submit(ci){
+  var it=game.items[game.i], p=it.p, ok;
+  if(p.kind==="sentaku"){ ok=(ci===p.correct) }
+  else{ if(!input){ shake(); return }
+    ok=(p.kind==="jun")?(parseInt(input,10)===p.n):(p.alts.indexOf(input)>=0) }
+  it.ok=ok; it.given=input; state="after"; stepAt=Date.now();
+  record(p,ok,null); renderDots();
+  $("kanaPad").hidden=$("numPad").hidden=true; $("after").hidden=false;
+  if(p.kind==="sentaku")Array.prototype.forEach.call($("choices").children,function(b,i){ b.disabled=true; if(i===p.correct)b.classList.add("ok"); else if(i===ci)b.classList.add("ng") });
+  else $("abox").className="abox "+(ok?"ok":"ng");
+  $("next2").textContent=(game.i===game.items.length-1)?"けっかを見る":"つぎへ";
+  var v=$("verdict"), ra=$("rightAns"), ex=$("explain2");
+  v.textContent=ok?"せいかい！":"ざんねん…"; v.className="verdict "+(ok?"ok":"ng");
+  ra.textContent=""; if(!ok){ ra.appendChild(document.createTextNode("正しい答えは ")); ra.appendChild(el("b",null,p.answerText)) }
+  if(ok&&p.kind==="yomi"&&p.alts.length>1&&input!==p.alts[0]){ ra.textContent="「"+p.alts[0]+"」とも読むよ。" }
+  ex.textContent=p.explain; ex.hidden=!p.explain;
+  if(ok){ var svg=document.createElementNS(SVGNS,"svg"), c=document.createElementNS(SVGNS,"circle");
+    svg.setAttribute("class","maru"); svg.setAttribute("viewBox","0 0 150 150");
+    c.setAttribute("cx","75"); c.setAttribute("cy","75"); c.setAttribute("r","60"); c.setAttribute("transform","rotate(-80 75 75)");
+    svg.appendChild(c); $("qcard").appendChild(svg) } }
+function shake(){ var a=$("abox"); a.animate&&a.animate([{transform:"translateX(0)"},{transform:"translateX(-8px)"},{transform:"translateX(8px)"},{transform:"translateX(0)"}],{duration:220}) }
+$("next2").addEventListener("click",function(){ if(state!=="after"||Date.now()-stepAt<400)return; next() });
 $("showBtn").addEventListener("click",function(){ if(state!=="write"||Date.now()-stepAt<300)return; game.items[game.i].ink=inkOf(); setState("check") });
 function judge(ok){
   if(state!=="check"||Date.now()-stepAt<400)return;
@@ -543,16 +766,21 @@ $("nextBtn").addEventListener("click",function(){ if(state!=="trace"||Date.now()
 function next(){ if(!game)return; if(game.i<game.items.length-1){game.i++; renderQuestion()} else showResult() }
 function record(p,ok,ink){
   var s=hist[p.key]||{w:0,r:0}, now=Date.now(); hist[p.key]={w:s.w+(ok?0:1),r:s.r+(ok?1:0),t:now}; lsSet("kj.hist",hist);
-  log.push({id:now.toString(36)+Math.random().toString(36).slice(2,6), t:now, k:p.key, q:p.text, a:p.answer, s:ok?1:0, ink:ink||[]});
-  if(log.length>LOG_MAX)log=log.slice(-LOG_MAX); saveLog(); cloudSoon() }
+  if(p.kind==="kaki"){ log.push({id:now.toString(36)+Math.random().toString(36).slice(2,6), t:now, k:p.key, q:p.text, a:p.answer, s:ok?1:0, ink:ink||[]});
+    if(log.length>LOG_MAX)log=log.slice(-LOG_MAX); saveLog() }
+  cloudSoon() }
 function saveLog(){ lsSet("kj.log",log); lsSet("kj.rv",rv) }
 $("quitBtn").addEventListener("click",function(){game=null; state=""; renderHome(); show("home"); cloudSync(true)});
 function showResult(){
   var items=game.items, total=items.length, right=items.filter(function(it){return it.ok}).length, miss=items.filter(function(it){return it.ok===false});
   $("rScore").textContent=right; $("rTotal").textContent=total;
-  $("rMsg").textContent=right===total?"ぜんぶ正解！ はなまる！":right>=total*0.8?"あとすこしで全問正解！":"まちがえた漢字をもう一回書いてみよう。";
+  $("rMsg").textContent=right===total?"ぜんぶ正解！ はなまる！":right>=total*0.8?"あとすこしで全問正解！":"まちがえた問題をもう一回やってみよう。";
   var ul=$("rMiss"); ul.textContent="";
-  miss.forEach(function(it){ var li=el("li"), q=el("p","q"); sentence(q,it.p); li.appendChild(q); li.appendChild(pairOf(it.p.chars,it.ink,96)); ul.appendChild(li) });
+  miss.forEach(function(it){ var p=it.p, li=el("li"), q=el("p","q"); sentence(q,p); li.appendChild(q);
+    if(p.kind==="kaki")li.appendChild(pairOf(p.chars,it.ink,96));
+    else{ if(p.kind==="jun"){ var f=el("div"); strokeFig(f,p.ch,p.bold,120); li.appendChild(f) }
+      var a=el("p","note"); a.appendChild(document.createTextNode("正解：")); a.appendChild(el("b",null,p.answerText)); a.appendChild(document.createTextNode("　きみの答え："+(it.given||"")+(p.kind==="jun"&&it.given?"画目":""))); li.appendChild(a) }
+    ul.appendChild(li) });
   game.missed=miss.map(function(it){return it.p}); $("retryMiss").hidden=!miss.length; state="";
   show("result"); cloudSync(true) }
 function pairOf(cs,ink,px){
@@ -582,10 +810,13 @@ function renderReview(){
   var list=log.filter(function(a){return rvAll||!rv[a.id]}).slice().reverse();
   if(!list.length){ ul.appendChild(el("li",null,rvAll?"まだ記録がありません。":"見ていない字はありません。")); return }
   list.forEach(function(a){
-    var li=el("li",rv[a.id]?"":"todo"), p=build({text:a.q,answer:a.a});
+    var li=el("li",rv[a.id]?"":"todo"), p=build({type:"書き",text:a.q,answer:a.a});
     var tag=el("span","tag "+(a.s?"ok":"ng"),"子どもの採点："+(a.s?"○":"×")+"　"+new Date(a.t).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})); li.appendChild(tag);
     var q=el("p","q"); if(p.ok)sentence(q,p); else q.textContent=a.q; li.appendChild(q);
-    li.appendChild(pairOf(p.ok?p.chars:chars(a.a),a.ink,110));
+    var pr=pairOf(p.ok?p.chars:chars(a.a),a.ink,(p.ok?p.chars:chars(a.a)).length>2?110:140); li.appendChild(pr);
+    if((a.ink||[]).some(function(x){return x&&x.length})){
+      var pb=el("button","plain play","▶ 書き順を見る（"+(a.ink||[]).reduce(function(t,x){return t+((x&&x.length)||0)},0)+"画）"); pb.type="button";
+      pb.addEventListener("click",function(){ playOrder(Array.prototype.slice.call(pr.querySelectorAll("svg.ink")),pb) }); li.appendChild(pb) }
     var bx=el("div","rv"), cur=rv[a.id]?rv[a.id].v:null;
     [[1,"○ 正しい","ok"],[0,"× まちがい","ng"]].forEach(function(o){ var b=el("button",o[2]+(cur===o[0]?" on":""),o[1]); b.type="button";
       b.addEventListener("click",function(){setReview(a,o[0])}); bx.appendChild(b) });
@@ -597,12 +828,19 @@ $("reviewBack").addEventListener("click",function(){renderHome(); show("home")})
 function renderCheck(){
   var ul=$("checkList"); ul.textContent="";
   var bad=bank.filter(function(p){return !p.ok}), wait=bank.filter(function(p){return p.ok&&!p.confirmed}), good=bank.filter(function(p){return p.ok&&p.confirmed});
-  $("checkNote").textContent="エラー "+bad.length+"・確認待ち "+wait.length+"・出題中 "+good.length+"\n確認待ちの問題は、読みと漢字を見て正しければ、スプレッドシートの「確認」列に ○ を入れてください。";
+  $("checkNote").textContent="エラー "+bad.length+"・確認待ち "+wait.length+"・出題中 "+good.length+"\n確認待ちの問題は、問題と答えを見て正しければ、スプレッドシートの「確認」列に ○ を入れてください。";
   function item(p,tag,cls){ var li=el("li"); li.appendChild(el("span","tag "+cls,tag));
     if(p.row.tangen)li.appendChild(el("p","note","単元："+p.row.tangen));
     if(!p.ok){ li.appendChild(el("p","q",p.text||"（問題文なし）")); li.appendChild(el("p","note err",p.err)); ul.appendChild(li); return }
+    li.appendChild(el("p","note","種類："+p.row.type));
     var q=el("p","q"); sentence(q,p); li.appendChild(q);
-    var r=el("div","mrow"); p.chars.forEach(function(ch){r.appendChild(modelBox(ch,90))}); li.appendChild(r);
+    if(p.kind==="kaki"){ var r=el("div","mrow"); p.chars.forEach(function(ch){r.appendChild(modelBox(ch,90))}); li.appendChild(r) }
+    if(p.kind==="yomi")li.appendChild(el("p","note","答え："+p.alts.join("／")));
+    if(p.kind==="sentaku")li.appendChild(el("p","note","選択肢："+p.choices.map(function(c,i){return (i+1)+" "+c+(i===p.correct?"（正解）":"")}).join("　")));
+    if(p.kind==="jun"){ var f=el("div"), info=el("p","note","答え："+p.n+"画目"+(p.bold!==p.n?"（太くしているのは図の"+p.bold+"画目）":""));
+      strokeFig(f,p.ch,p.bold,150,function(cnt){ if(!cnt){info.textContent+="　※図をよみこめませんでした"; info.className="note err"; return}
+        info.textContent+="　図の画数："+cnt+"画"; if(p.bold>cnt){info.textContent+="　※太くする画が画数より大きい"; info.className="note err"} });
+      li.appendChild(f); li.appendChild(info) }
     if(p.explain)li.appendChild(el("p","note",p.explain)); ul.appendChild(li) }
   bad.forEach(function(p){item(p,"エラー（出題しません）","bad")});
   wait.forEach(function(p){item(p,"確認待ち（出題しません）","wait")});
