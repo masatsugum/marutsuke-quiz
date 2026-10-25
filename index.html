@@ -264,7 +264,7 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
       <p class="note" id="cloudNote" aria-live="polite"></p>
       <div class="sync" id="cloudOn" hidden>
         <button class="plain" id="cloudNow" type="button">いますぐ同期する</button>
-        <button class="plain" id="cloudLink" type="button">ほかの端末用のリンクをコピー</button>
+        <button class="plain" id="cloudLink" type="button">設定入りのリンクをコピー（ホーム画面用・ほかの端末用）</button>
         <button class="plain" id="cloudOff" type="button">この端末の同期をやめる</button>
       </div>
     </div>
@@ -618,7 +618,7 @@ function showResult(){
 }
 
 /* ---------- history ---------- */
-function record(q,ok){var k=keyOf(q.q), s=hist[k]||{w:0,r:0}; s={w:s.w+(ok?0:1),r:s.r+(ok?1:0),t:Date.now()}; hist[k]=s; lsSet("mq.hist",hist)}
+function record(q,ok){var k=keyOf(q.q), s=hist[k]||{w:0,r:0}; s={w:s.w+(ok?0:1),r:s.r+(ok?1:0),t:Date.now()}; hist[k]=s; lsSet("mq.hist",hist); cloudSoon()}
 var resetArmed=false;
 function renderHistory(){
   resetArmed=false; $("resetBtn").textContent="履歴をぜんぶ消す";
@@ -722,6 +722,8 @@ var cloud={url:lsGet("mq.cloudUrl",""), key:lsGet("mq.cloudKey",""), at:lsGet("m
 var setsAt=lsGet("mq.setsAt",0), resetAt=lsGet("mq.resetAt",0);
 var cloudBusy=false, cloudAgain=false, cloudFailed=false, missingBusy=false;
 function cloudReady(){return !!(cloud.url&&cloud.key)}
+var soonT=null;
+function cloudSoon(){ if(!cloudReady())return; clearTimeout(soonT); soonT=setTimeout(function(){soonT=null; cloudSync(true)},4000) }
 function touchSets(){setsAt=Date.now(); lsSet("mq.setsAt",setsAt); cloudSync(true)}
 function cloudPayload(){return {v:1,hist:hist,resetAt:resetAt,setsAt:setsAt,
   sets:sets.map(function(s){return {id:s.id,name:s.name,url:s.url}})}}
@@ -794,18 +796,22 @@ $("cloudNow").addEventListener("click",function(){cloudSync(false)});
 $("cloudOff").addEventListener("click",function(){ cloudUse("",""); $("cloudUrl").value=""; $("cloudKey").value=""; cloudFailed=false;
   cloudMsg("この端末の同期をやめました。この端末の記録はそのまま残っています。"); renderCloud() });
 $("cloudLink").addEventListener("click",function(){
-  var link=location.origin+location.pathname+"#sync="+encodeURIComponent(cloud.url)+"&key="+encodeURIComponent(cloud.key);
-  function shown(){cloudMsg("このリンクをほかの端末で開くと、同期の設定が入ります（合言葉も入っているので、ほかの人には送らないでください）：\n"+link)}
-  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(link).then(function(){cloudMsg("リンクをコピーしました。ほかの端末で開くと、同期の設定が入ります。合言葉も入っているので、ほかの人には送らないでください。")},shown);
+  var link=location.origin+location.pathname+"?sync="+encodeURIComponent(cloud.url)+"&key="+encodeURIComponent(cloud.key);
+  function shown(){cloudMsg("このリンクをひらいてから「ホーム画面に追加」すると、記録が消えても自動でもどります。ほかの端末でひらくと同期の設定が入ります。合言葉が入っているので、ほかの人には送らないでください：\n"+link)}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(link).then(function(){cloudMsg("リンクをコピーしました。Safariでこのリンクをひらいて「ホーム画面に追加」してください。記録が消えても、そのアイコンからひらけば自動でもどります。合言葉が入っているので、ほかの人には送らないでください。")},shown);
   else shown();
 });
-document.addEventListener("visibilitychange",function(){ if(document.visibilityState==="visible"&&!game&&cloudReady()&&Date.now()-cloud.at>60000)cloudSync(true) });
-(function(){   // a link from "ほかの端末用のリンク" sets this device up
-  var h=location.hash; if(h.indexOf("#sync=")!==0)return;
-  var m=h.match(/[#&]sync=([^&]*)/), k=h.match(/[#&]key=([^&]*)/);
-  try{ if(m&&k)cloudUse(decodeURIComponent(m[1]),decodeURIComponent(k[1])) }catch(e){}
-  try{history.replaceState(null,"",location.pathname+location.search)}catch(e){}
+document.addEventListener("visibilitychange",function(){
+  if(document.visibilityState==="hidden"&&soonT&&cloudReady()){ clearTimeout(soonT); soonT=null; cloudSync(true); return }
+  if(document.visibilityState==="visible"&&!game&&cloudReady()&&Date.now()-cloud.at>60000)cloudSync(true) });
+(function(){   // a link with ?sync=…&key=… (or the older #sync=…) sets this device up. The address is kept on purpose:
+  // a bookmark or home-screen icon made from it brings the setting back even after Safari has wiped this site's storage.
+  var q=(location.search+"&"+location.hash.slice(1)).replace(/^\?/,"");
+  var m=q.match(/(?:^|&)sync=([^&]*)/), k=q.match(/(?:^|&)key=([^&]*)/);
+  try{ if(m&&k){ var u=decodeURIComponent(m[1]), kk=decodeURIComponent(k[1]);
+    if(/^https:\/\/script\.google(usercontent)?\.com\//.test(u)&&kk.length>=4&&(u!==cloud.url||kk!==cloud.key))cloudUse(u,kk) } }catch(e){}
 })();
+try{ if(navigator.storage&&navigator.storage.persist)navigator.storage.persist() }catch(e){}
 $("cloudUrl").value=cloud.url; $("cloudKey").value=cloud.key; renderCloud();
 
 renderHome();
