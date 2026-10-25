@@ -1,0 +1,696 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#f4f7fb">
+<title>まるつけ漢字</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Klee+One:wght@600&family=Yusei+Magic&family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
+<style>
+:root{color-scheme:light; padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+body{margin:0}
+[hidden]{display:none!important}
+:root{
+  --paper:#f4f7fb; --grid:rgba(60,95,170,.09); --card:#ffffff; --ink:#1c2740; --sub:#5b6781; --line:#d3dbea;
+  --pen:#e0352b; --pen-bg:#fdecea; --x:#3f58c4; --x-bg:#e9edfb;
+  --marker:#ffe04a; --marker-edge:#e2bd00; --on-marker:#1c2740;
+  --guide:rgba(224,53,43,.28); --trace:rgba(28,39,64,.17); --write:#1c2740;
+  --display:"Yusei Magic","Zen Maru Gothic","Hiragino Maru Gothic ProN","Yu Gothic",sans-serif;
+  --body:"Zen Maru Gothic","Hiragino Maru Gothic ProN","Hiragino Sans","Yu Gothic","Noto Sans JP",sans-serif;
+  --model:"Klee One","YuKyokasho","UD Digi Kyokasho N-R","Hiragino Mincho ProN","Yu Mincho",serif;
+}
+@media (prefers-color-scheme: dark){ :root:not([data-theme="light"]){
+  --paper:#131928; --grid:rgba(140,170,240,.07); --card:#1d2537; --ink:#eef1f8; --sub:#9da8c0; --line:#34415d;
+  --pen:#ff6f61; --pen-bg:#3b2125; --x:#93a6ff; --x-bg:#232c4d;
+  --marker:#ffe04a; --marker-edge:#b89a00; --on-marker:#1c2740;
+  --guide:rgba(255,111,97,.3); --trace:rgba(238,241,248,.2); --write:#eef1f8; color-scheme:dark } }
+:root[data-theme="dark"]{
+  --paper:#131928; --grid:rgba(140,170,240,.07); --card:#1d2537; --ink:#eef1f8; --sub:#9da8c0; --line:#34415d;
+  --pen:#ff6f61; --pen-bg:#3b2125; --x:#93a6ff; --x-bg:#232c4d;
+  --marker:#ffe04a; --marker-edge:#b89a00; --on-marker:#1c2740;
+  --guide:rgba(255,111,97,.3); --trace:rgba(238,241,248,.2); --write:#eef1f8; color-scheme:dark }
+*{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  background:var(--paper);
+  background-image:linear-gradient(var(--grid) 1px,transparent 1px),linear-gradient(90deg,var(--grid) 1px,transparent 1px);
+  background-size:24px 24px; color:var(--ink); font-family:var(--body); font-weight:500; font-size:17px; line-height:1.6;
+  min-height:100vh; -webkit-tap-highlight-color:transparent;
+}
+.app{max-width:34rem; margin:0 auto; padding-inline:16px; padding-block:20px 32px}
+.app.wide{max-width:1240px}
+.screen{display:flex; flex-direction:column; gap:16px}
+button{font:inherit; color:inherit; cursor:pointer; touch-action:manipulation}
+button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--x); outline-offset:2px}
+h1,h2{margin:0; text-wrap:balance}
+.note{margin:0; font-size:.9rem; color:var(--sub); overflow-wrap:anywhere; white-space:pre-line}
+.note.err{color:var(--pen); font-weight:700}
+.brand{display:flex; align-items:center; gap:12px; padding-block:8px 4px}
+.brand svg{flex:none; width:52px; height:52px}
+.brand h1{font-family:var(--display); font-weight:400; font-size:1.9rem; line-height:1.2}
+.brand p{margin:0; color:var(--sub); font-size:.9rem}
+.tally{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
+.tally div{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 4px; text-align:center}
+.tally b{display:block; font-family:var(--display); font-weight:400; font-size:1.5rem; line-height:1.2}
+.tally span{font-size:.75rem; color:var(--sub)}
+.mode{background:var(--card); border:2px solid var(--ink); border-radius:16px; padding:16px; display:flex; flex-direction:column; gap:12px}
+.mode h2{font-size:1.15rem; font-weight:900}
+.mode p{margin:0; color:var(--sub); font-size:.9rem}
+.go{background:var(--marker); color:var(--on-marker); border:2px solid var(--on-marker); border-radius:14px; box-shadow:0 4px 0 var(--marker-edge); font-weight:900; font-size:1.15rem; padding:14px 16px; min-height:58px; width:100%}
+.go:active{transform:translateY(3px); box-shadow:0 1px 0 var(--marker-edge)}
+.go:disabled{opacity:.45; box-shadow:none; cursor:not-allowed; transform:none}
+.plain{background:var(--card); border:2px solid var(--line); border-radius:14px; padding:12px 16px; min-height:52px; font-weight:700; width:100%}
+.plain .badge{display:inline-block; margin-left:6px; background:var(--pen); color:#fff; border-radius:999px; padding:0 9px; font-size:.85rem}
+.links{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.sets{display:flex; flex-wrap:wrap; gap:8px}
+.chip{border:2px solid var(--ink); background:var(--card); border-radius:999px; padding:8px 16px; min-height:44px; font-weight:700; max-width:100%; overflow-wrap:anywhere; text-align:left}
+.chip.on{background:var(--marker); color:var(--on-marker); border-color:var(--on-marker)}
+.units{display:flex; flex-wrap:wrap; gap:8px; align-items:center}
+.units .lbl{font-weight:900; font-size:.9rem; color:var(--sub); margin-right:2px}
+.units .chip{border-color:var(--line); padding:6px 14px; min-height:42px}
+.units .chip.on{border-color:var(--on-marker)}
+details{background:var(--card); border:1px solid var(--line); border-radius:14px; padding:4px 16px}
+summary{font-weight:700; padding-block:12px; cursor:pointer}
+.form{display:flex; flex-direction:column; gap:10px; padding-bottom:14px}
+.form label{font-size:.85rem; color:var(--sub)}
+.form input{font:inherit; font-size:1rem; width:100%; padding:10px 12px; border-radius:10px; border:2px solid var(--line); background:var(--paper); color:var(--ink)}
+.empty{background:var(--card); border:2px dashed var(--line); border-radius:16px; padding:20px 16px; text-align:center; color:var(--sub)}
+
+/* ---------- quiz ---------- */
+#quiz{-webkit-user-select:none; user-select:none; -webkit-touch-callout:none}
+.bar{display:flex; align-items:center; gap:12px}
+.quit{flex:none; width:52px; height:52px; border-radius:50%; border:2px solid var(--line); background:var(--card); font-size:1.3rem; font-weight:900; line-height:1}
+.dots{flex:1; display:grid; grid-auto-flow:column; grid-auto-columns:1fr; gap:4px; min-width:0}
+.dots i{height:12px; border-radius:6px; background:var(--line)}
+.dots i.now{background:var(--ink)} .dots i.ok{background:var(--pen)} .dots i.ng{background:var(--x)}
+.count{flex:none; font-family:var(--display); font-size:1.4rem}
+.qcard{position:relative; background:var(--card); border:2px solid var(--ink); border-radius:16px; padding:18px; display:flex; flex-direction:column; gap:14px; min-height:0}
+.past{align-self:flex-start; font-size:.85rem; font-weight:700; color:var(--x); background:var(--x-bg); border-radius:999px; padding:2px 12px}
+.sent{margin:0; font-size:clamp(1.6rem,2.2vw + .7rem,2.3rem); font-weight:700; line-height:1.9; overflow-wrap:anywhere}
+.tgt{background:linear-gradient(transparent 58%,var(--marker) 58%); padding:0 .12em; border-bottom:3px solid var(--ink); font-weight:900}
+.model{display:flex; flex-direction:column; gap:8px}
+.model .lbl{font-weight:900; color:var(--pen); font-size:.95rem}
+.mrow{display:flex; flex-wrap:wrap; gap:10px}
+.explain{margin:0; background:var(--x-bg); border-left:4px solid var(--x); border-radius:10px; padding:10px 14px; font-size:1.05rem; line-height:1.7; white-space:pre-line; overflow-wrap:anywhere}
+.maru{position:absolute; inset:0; margin:auto; width:190px; height:190px; pointer-events:none; opacity:.92}
+.maru circle{fill:none; stroke:var(--pen); stroke-width:9; stroke-linecap:round; stroke-dasharray:400; stroke-dashoffset:400; animation:draw .38s ease-out forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+
+/* the writing squares: 田 grid made from two dashed guide lines */
+.sq{position:relative; flex:none; background:var(--card); border:3px solid var(--ink); border-radius:6px; overflow:hidden}
+.sq::before,.sq::after{content:""; position:absolute; pointer-events:none}
+.sq::before{left:50%; top:0; bottom:0; border-left:2px dashed var(--guide)}
+.sq::after{top:50%; left:0; right:0; border-top:2px dashed var(--guide)}
+.sq canvas{position:absolute; inset:0; width:100%; height:100%; touch-action:none; z-index:1}
+.sq .ghost{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-family:var(--model); font-weight:600; line-height:1; color:var(--trace); pointer-events:none}
+.sq.show .ghost{color:var(--ink)}
+.sq.lock canvas{pointer-events:none}
+.wbox{display:flex; flex-direction:column; gap:12px; min-height:0}
+.ask{margin:0; text-align:center; font-weight:900; font-size:1.2rem}
+.ask.ok{color:var(--pen)} .ask.ng{color:var(--x)}
+.squares{display:grid; justify-content:center; align-content:center; gap:14px; min-height:220px}
+.tools{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.judge{display:grid; grid-template-columns:1fr 1fr; gap:12px}
+.jbtn{border-radius:16px; border:3px solid currentColor; background:var(--card); min-height:72px; font-weight:900; font-size:1.25rem; display:flex; align-items:center; justify-content:center; gap:8px}
+.jbtn b{font-family:var(--display); font-weight:400; font-size:2rem; line-height:1}
+.jbtn.ok{color:var(--pen); background:var(--pen-bg)} .jbtn.ng{color:var(--x); background:var(--x-bg)}
+
+/* ---------- result / lists ---------- */
+.score{background:var(--card); border:2px solid var(--ink); border-radius:16px; padding:20px 16px; text-align:center}
+.score .big{font-family:var(--display); font-size:4.2rem; line-height:1.1; color:var(--pen)}
+.score .big small{font-size:1.6rem; color:var(--sub)}
+.score p{margin:4px 0 0; font-weight:700}
+.list{display:flex; flex-direction:column; gap:10px; margin:0; padding:0; list-style:none}
+.list li{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; display:flex; flex-direction:column; gap:8px}
+.list li.todo{border:2px solid var(--pen)}
+.list .q{margin:0; font-weight:700; overflow-wrap:anywhere}
+.pair{display:flex; flex-wrap:wrap; gap:18px; align-items:flex-end}
+.pair figure{margin:0; display:flex; flex-direction:column; gap:4px; align-items:flex-start}
+.pair figcaption{font-size:.8rem; font-weight:900; color:var(--sub)}
+.ink{display:block}
+.tag{align-self:flex-start; font-size:.8rem; font-weight:900; border-radius:999px; padding:2px 10px}
+.tag.ok{background:var(--pen-bg); color:var(--pen)} .tag.ng,.tag.wait{background:var(--x-bg); color:var(--x)} .tag.bad{background:var(--ink); color:var(--card)}
+.rv{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+.rv button{min-height:46px; border-radius:12px; border:2px solid var(--line); background:var(--card); font-weight:900}
+.rv button.on.ok{border-color:var(--pen); background:var(--pen-bg); color:var(--pen)}
+.rv button.on.ng{border-color:var(--x); background:var(--x-bg); color:var(--x)}
+.head{display:flex; align-items:center; gap:12px}
+.head h1{font-family:var(--display); font-weight:400; font-size:1.5rem}
+
+/* ---------- iPad sideways: question left, writing right ---------- */
+/* upright (default): the quiz fills the screen so the squares get the room that is left */
+.app.wide #quiz{min-height:calc(100dvh - 52px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px))}
+#wbox{flex:1} #squares{flex:1}
+@media (min-width:900px) and (orientation:landscape){
+  .app.wide{padding-block:12px}
+  .app.wide #quiz{display:grid; height:calc(100dvh - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); min-height:460px;
+    grid-template-columns:minmax(0,1fr) minmax(0,1.05fr); column-gap:32px; row-gap:12px;
+    grid-template-rows:auto minmax(0,1fr); grid-template-areas:"bar bar" "q right"}
+  #quiz .bar{grid-area:bar} #qcard{grid-area:q; overflow:auto; justify-content:center} #wbox{grid-area:right; min-height:0}
+  #squares{flex:1; min-height:0}
+}
+@media (prefers-reduced-motion: reduce){ .maru circle{animation:none; stroke-dashoffset:0} .go:active{transform:none} }
+</style>
+</head>
+<body>
+<div class="app" id="app">
+
+<!-- ================= HOME ================= -->
+<section class="screen" id="home">
+  <div class="brand">
+    <svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="23" fill="none" stroke="var(--pen)" stroke-width="7" stroke-linecap="round" stroke-dasharray="138 8" transform="rotate(-70 30 30)"/></svg>
+    <div><h1>まるつけ漢字</h1><p id="bankInfo">問題を読みこんでいます…</p></div>
+  </div>
+  <div class="sets" id="setList" role="group" aria-label="問題セット"></div>
+  <div class="units" id="unitList" role="group" aria-label="単元" hidden></div>
+  <div class="empty" id="noSet" hidden>まだ問題セットがありません。下の「問題セットを追加・更新する」から、スプレッドシートを登録してください。</div>
+  <div class="screen" id="playArea">
+  <div class="tally">
+    <div><b id="tAll">0</b><span>出題できる問題</span></div>
+    <div><b id="tDone">0</b><span>やった問題</span></div>
+    <div><b id="tWrong">0</b><span>まちがえた問題</span></div>
+  </div>
+  <div class="mode">
+    <h2>まだ正解していない問題から10問</h2>
+    <p id="newInfo"></p>
+    <button class="go" id="startNew" type="button">スタート</button>
+  </div>
+  <div class="mode">
+    <h2>まちがえたことがある問題から10問</h2>
+    <p id="weakInfo"></p>
+    <button class="go" id="startWeak" type="button">スタート</button>
+  </div>
+  <button class="plain" id="resetHist" type="button">解答履歴をリセット</button>
+  <p class="note" id="resetNote" aria-live="polite"></p>
+  </div>
+  <div class="links">
+    <button class="plain" id="openReview" type="button">書いた字のチェック（大人用）</button>
+    <button class="plain" id="openCheck" type="button">問題チェック（大人用）</button>
+  </div>
+  <details id="cloudBox">
+    <summary id="cloudSum">記録をGoogleに預ける（同期）</summary>
+    <div class="form">
+      <p class="note">ここを設定すると、解答履歴と書いた字がGoogleのスプレッドシートにも保存されます。Safariの記録が消えても、ひらき直すと元にもどります。まるつけクイズ・まるつけ算数と同じURL・合言葉を使います（設定は共通）。</p>
+      <label for="cloudUrl">同期用のURL（Apps Script の「ウェブアプリ」のURL。…/exec で終わるもの）</label>
+      <input id="cloudUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec">
+      <label for="cloudKey">合言葉</label>
+      <input id="cloudKey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="60" placeholder="例：masa-quiz-2026">
+      <button class="plain" id="cloudSave" type="button">保存して同期する</button>
+      <p class="note" id="cloudNote" aria-live="polite"></p>
+      <div class="form" id="cloudOn" hidden>
+        <button class="plain" id="cloudNow" type="button">いますぐ同期する</button>
+        <button class="plain" id="cloudLink" type="button">設定入りのリンクをコピー（ホーム画面用・ほかの端末用）</button>
+        <button class="plain" id="cloudOff" type="button">この端末の同期をやめる</button>
+      </div>
+    </div>
+  </details>
+  <details id="setBox">
+    <summary>問題セットを追加・更新する</summary>
+    <div class="form">
+      <label for="setName">セットの名前（例：漢字3年、漢字テスト5）</label>
+      <input id="setName" type="text" maxlength="20" autocomplete="off" placeholder="漢字3年">
+      <label for="sheetUrl">Google スプレッドシートのURL。列は 問題文・答え・解説・確認・単元 の順。問題文の書く部分は［はれ］のように［ ］でかこみます。共有は「リンクを知っている全員が閲覧可」にしてください。</label>
+      <input id="sheetUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…">
+      <button class="plain" id="addBtn" type="button">読みこんで登録する</button>
+      <p class="note" id="syncNote" aria-live="polite"></p>
+      <button class="plain" id="reloadBtn" type="button" hidden>いまのセットを読みこみ直す</button>
+      <button class="plain" id="removeBtn" type="button" hidden>いまのセットを一覧から外す</button>
+    </div>
+  </details>
+</section>
+
+<!-- ================= QUIZ ================= -->
+<section class="screen" id="quiz" hidden>
+  <div class="bar">
+    <button class="quit" id="quitBtn" type="button" aria-label="やめる">✕</button>
+    <div class="dots" id="dots"></div>
+    <div class="count" id="count">1/10</div>
+  </div>
+  <div class="qcard" id="qcard">
+    <span class="past" id="past" hidden></span>
+    <p class="sent" id="sent"></p>
+    <div class="model" id="model" hidden>
+      <span class="lbl">おてほん</span>
+      <div class="mrow" id="mrow"></div>
+      <p class="explain" id="explain" hidden></p>
+    </div>
+  </div>
+  <div class="wbox" id="wbox">
+    <p class="ask" id="ask"></p>
+    <div class="squares" id="squares"></div>
+    <div class="tools" id="tools">
+      <button class="plain" id="undoBtn" type="button">1画もどす</button>
+      <button class="plain" id="clearBtn" type="button">ぜんぶけす</button>
+    </div>
+    <button class="go" id="showBtn" type="button">こたえあわせ</button>
+    <div class="judge" id="judge" hidden>
+      <button class="jbtn ok" id="okBtn" type="button"><b>○</b>あってた</button>
+      <button class="jbtn ng" id="ngBtn" type="button"><b>×</b>ちがってた</button>
+    </div>
+    <button class="go" id="nextBtn" type="button" hidden>つぎへ</button>
+  </div>
+</section>
+
+<!-- ================= RESULT ================= -->
+<section class="screen" id="result" hidden>
+  <div class="score"><div class="big"><span id="rScore">0</span><small> / <span id="rTotal">10</span></small></div><p id="rMsg"></p></div>
+  <ul class="list" id="rMiss"></ul>
+  <button class="go" id="retryMiss" type="button" hidden>まちがえた問題をもう一回</button>
+  <button class="plain" id="homeBtn" type="button">ホームにもどる</button>
+</section>
+
+<!-- ================= REVIEW (adults): the child's handwriting ================= -->
+<section class="screen" id="review" hidden>
+  <div class="head"><button class="quit" id="reviewBack" type="button" aria-label="もどる">←</button><h1>書いた字のチェック</h1></div>
+  <p class="note">子どもが書いた字と、子どもがつけた○×です。おてほんとくらべて、「○ 正しい」か「× まちがい」を押してください。×にした問題は「まちがえた問題」に入り、また出題されます。</p>
+  <div class="units" id="rvFilter" role="group" aria-label="表示"></div>
+  <ul class="list" id="rvList"></ul>
+</section>
+
+<!-- ================= CHECK (adults): the sheet rows ================= -->
+<section class="screen" id="check" hidden>
+  <div class="head"><button class="quit" id="checkBack" type="button" aria-label="もどる">←</button><h1>問題チェック</h1></div>
+  <p class="note" id="checkNote"></p>
+  <ul class="list" id="checkList"></ul>
+</section>
+
+</div>
+
+<script>
+(function(){
+"use strict";
+var $=function(id){return document.getElementById(id)};
+var GAME_SIZE=10, LOG_MAX=150;
+function el(tag,cls,text){var e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e}
+function lsGet(k,d){try{var v=localStorage.getItem(k); return v==null?d:JSON.parse(v)}catch(e){return d}}
+function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+function shuffle(a){a=a.slice(); for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t} return a}
+function keyOf(s){var h=5381; for(var i=0;i<s.length;i++){h=((h<<5)+h+s.charCodeAt(i))|0} return "k"+(h>>>0).toString(36)}
+function chars(s){return Array.from?Array.from(s):String(s).split("")}
+
+/* ---------- one sheet row -> one problem ----------
+   問題文 marks the part to write with ［よみ］ (or [よみ]); 答え is what goes in the squares, one character per square. */
+var KANJI=/[㐀-鿿豈-﫿々〆ヶ]/;
+function build(row){
+  var text=String(row.text||"").trim(), ans=String(row.answer||"").replace(/\s+/g,"");
+  var r={row:row, key:keyOf(text+"|"+ans), text:text, answer:ans, explain:String(row.explain||"").trim(),
+    confirmed:/^(○|◯|o|O|ok|OK|済|1|true)$/.test(String(row.confirmed||"").trim())};
+  var m=text.match(/^([\s\S]*?)[［\[]([^［\]］\[]*)[\]］]([\s\S]*)$/);
+  if(!text){r.err="問題文がありません。"; return r}
+  if(!m){r.err="問題文に、書く部分を［ ］でかこんだところがありません。例：きょうは［はれ］です。"; return r}
+  if(/[［\[]/.test(m[3])){r.err="［ ］は1つの問題に1か所にしてください。"; return r}
+  var yomi=m[2].trim();
+  if(!yomi){r.err="［ ］の中に読みがありません。"; return r}
+  if(!/^[ぁ-ゖァ-ヺー・]+$/.test(yomi)){r.err="［ ］の中は、ひらがな（読み）にしてください。いま：「"+yomi+"」"; return r}
+  if(!ans){r.err="答え（書く漢字）がありません。"; return r}
+  var cs=chars(ans);
+  if(cs.length>6){r.err="答えが長すぎます（6文字まで）。"; return r}
+  if(!cs.some(function(c){return KANJI.test(c)})){r.err="答え「"+ans+"」に漢字がありません。"; return r}
+  r.ok=true; r.before=m[1]; r.yomi=yomi; r.after=m[3]; r.chars=cs; return r }
+
+/* ---------- problem sets ---------- */
+var sets=lsGet("kj.sets",[]), cur=lsGet("kj.cur","");
+var hist=lsGet("kj.hist",{}), log=lsGet("kj.log",[]), rv=lsGet("kj.rv",{}), unitSel=lsGet("kj.unit",{});
+var bank=[];
+function curSet(){for(var i=0;i<sets.length;i++)if(sets[i].id===cur)return sets[i]; return null}
+function useCur(){ var s=curSet()||sets[0]||null; cur=s?s.id:""; bank=((s&&s.rows)||[]).map(build) }
+function curUnit(){ var u=unitSel[cur]||""; return units().indexOf(u)>=0?u:"" }
+function units(){ var seen={}, out=[]; bank.forEach(function(p){ var u=String(p.row.tangen||"").trim(); if(p.ok&&p.confirmed&&u&&!seen[u]){seen[u]=1; out.push(u)} }); return out }
+function playable(){ var u=curUnit(); return bank.filter(function(p){return p.ok&&p.confirmed&&(!u||String(p.row.tangen||"").trim()===u)}) }
+function stat(p){return hist[p.key]||{w:0,r:0}}
+function newPool(){return playable().filter(function(p){return !(stat(p).r>0)})}
+function weakPool(){return playable().filter(function(p){return stat(p).w>0})}
+
+/* ---------- spreadsheet ---------- */
+function parseCsv(text){
+  var rows=[], row=[], cell="", q=false, i, c; text=String(text||"").replace(/^﻿/,"");
+  for(i=0;i<text.length;i++){ c=text.charAt(i);
+    if(q){ if(c==='"'){ if(text.charAt(i+1)==='"'){cell+='"'; i++} else q=false } else cell+=c }
+    else if(c==='"')q=true; else if(c===","){row.push(cell); cell=""}
+    else if(c==="\n"||c==="\r"){ if(c==="\r"&&text.charAt(i+1)==="\n")i++; row.push(cell); rows.push(row); row=[]; cell="" }
+    else cell+=c }
+  if(cell!==""||row.length){row.push(cell); rows.push(row)}
+  return rows }
+var COLS=["text","answer","explain","confirmed","tangen"];
+function parseSheet(t){ var out=[];
+  parseCsv(t).forEach(function(r){ var c=r.map(function(x){return String(x).trim()});
+    if(c.every(function(x){return !x}))return; if(c[0]==="問題文")return;
+    var o={}; COLS.forEach(function(k,i){o[k]=c[i]||""}); out.push(o) });
+  return out }
+function sheetCsvUrls(url){
+  var m=url.match(/\/d\/([\w-]{20,})/)||url.match(/^([\w-]{20,})$/); if(!m)return null;
+  var g=url.match(/[#&?]gid=(\d+)/), gid=g?g[1]:"", base="https://docs.google.com/spreadsheets/d/"+m[1];
+  // the plain export keeps every cell as written; the quick one is the fallback
+  return [base+"/export?format=csv"+(gid?"&gid="+gid:""), base+"/gviz/tq?tqx=out:csv&headers=1"+(gid?"&gid="+gid:"")] }
+function fetchCsv(urls,i){
+  return fetch(urls[i],{credentials:"omit",cache:"no-store"}).then(function(r){
+    if(!r.ok)throw {code:"http",status:r.status};
+    return r.text().then(function(t){ if(/^\s*<(!doctype|html)/i.test(t))throw {code:"private"}; return t });
+  }).catch(function(e){ if(i+1<urls.length)return fetchCsv(urls,i+1); throw e }) }
+function loadSheet(url){ var urls=sheetCsvUrls(url); if(!urls)return Promise.reject({code:"url"});
+  return fetchCsv(urls,0).then(function(t){ var rows=parseSheet(t); if(!rows.length)throw {code:"empty"}; return rows }) }
+function errText(e){ var c=e&&e.code;
+  if(c==="url")return "スプレッドシートのURLではないようです。https://docs.google.com/spreadsheets/d/… の形のURLを入れてください。";
+  if(c==="empty")return "シートに問題が見つかりませんでした。1行目が見出し（問題文・答え…）、2行目から問題です。";
+  if(c==="private"||(c==="http"&&(e.status===401||e.status===403||e.status===404)))return "スプレッドシートを開けませんでした。共有を「リンクを知っている全員が閲覧可」にして、URLをたしかめてください。";
+  return "読みこめませんでした。通信の状態と、シートの共有設定をたしかめてください。" }
+function setKey(url){var m=String(url||"").match(/\/d\/([\w-]{20,})/); if(!m)return null; var g=url.match(/[#&?]gid=(\d+)/); return m[1]+"|"+(g?g[1]:"")}
+function msg(t,err){var n=$("syncNote"); n.textContent=t||""; n.className="note"+(err?" err":"")}
+function summary(){ var ok=0,wait=0,bad=0; bank.forEach(function(p){ if(!p.ok)bad++; else if(!p.confirmed)wait++; else ok++ });
+  return ok+"問を出題します。"+(wait?"確認待ち "+wait+"問。":"")+(bad?"エラー "+bad+"行（問題チェックで理由を見られます）。":"") }
+var busy=false;
+function syncSet(s,quiet){ if(busy)return; busy=true; if(!quiet)msg("読みこんでいます…");
+  loadSheet(s.url).then(function(rows){ s.rows=rows; s.at=Date.now(); lsSet("kj.sets",sets); if(s.id===cur&&!game){useCur(); renderHome()} if(!quiet)msg("「"+s.name+"」 "+summary()) })
+  .catch(function(e){ if(!quiet)msg(errText(e),true) }).then(function(){busy=false}) }
+$("addBtn").addEventListener("click",function(){
+  var name=$("setName").value.trim(), url=$("sheetUrl").value.trim(), key=setKey(url), ex=null;
+  if(!key){msg(errText({code:"url"}),true); return}
+  sets.forEach(function(s){if(setKey(s.url)===key)ex=s});
+  busy=true; msg("読みこんでいます…");
+  loadSheet(url).then(function(rows){
+    var s=ex||{id:"s"+Date.now().toString(36),name:"",url:url,rows:[]};
+    s.name=name||s.name||("セット"+(sets.length+1)); s.url=url; s.rows=rows; s.at=Date.now();
+    if(!ex)sets.push(s); cur=s.id; lsSet("kj.sets",sets); lsSet("kj.cur",cur); touchSets(); $("setName").value=""; $("sheetUrl").value="";
+    useCur(); renderHome(); msg("「"+s.name+"」を"+(ex?"更新":"登録")+"しました。"+summary())
+  }).catch(function(e){msg(errText(e),true)}).then(function(){busy=false}) });
+$("reloadBtn").addEventListener("click",function(){var s=curSet(); if(s)syncSet(s,false)});
+var removeArmed=false;
+$("removeBtn").addEventListener("click",function(){ var s=curSet(); if(!s)return;
+  if(!removeArmed){removeArmed=true; this.textContent="ほんとうに外す？ もう一度おすと外れます"; return}
+  sets=sets.filter(function(x){return x.id!==s.id}); cur=sets[0]?sets[0].id:""; lsSet("kj.sets",sets); lsSet("kj.cur",cur); touchSets(); useCur(); renderHome(); msg("「"+s.name+"」を外しました。") });
+
+/* ---------- home ---------- */
+function show(id){ ["home","quiz","result","review","check"].forEach(function(s){$(s).hidden=(s!==id)}); $("app").classList.toggle("wide",id==="quiz"); window.scrollTo(0,0) }
+function todoCount(){ return log.filter(function(a){return !rv[a.id]}).length }
+function renderHome(){
+  var pl=playable(), done=0, wrong=0; pl.forEach(function(p){var s=stat(p); if(s.w+s.r)done++; if(s.w)wrong++});
+  var s=curSet(), cu=curUnit(); $("bankInfo").textContent=s?"「"+s.name+"」"+(cu?" ・ "+cu:"")+" "+pl.length+"問":"問題セットがまだありません";
+  $("noSet").hidden=!!s; $("playArea").hidden=!s; if(!s)$("setBox").open=true;
+  var ul=$("unitList"), us=units(); ul.textContent=""; ul.hidden=us.length<2;
+  if(us.length>=2){ ul.appendChild(el("span","lbl","単元"));
+    [""].concat(us).forEach(function(u){ var on=(u===cu), b=el("button","chip"+(on?" on":""),u||"すべて"); b.type="button"; b.setAttribute("aria-pressed",String(on));
+      b.addEventListener("click",function(){ if(on)return; unitSel[cur]=u; lsSet("kj.unit",unitSel); renderHome() }); ul.appendChild(b) }) }
+  $("tAll").textContent=pl.length; $("tDone").textContent=done; $("tWrong").textContent=wrong;
+  var np=newPool().length, wp=weakPool().length;
+  $("newInfo").textContent=np?"あてはまる問題："+np+"問":"ぜんぶ一度は正解しました！"; $("startNew").disabled=!np;
+  $("weakInfo").textContent=wp?"あてはまる問題："+wp+"問":"まちがえた問題はまだありません。"; $("startWeak").disabled=!wp;
+  var sl=$("setList"); sl.textContent="";
+  sets.forEach(function(x){ var on=(x.id===cur), b=el("button","chip"+(on?" on":""),x.name); b.type="button";
+    b.addEventListener("click",function(){ if(on)return; cur=x.id; lsSet("kj.cur",cur); useCur(); msg(""); renderHome(); if(curSet())syncSet(curSet(),true) }); sl.appendChild(b) });
+  $("reloadBtn").hidden=$("removeBtn").hidden=!s; removeArmed=false;
+  resetArmed=false; $("resetHist").textContent="解答履歴をリセット（「"+(s?s.name:"")+"」）"; $("removeBtn").textContent="いまのセットを一覧から外す";
+  var n=todoCount(), ob=$("openReview"); ob.textContent="書いた字のチェック（大人用）"; if(n){var bd=el("span","badge",String(n)); ob.appendChild(bd)}
+}
+var resetArmed=false;
+$("resetHist").addEventListener("click",function(){
+  var s=curSet(); if(!s)return;
+  if(!resetArmed){ resetArmed=true; this.textContent="ほんとうに消す？ もう一度おすと「"+s.name+"」の履歴が消えます"; return }
+  var n=0, now=Date.now(); bank.forEach(function(p){ var h=hist[p.key]; if(h&&(h.w||h.r)){hist[p.key]={w:0,r:0,t:now}; n++} }); lsSet("kj.hist",hist);
+  renderHome(); cloudSoon(); $("resetNote").textContent="「"+s.name+"」の解答履歴を消しました（"+n+"問分）。" });
+
+/* ---------- handwriting ----------
+   Each square is a canvas. Strokes are kept as points in a 0–100 box (stored ×2 as whole numbers), so they can be
+   redrawn at any size, saved small, and shown later to a parent. A pen (Apple Pencil) wins over a palm touching the glass. */
+var sq=[], order=[], drawing=null, lastPen=0, state="", W=5.2;
+function pathD(pts){   // smooth path through the points (midpoint quadratic curves)
+  if(pts.length<4)return "";
+  var d="M"+pts[0]+" "+pts[1];
+  if(pts.length===2*1)return d;
+  if(pts.length===4)return d+"L"+pts[2]+" "+pts[3];
+  for(var i=2;i<pts.length-2;i+=2){ var mx=(pts[i]+pts[i+2])/2, my=(pts[i+1]+pts[i+3])/2; d+="Q"+pts[i]+" "+pts[i+1]+" "+mx+" "+my }
+  return d+"L"+pts[pts.length-2]+" "+pts[pts.length-1] }
+function strokeOn(ctx,pts,s){   // pts in 0–200 units, s = pixels per unit
+  ctx.beginPath();
+  if(pts.length===2){ ctx.arc(pts[0]*s,pts[1]*s,W*s,0,Math.PI*2); ctx.fill(); return }
+  ctx.moveTo(pts[0]*s,pts[1]*s);
+  if(pts.length===4){ ctx.lineTo(pts[2]*s,pts[3]*s) }
+  else{ for(var i=2;i<pts.length-2;i+=2){ ctx.quadraticCurveTo(pts[i]*s,pts[i+1]*s,(pts[i]+pts[i+2])/2*s,(pts[i+1]+pts[i+3])/2*s) }
+    ctx.lineTo(pts[pts.length-2]*s,pts[pts.length-1]*s) }
+  ctx.stroke() }
+function redraw(i){
+  var b=sq[i], cv=b.cv, ctx=cv.getContext("2d"), s=cv.width/200;
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.lineCap="round"; ctx.lineJoin="round"; ctx.lineWidth=W*2*s;
+  var col=getComputedStyle(document.documentElement).getPropertyValue("--write").trim()||"#1c2740"; ctx.strokeStyle=col; ctx.fillStyle=col;
+  b.strokes.forEach(function(p){strokeOn(ctx,p,s)});
+  if(drawing&&drawing.i===i)strokeOn(ctx,drawing.pts,s) }
+function simplify(p){   // keep the shape, drop points that add nothing (Ramer–Douglas–Peucker, tolerance 1.2 of 200)
+  var n=p.length/2; if(n<=2)return p.map(Math.round);
+  var keep=new Array(n); keep[0]=keep[n-1]=true;
+  (function rdp(a,b){ var ax=p[2*a],ay=p[2*a+1],bx=p[2*b],by=p[2*b+1],dx=bx-ax,dy=by-ay,L=Math.hypot(dx,dy)||1e-9,best=-1,bi=-1;
+    for(var k=a+1;k<b;k++){ var d=Math.abs(dy*p[2*k]-dx*p[2*k+1]+bx*ay-by*ax)/L; if(L<1e-6)d=Math.hypot(p[2*k]-ax,p[2*k+1]-ay); if(d>best){best=d;bi=k} }
+    if(best>1.2){keep[bi]=true; rdp(a,bi); rdp(bi,b)} })(0,n-1);
+  var out=[]; for(var k=0;k<n;k++)if(keep[k])out.push(Math.round(p[2*k]),Math.round(p[2*k+1])); return out }
+function ptOf(e,cv){ var r=cv.getBoundingClientRect(); return [Math.max(0,Math.min(200,(e.clientX-r.left)/r.width*200)), Math.max(0,Math.min(200,(e.clientY-r.top)/r.height*200))] }
+function makeSquares(cs){
+  var box=$("squares"); box.textContent=""; sq=[]; order=[]; drawing=null;
+  cs.forEach(function(ch,i){
+    var w=el("div","sq"), g=el("div","ghost",ch), cv=el("canvas"); w.appendChild(g); w.appendChild(cv); box.appendChild(w);
+    var b={wrap:w,cv:cv,ghost:g,strokes:[]}; sq.push(b);
+    cv.addEventListener("pointerdown",function(e){
+      if(state!=="write"&&state!=="trace")return;
+      var pen=e.pointerType==="pen";
+      if(pen)lastPen=Date.now();
+      else if(Date.now()-lastPen<1500)return;            // a palm while the pencil is in use
+      if(drawing){ if(pen&&drawing.touch){ drawing=null; redrawAll() } else return }   // the palm landed first: drop it for the pencil
+      e.preventDefault(); try{cv.setPointerCapture(e.pointerId)}catch(_){}
+      var p=ptOf(e,cv); drawing={i:i,id:e.pointerId,touch:!pen,pts:[p[0],p[1]]}; redraw(i) });
+    cv.addEventListener("pointermove",function(e){
+      if(!drawing||drawing.id!==e.pointerId||drawing.i!==i)return; e.preventDefault();
+      if(e.pointerType==="pen")lastPen=Date.now();
+      var evs=e.getCoalescedEvents?e.getCoalescedEvents():[e]; if(!evs.length)evs=[e];
+      evs.forEach(function(ev){ var p=ptOf(ev,cv), L=drawing.pts.length; if(Math.hypot(p[0]-drawing.pts[L-2],p[1]-drawing.pts[L-1])>=0.8)drawing.pts.push(p[0],p[1]) });
+      redraw(i) });
+    function end(e){ if(!drawing||drawing.id!==e.pointerId||drawing.i!==i)return;
+      var pts=simplify(drawing.pts); drawing=null;
+      if(state==="write"||state==="trace"){ b.strokes.push(pts); order.push(i) }
+      redraw(i); paintTools() }
+    cv.addEventListener("pointerup",end); cv.addEventListener("pointercancel",end);
+  });
+  layoutSquares() }
+function redrawAll(){ for(var i=0;i<sq.length;i++)redraw(i) }
+function layoutSquares(){
+  if(!sq.length||$("quiz").hidden)return;
+  var box=$("squares"), gap=14, n=sq.length, Wd=box.clientWidth, Ht=box.clientHeight, best=0, bc=n;
+  for(var c=1;c<=n;c++){ var r=Math.ceil(n/c), s=Math.min((Wd-gap*(c-1))/c,(Ht-gap*(r-1))/r); if(s>best+0.5){best=s; bc=c} }
+  var size=Math.max(110,Math.min(440,Math.floor(best))), dpr=Math.min(window.devicePixelRatio||1,3);
+  box.style.gridTemplateColumns="repeat("+bc+","+size+"px)";
+  sq.forEach(function(b,i){ b.wrap.style.width=b.wrap.style.height=size+"px"; b.ghost.style.fontSize=Math.round(size*0.84)+"px";
+    var px=Math.round((size-6)*dpr); if(b.cv.width!==px){b.cv.width=px; b.cv.height=px} redraw(i) }) }
+var layT=null; window.addEventListener("resize",function(){clearTimeout(layT); layT=setTimeout(layoutSquares,100)});
+$("undoBtn").addEventListener("click",function(){ if(!order.length)return; var i=order.pop(); sq[i].strokes.pop(); redraw(i); paintTools() });
+$("clearBtn").addEventListener("click",function(){ sq.forEach(function(b){b.strokes=[]}); order=[]; redrawAll(); paintTools() });
+function inkOf(){ return sq.map(function(b){return b.strokes.slice()}) }
+function anyInk(){ return sq.some(function(b){return b.strokes.length}) }
+function paintTools(){ $("undoBtn").disabled=$("clearBtn").disabled=!order.length;
+  if(state==="write")$("showBtn").textContent=anyInk()?"こたえあわせ":"わからない（こたえを見る）" }
+
+/* a saved stroke set drawn as a small picture with the 田 guide */
+var SVGNS="http://www.w3.org/2000/svg";
+function inkSvg(strokes,px){
+  var s=document.createElementNS(SVGNS,"svg"); s.setAttribute("viewBox","0 0 200 200"); s.setAttribute("width",px); s.setAttribute("height",px); s.setAttribute("class","ink");
+  s.innerHTML='<rect x="2" y="2" width="196" height="196" rx="6" style="fill:var(--card);stroke:var(--ink);stroke-width:4"/><path d="M100 4V196M4 100H196" style="stroke:var(--guide);stroke-width:2.5;stroke-dasharray:8 7"/>';
+  (strokes||[]).forEach(function(p){
+    if(p.length===2){ var c=document.createElementNS(SVGNS,"circle"); c.setAttribute("cx",p[0]); c.setAttribute("cy",p[1]); c.setAttribute("r",W); c.setAttribute("style","fill:var(--write)"); s.appendChild(c); return }
+    var e=document.createElementNS(SVGNS,"path"); e.setAttribute("d",pathD(p)); e.setAttribute("style","fill:none;stroke:var(--write);stroke-width:"+(W*2)+";stroke-linecap:round;stroke-linejoin:round"); s.appendChild(e) });
+  return s }
+function modelBox(ch,px){ var w=el("div","sq show"); w.style.width=w.style.height=px+"px"; var g=el("div","ghost",ch); g.style.fontSize=Math.round(px*0.84)+"px"; w.appendChild(g); return w }
+function sentence(node,p){ node.textContent=""; node.appendChild(document.createTextNode(p.before)); node.appendChild(el("span","tgt",p.yomi)); node.appendChild(document.createTextNode(p.after)) }
+
+/* ---------- quiz ---------- */
+var game=null, stepAt=0;
+function startGame(pool){ if(!pool.length)return;
+  game={items:shuffle(pool).slice(0,GAME_SIZE).map(function(p){return {p:p,ok:null,ink:null}}), i:0};
+  show("quiz"); renderQuestion() }
+function renderDots(){var d=$("dots"); d.textContent=""; game.items.forEach(function(it,i){var c=el("i"); if(it.ok===true)c.className="ok"; else if(it.ok===false)c.className="ng"; else if(i===game.i)c.className="now"; d.appendChild(c)})}
+function setState(s){
+  state=s; stepAt=Date.now();
+  var p=game.items[game.i].p, a=$("ask");
+  $("tools").hidden=!(s==="write"||s==="trace"); $("showBtn").hidden=s!=="write"; $("judge").hidden=s!=="check"; $("nextBtn").hidden=s!=="trace";
+  $("model").hidden=(s==="write");
+  sq.forEach(function(b){ b.wrap.classList.toggle("lock",!(s==="write"||s==="trace")); b.ghost.style.visibility=(s==="trace")?"visible":"hidden" });
+  if(s==="write"){ a.textContent="「"+p.yomi+"」を 漢字で 書こう"; a.className="ask" }
+  if(s==="check"){ a.textContent="おてほんと くらべよう。とめ・はね・はらい、形も 同じかな？"; a.className="ask" }
+  if(s==="trace"){ a.textContent="おてほんを なぞって、もう1回 書こう"; a.className="ask ng";
+    $("nextBtn").textContent=(game.i===game.items.length-1)?"かけた！ けっかを見る":"かけた！ つぎへ" }
+  paintTools() }
+function renderQuestion(){
+  var it=game.items[game.i], p=it.p, s=stat(p);
+  renderDots(); $("count").textContent=(game.i+1)+"/"+game.items.length;
+  sentence($("sent"),p);
+  $("past").hidden=!s.w; $("past").textContent="これまで "+s.w+"回まちがえた";
+  var old=$("qcard").querySelector(".maru"); if(old)old.remove();
+  var mr=$("mrow"); mr.textContent=""; p.chars.forEach(function(ch){mr.appendChild(modelBox(ch,p.chars.length>2?120:150))});
+  var ex=$("explain"); ex.textContent=p.explain; ex.hidden=!p.explain;
+  makeSquares(p.chars); setState("write") }
+$("showBtn").addEventListener("click",function(){ if(state!=="write"||Date.now()-stepAt<300)return; game.items[game.i].ink=inkOf(); setState("check") });
+function judge(ok){
+  if(state!=="check"||Date.now()-stepAt<400)return;
+  var it=game.items[game.i]; it.ok=ok; record(it.p,ok,it.ink); renderDots();
+  if(ok){
+    var svg=document.createElementNS(SVGNS,"svg"), c=document.createElementNS(SVGNS,"circle");
+    svg.setAttribute("class","maru"); svg.setAttribute("viewBox","0 0 150 150");
+    c.setAttribute("cx","75"); c.setAttribute("cy","75"); c.setAttribute("r","60"); c.setAttribute("transform","rotate(-80 75 75)");
+    svg.appendChild(c); $("qcard").appendChild(svg);
+    state="done"; $("judge").hidden=true; $("ask").textContent="よくできました！"; $("ask").className="ask ok";
+    setTimeout(next,900);
+  }else{
+    sq.forEach(function(b){b.strokes=[]}); order=[]; redrawAll(); setState("trace") } }
+$("okBtn").addEventListener("click",function(){judge(true)});
+$("ngBtn").addEventListener("click",function(){judge(false)});
+$("nextBtn").addEventListener("click",function(){ if(state!=="trace"||Date.now()-stepAt<400)return; next() });
+function next(){ if(!game)return; if(game.i<game.items.length-1){game.i++; renderQuestion()} else showResult() }
+function record(p,ok,ink){
+  var s=hist[p.key]||{w:0,r:0}, now=Date.now(); hist[p.key]={w:s.w+(ok?0:1),r:s.r+(ok?1:0),t:now}; lsSet("kj.hist",hist);
+  log.push({id:now.toString(36)+Math.random().toString(36).slice(2,6), t:now, k:p.key, q:p.text, a:p.answer, s:ok?1:0, ink:ink||[]});
+  if(log.length>LOG_MAX)log=log.slice(-LOG_MAX); saveLog(); cloudSoon() }
+function saveLog(){ lsSet("kj.log",log); lsSet("kj.rv",rv) }
+$("quitBtn").addEventListener("click",function(){game=null; state=""; renderHome(); show("home"); cloudSync(true)});
+function showResult(){
+  var items=game.items, total=items.length, right=items.filter(function(it){return it.ok}).length, miss=items.filter(function(it){return it.ok===false});
+  $("rScore").textContent=right; $("rTotal").textContent=total;
+  $("rMsg").textContent=right===total?"ぜんぶ正解！ はなまる！":right>=total*0.8?"あとすこしで全問正解！":"まちがえた漢字をもう一回書いてみよう。";
+  var ul=$("rMiss"); ul.textContent="";
+  miss.forEach(function(it){ var li=el("li"), q=el("p","q"); sentence(q,it.p); li.appendChild(q); li.appendChild(pairOf(it.p.chars,it.ink,96)); ul.appendChild(li) });
+  game.missed=miss.map(function(it){return it.p}); $("retryMiss").hidden=!miss.length; state="";
+  show("result"); cloudSync(true) }
+function pairOf(cs,ink,px){
+  var row=el("div","pair"), f1=el("figure"), f2=el("figure"), r1=el("div","mrow"), r2=el("div","mrow");
+  cs.forEach(function(ch,i){ r1.appendChild(inkSvg(ink&&ink[i],px)); r2.appendChild(modelBox(ch,px)) });
+  f1.appendChild(el("figcaption",null,"書いた字")); f1.appendChild(r1); f2.appendChild(el("figcaption",null,"おてほん")); f2.appendChild(r2);
+  row.appendChild(f1); row.appendChild(f2); return row }
+$("retryMiss").addEventListener("click",function(){startGame(game.missed)});
+$("homeBtn").addEventListener("click",function(){game=null; renderHome(); show("home")});
+$("startNew").addEventListener("click",function(){startGame(newPool())});
+$("startWeak").addEventListener("click",function(){startGame(weakPool())});
+
+/* ---------- review (adults): look at what was written, overrule the child's ○× ----------
+   The parent's verdict replaces the child's for that attempt; the 解答履歴 moves with it. */
+var rvAll=false;
+function effOf(a){ var r=rv[a.id]; return r?r.v:a.s }
+function setReview(a,v){
+  var before=effOf(a); rv[a.id]={v:v,t:Date.now()};
+  if(before!==v){ var h=hist[a.k]||{w:0,r:0};
+    hist[a.k]=v?{w:Math.max(0,h.w-1),r:h.r+1,t:Date.now()}:{w:h.w+1,r:Math.max(0,h.r-1),t:Date.now()}; lsSet("kj.hist",hist) }
+  saveLog(); cloudSoon(); renderReview() }
+function renderReview(){
+  var f=$("rvFilter"); f.textContent="";
+  [[false,"まだ見ていない（"+todoCount()+"）"],[true,"ぜんぶ（"+log.length+"）"]].forEach(function(o){ var on=(o[0]===rvAll), b=el("button","chip"+(on?" on":""),o[1]); b.type="button";
+    b.addEventListener("click",function(){rvAll=o[0]; renderReview()}); f.appendChild(b) });
+  var ul=$("rvList"); ul.textContent="";
+  var list=log.filter(function(a){return rvAll||!rv[a.id]}).slice().reverse();
+  if(!list.length){ ul.appendChild(el("li",null,rvAll?"まだ記録がありません。":"見ていない字はありません。")); return }
+  list.forEach(function(a){
+    var li=el("li",rv[a.id]?"":"todo"), p=build({text:a.q,answer:a.a});
+    var tag=el("span","tag "+(a.s?"ok":"ng"),"子どもの採点："+(a.s?"○":"×")+"　"+new Date(a.t).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})); li.appendChild(tag);
+    var q=el("p","q"); if(p.ok)sentence(q,p); else q.textContent=a.q; li.appendChild(q);
+    li.appendChild(pairOf(p.ok?p.chars:chars(a.a),a.ink,110));
+    var bx=el("div","rv"), cur=rv[a.id]?rv[a.id].v:null;
+    [[1,"○ 正しい","ok"],[0,"× まちがい","ng"]].forEach(function(o){ var b=el("button",o[2]+(cur===o[0]?" on":""),o[1]); b.type="button";
+      b.addEventListener("click",function(){setReview(a,o[0])}); bx.appendChild(b) });
+    li.appendChild(bx); ul.appendChild(li) }) }
+$("openReview").addEventListener("click",function(){rvAll=false; renderReview(); show("review")});
+$("reviewBack").addEventListener("click",function(){renderHome(); show("home")});
+
+/* ---------- check (adults): the rows of the sheet ---------- */
+function renderCheck(){
+  var ul=$("checkList"); ul.textContent="";
+  var bad=bank.filter(function(p){return !p.ok}), wait=bank.filter(function(p){return p.ok&&!p.confirmed}), good=bank.filter(function(p){return p.ok&&p.confirmed});
+  $("checkNote").textContent="エラー "+bad.length+"・確認待ち "+wait.length+"・出題中 "+good.length+"\n確認待ちの問題は、読みと漢字を見て正しければ、スプレッドシートの「確認」列に ○ を入れてください。";
+  function item(p,tag,cls){ var li=el("li"); li.appendChild(el("span","tag "+cls,tag));
+    if(p.row.tangen)li.appendChild(el("p","note","単元："+p.row.tangen));
+    if(!p.ok){ li.appendChild(el("p","q",p.text||"（問題文なし）")); li.appendChild(el("p","note err",p.err)); ul.appendChild(li); return }
+    var q=el("p","q"); sentence(q,p); li.appendChild(q);
+    var r=el("div","mrow"); p.chars.forEach(function(ch){r.appendChild(modelBox(ch,90))}); li.appendChild(r);
+    if(p.explain)li.appendChild(el("p","note",p.explain)); ul.appendChild(li) }
+  bad.forEach(function(p){item(p,"エラー（出題しません）","bad")});
+  wait.forEach(function(p){item(p,"確認待ち（出題しません）","wait")});
+  good.forEach(function(p){item(p,"出題中","ok")}) }
+$("openCheck").addEventListener("click",function(){renderCheck(); show("check")});
+$("checkBack").addEventListener("click",function(){renderHome(); show("home")});
+
+/* ---------- cloud sync (same Apps Script web app and 合言葉 as まるつけクイズ・算数, stored under its own slot) ----------
+   …/kanji.html?sync=<url>&key=<合言葉> sets this device up; that address is kept, so a home-screen icon made from it
+   brings the setting back even after Safari has wiped everything. */
+var cloud={url:lsGet("mq.cloudUrl",""), key:lsGet("mq.cloudKey",""), at:lsGet("kj.cloudAt",0)};
+var setsAt=lsGet("kj.setsAt",0);
+var cloudBusy=false, cloudAgain=false, cloudFailed=false, missingBusy=false, soonT=null;
+(function(){ var q=(location.search+"&"+location.hash.slice(1)).replace(/^\?/,"");
+  var m=q.match(/(?:^|&)sync=([^&]*)/), k=q.match(/(?:^|&)key=([^&]*)/);
+  try{ if(m&&k){ var u=decodeURIComponent(m[1]), kk=decodeURIComponent(k[1]);
+    if(/^https:\/\/script\.google(usercontent)?\.com\//.test(u)&&kk.length>=4&&(u!==cloud.url||kk!==cloud.key))cloudUse(u,kk) } }catch(e){} })();
+try{ if(navigator.storage&&navigator.storage.persist)navigator.storage.persist() }catch(e){}
+function cloudReady(){return !!(cloud.url&&cloud.key)}
+function cloudUse(url,key){ cloud.url=url; cloud.key=key; cloud.at=0; lsSet("mq.cloudUrl",url); lsSet("mq.cloudKey",key); lsSet("kj.cloudAt",0) }
+function cloudSoon(){ if(!cloudReady())return; clearTimeout(soonT); soonT=setTimeout(function(){soonT=null; cloudSync(true)},4000) }
+function touchSets(){ setsAt=Date.now(); lsSet("kj.setsAt",setsAt); cloudSoon() }
+function cloudPayload(){ return {v:1,app:"kanji",hist:hist,log:log,rv:rv,setsAt:setsAt,unit:unitSel,
+  sets:sets.map(function(s){return {id:s.id,name:s.name,url:s.url}})} }
+function newest(a,b){ var out={}; [a||{},b||{}].forEach(function(h){ Object.keys(h).forEach(function(k){ var x=h[k];
+    if(!x||typeof x!=="object")return; if(!out[k]||(Number(x.t)||0)>(Number(out[k].t)||0))out[k]=x }) }); return out }
+function mergeLog(a,b){ var seen={}, out=[]; (a||[]).concat(Array.isArray(b)?b:[]).forEach(function(x){ if(x&&x.id&&!seen[x.id]){seen[x.id]=1; out.push(x)} });
+  out.sort(function(x,y){return x.t-y.t}); return out.slice(-LOG_MAX) }
+function applyRemote(d){
+  if(!d||typeof d!=="object")return;
+  hist=newest(hist,d.hist); rv=newest(rv,d.rv); log=mergeLog(log,d.log); lsSet("kj.hist",hist); saveLog();
+  if(d.unit&&typeof d.unit==="object"){ Object.keys(d.unit).forEach(function(k){ if(!(k in unitSel))unitSel[k]=d.unit[k] }); lsSet("kj.unit",unitSel) }
+  var rs=Array.isArray(d.sets)?d.sets.filter(function(x){return x&&x.url&&setKey(x.url)}):[], rAt=Number(d.setsAt)||0;
+  var old={}; sets.forEach(function(x){old[setKey(x.url)]=x});
+  function adopt(x){ var o=old[setKey(x.url)]; return o?(o.name=x.name||o.name,o):{id:x.id||"s"+Date.now().toString(36),name:x.name||"セット",url:x.url,rows:[],at:0} }
+  if(rs.length&&(rAt>setsAt||!sets.length)){ sets=rs.map(adopt); setsAt=rAt }
+  else if(rs.length&&!setsAt){ var seen={}, mg=rs.map(adopt); mg.forEach(function(x){seen[setKey(x.url)]=1});
+    sets.forEach(function(x){ if(!seen[setKey(x.url)])mg.push(x) }); sets=mg; setsAt=Math.max(rAt,1) }
+  else return after();
+  lsSet("kj.setsAt",setsAt); if(!curSet())cur=sets[0]?sets[0].id:""; lsSet("kj.sets",sets); lsSet("kj.cur",cur); after();
+  function after(){ if(!game){ useCur(); if(!$("home").hidden)renderHome(); if(!$("review").hidden)renderReview() } }
+}
+function loadMissing(){
+  if(missingBusy)return; var list=sets.filter(function(x){return !(x.rows&&x.rows.length)}); if(!list.length)return;
+  missingBusy=true; var i=0;
+  (function next(){ if(i>=list.length){missingBusy=false; return} var x=list[i++];
+    loadSheet(x.url).then(function(rows){ x.rows=rows; x.at=Date.now(); lsSet("kj.sets",sets); if(x.id===cur&&!game){useCur(); renderHome()} }).catch(function(){}).then(next) })() }
+function asJson(r){ if(!r.ok)throw {code:"http"}; return r.text().then(function(t){ try{return JSON.parse(t)}catch(e){throw {code:"notjson"}} }) }
+function cloudErrText(e){ var c=e&&e.code;
+  if(c==="key")return "合言葉は4文字以上にしてください。";
+  if(c==="notjson"||c==="http")return "同期用のURLがちがうようです。Apps Script のウェブアプリのURL（…/exec）を入れてください。";
+  return "同期できませんでした。ネットにつながっているかを確認してください。記録はこの端末に残っていて、次にひらいたときにもう一度同期します。" }
+function cloudMsg(t,err){var n=$("cloudNote"); n.textContent=t||""; n.className="note"+(err?" err":"")}
+function renderCloud(){ var on=cloudReady(); $("cloudOn").hidden=!on;
+  $("cloudSum").textContent=on?("記録の同期：オン"+(cloudFailed?"（うまくいっていません）":cloud.at?"（さいご "+new Date(cloud.at).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})+"）":"")):"記録をGoogleに預ける（同期）：オフ" }
+function cloudSync(silent){
+  if(!cloudReady())return; clearTimeout(soonT); soonT=null;
+  if(cloudBusy){cloudAgain=true; return}
+  cloudBusy=true; if(!silent)cloudMsg("同期しています…");
+  var url=cloud.url, key=cloud.key+"#kanji";
+  fetch(url+(url.indexOf("?")<0?"?":"&")+"k="+encodeURIComponent(key)+"&_="+Date.now(),{credentials:"omit",cache:"no-store"}).then(asJson)
+  .then(function(r){ if(!r||!r.ok)throw {code:r&&r.err}; applyRemote(r.data);
+    return fetch(url,{method:"POST",credentials:"omit",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({k:key,data:cloudPayload()})}).then(asJson) })
+  .then(function(r){ if(!r||!r.ok)throw {code:r&&r.err}; cloud.at=Date.now(); lsSet("kj.cloudAt",cloud.at); cloudFailed=false; cloudMsg(silent?"":"同期しました。"); loadMissing() })
+  .catch(function(e){ cloudFailed=true; if(!silent||!$("cloudBox").open)cloudMsg(cloudErrText(e),true) })
+  .then(function(){ cloudBusy=false; renderCloud(); if(cloudAgain){cloudAgain=false; cloudSync(true)} }) }
+$("cloudSave").addEventListener("click",function(){
+  var url=$("cloudUrl").value.trim(), key=$("cloudKey").value.trim();
+  if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){cloudMsg("同期用のURLは https://script.google.com/… で始まるものを入れてください。",true); return}
+  if(key.length<4){cloudMsg(cloudErrText({code:"key"}),true); return}
+  cloudUse(url,key); renderCloud(); cloudSync(false) });
+$("cloudNow").addEventListener("click",function(){cloudSync(false)});
+$("cloudOff").addEventListener("click",function(){ cloudUse("",""); $("cloudUrl").value=""; $("cloudKey").value=""; cloudFailed=false;
+  cloudMsg("この端末の同期をやめました（まるつけクイズ・算数の同期もオフになります）。この端末の記録はそのまま残っています。"); renderCloud() });
+$("cloudLink").addEventListener("click",function(){ var link=location.origin+location.pathname+"?sync="+encodeURIComponent(cloud.url)+"&key="+encodeURIComponent(cloud.key);
+  function shown(){cloudMsg("このリンクをひらいてから「ホーム画面に追加」すると、記録が消えても自動でもどります。合言葉が入っているので、ほかの人には送らないでください：\n"+link)}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(link).then(function(){cloudMsg("リンクをコピーしました。Safariでこのリンクをひらいて「ホーム画面に追加」してください。記録が消えても、そのアイコンからひらけば自動でもどります。合言葉が入っているので、ほかの人には送らないでください。")},shown);
+  else shown() });
+document.addEventListener("visibilitychange",function(){
+  if(!cloudReady())return;
+  if(document.visibilityState==="hidden"&&soonT){ clearTimeout(soonT); soonT=null; cloudSync(true); return }
+  if(document.visibilityState==="visible"&&!game&&Date.now()-cloud.at>60000)cloudSync(true) });
+$("cloudUrl").value=cloud.url; $("cloudKey").value=cloud.key; renderCloud();
+
+useCur(); renderHome();
+if(curSet())syncSet(curSet(),true);
+cloudSync(true);
+})();
+</script>
+</body>
+</html>
