@@ -98,6 +98,8 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 .pts .fr{fill:var(--card); stroke:var(--line)} .pts .gd{stroke:#f3b9b3; stroke-dasharray:4 4; fill:none}
 .pts .st{fill:none; stroke:var(--ink); stroke-width:5; stroke-linecap:round; stroke-linejoin:round}
 .pts .st.hot{stroke-width:6.5}
+.pts .lb{font:900 13px var(--body); text-anchor:middle; paint-order:stroke; stroke:var(--card); stroke-width:3.5; stroke-linejoin:round}
+.pts .ld{stroke-width:1.3; stroke-linecap:round}
 .pts .nm{font:900 11px var(--body); text-anchor:middle; paint-order:stroke; stroke:var(--card); stroke-width:2.5}
 .tips{display:flex; flex-wrap:wrap; gap:5px; justify-content:center; max-width:100%}
 .tip{display:inline-flex; align-items:center; gap:4px; font-weight:900; font-size:.95rem; color:var(--pen); background:var(--pen-bg); border-radius:99px; padding:2px 10px 2px 3px}
@@ -668,31 +670,57 @@ function kTips(info){
   tips.sort(function(a,b){return a.p-b.p||(b.L||0)-(a.L||0)});
   return tips.slice(0,3).sort(function(a,b){return a.i-b.i}) }
 function pointsFig(ch,px){   // -> element; fills in once the strokes are loaded, removes itself if they can't be
-  var box=el("div","mgrp"), pair=el("div","mpair"), tipRow=el("div","tips");
-  pair.appendChild(modelBox(ch,px)); box.appendChild(pair); box.appendChild(tipRow);
-  var s=document.createElementNS(SVGNS,"svg"); s.setAttribute("viewBox","-12 -12 133 133"); s.setAttribute("width",px); s.setAttribute("height",px); s.setAttribute("class","pts");
+  var box=el("div","mgrp"), pair=el("div","mpair");
+  pair.appendChild(modelBox(ch,px)); box.appendChild(pair);
+  var M=26, V=109+2*M, s=document.createElementNS(SVGNS,"svg"); s.setAttribute("viewBox",(-M)+" "+(-M)+" "+V+" "+V);
+  var fp=Math.round(px*1.25); s.setAttribute("width",fp); s.setAttribute("height",fp); s.setAttribute("class","pts");
   s.setAttribute("aria-label",ch+"の 書き順と 注意点");
-  s.innerHTML='<rect class="fr" x="-11" y="-11" width="131" height="131" rx="6"/><path class="gd" d="M54.5 -10V119M-10 54.5H119"/>';
+  s.innerHTML='<rect class="fr" x="'+(1-M)+'" y="'+(1-M)+'" width="'+(V-2)+'" height="'+(V-2)+'" rx="8"/><path class="gd" d="M54.5 '+(2-M)+'V'+(107+M)+'M'+(2-M)+' 54.5H'+(107+M)+'"/>';
   loadKvg(ch).then(function(strokes){
     // measure in a hidden svg that is in the page, so path lengths work even while the model is hidden
     var m=document.createElementNS(SVGNS,"svg"); m.setAttribute("style","position:absolute;width:0;height:0;visibility:hidden"); document.body.appendChild(m);
+    var ink=[];
     var info=strokes.map(function(st,i){ var p=document.createElementNS(SVGNS,"path"); p.setAttribute("d",st[0]); m.appendChild(p);
-      var L=p.getTotalLength(), a=p.getPointAtLength(0), b=p.getPointAtLength(L);
-      return {i:i,t:st[1]||"",d:st[0],L:L,a:{x:a.x,y:a.y},b:{x:b.x,y:b.y},dx:b.x-a.x,dy:b.y-a.y} });
+      var L=p.getTotalLength(), a=p.getPointAtLength(0), b=p.getPointAtLength(L), mid=p.getPointAtLength(L/2), b2=p.getPointAtLength(Math.max(0,L-7));
+      for(var t=0;t<=L;t+=3){ var q=p.getPointAtLength(t); ink.push([q.x,q.y]) }
+      return {i:i,t:st[1]||"",d:st[0],L:L,a:{x:a.x,y:a.y},b:{x:b.x,y:b.y},m:{x:mid.x,y:mid.y},e:{x:b.x-b2.x,y:b.y-b2.y},dx:b.x-a.x,dy:b.y-a.y} });
     m.remove();
-    var tips=kTips(info), hot={}; tips.forEach(function(t){hot[t.i]=1});
-    info.forEach(function(o){ var e=document.createElementNS(SVGNS,"path"); e.setAttribute("d",o.d); e.setAttribute("class","st"+(hot[o.i]?" hot":"")); if(hot[o.i])e.style.stroke=KCOL[o.i%KCOL.length]; s.appendChild(e) });
+    var tips=kTips(info), hot={}; tips.forEach(function(t){hot[t.i]=t});
+    function col(i){return KCOL[i%KCOL.length]}
+    function svgEl(tag,at,txt){ var e=document.createElementNS(SVGNS,tag); for(var k in at)e.setAttribute(k,at[k]); if(txt!=null)e.textContent=txt; return e }
+    var layerS=svgEl("g",{}), layerL=svgEl("g",{}), layerT=svgEl("g",{}); s.appendChild(layerS); s.appendChild(layerL); s.appendChild(layerT);
+    info.forEach(function(o){ var e=svgEl("path",{d:o.d,"class":"st"+(hot[o.i]?" hot":"")}); if(hot[o.i])e.style.stroke=col(o.i); layerS.appendChild(e) });
+    var taken=[];   // boxes already used by numbers and labels: [x0,y0,x1,y1]
+    function hit(a,b){ return a[0]<b[2]&&b[0]<a[2]&&a[1]<b[3]&&b[1]<a[3] }
     var many=info.length>9;   // with many strokes, only the strokes with a tip get a number so it stays readable
-    info.forEach(function(o){ var c=KCOL[o.i%KCOL.length]; if(many&&!hot[o.i])return;
-      var d=document.createElementNS(SVGNS,"circle"); d.setAttribute("cx",o.a.x); d.setAttribute("cy",o.a.y); d.setAttribute("r","2.4"); d.setAttribute("fill",c); s.appendChild(d);
+    info.forEach(function(o){ var c=col(o.i); if(many&&!hot[o.i])return;
+      layerT.appendChild(svgEl("circle",{cx:o.a.x,cy:o.a.y,r:2.6,fill:c}));
       var h=Math.abs(o.dx)>Math.abs(o.dy), nx=h?o.a.x-(o.dx>=0?7:-7):o.a.x-6, ny=h?o.a.y+4:o.a.y-3;
-      var tx=document.createElementNS(SVGNS,"text"); tx.setAttribute("x",Math.max(-8,Math.min(116,nx))); tx.setAttribute("y",Math.max(-3,Math.min(118,ny)));
-      tx.setAttribute("class","nm"); tx.setAttribute("fill",c); tx.textContent=o.i+1; s.appendChild(tx) });
+      nx=Math.max(4-M,Math.min(105+M,nx)); ny=Math.max(10-M,Math.min(105+M,ny));
+      layerT.appendChild(svgEl("text",{x:nx,y:ny,"class":"nm",fill:c},String(o.i+1))); taken.push([nx-6,ny-10,nx+6,ny+1]) });
+    // each tip is written right next to its stroke, like a textbook: in the stroke's colour, with a short line to it
+    var FS=13, W=FS*3+2, Hh=FS+3;
+    tips.forEach(function(t){ var o=info[t.i], A, d;
+      if(t.w==="ながく"){ var hz=Math.abs(o.dx)>Math.abs(o.dy);
+        if(hz){ A=o.m; d={x:0,y:o.m.y<54.5?-1:1} } else { A=o.dy>0?o.b:o.a; d={x:0,y:1} } }
+      else { A=o.b; var n=Math.hypot(o.e.x,o.e.y)||1; d={x:o.e.x/n,y:o.e.y/n} }
+      var best=null;
+      [0,35,-35,70,-70,110,-110,180].forEach(function(deg,k){ var r=deg*Math.PI/180, ux=d.x*Math.cos(r)-d.y*Math.sin(r), uy=d.x*Math.sin(r)+d.y*Math.cos(r);
+        [12,20,28,38,48].forEach(function(dist){
+          var cx=A.x+ux*(dist+Math.abs(ux)*W/2), cy=A.y+uy*(dist+Math.abs(uy)*Hh/2), bx=[cx-W/2,cy-Hh/2,cx+W/2,cy+Hh/2];
+          if(bx[0]<2-M||bx[1]<2-M||bx[2]>107+M||bx[3]>107+M)return;
+          if(taken.some(function(q){return hit(q,bx)}))return;
+          var inkN=0; ink.forEach(function(q){ if(q[0]>bx[0]-1&&q[0]<bx[2]+1&&q[1]>bx[1]-1&&q[1]<bx[3]+1)inkN++ });
+          var sc=inkN*6+dist*0.3+k*1.5;
+          if(!best||sc<best.sc)best={sc:sc,cx:cx,cy:cy,bx:bx} }) });
+      if(!best)return;
+      taken.push(best.bx);
+      var c=col(o.i), ex=best.cx-A.x, ey=best.cy-A.y, en=Math.hypot(ex,ey)||1, cut=Math.min(Math.abs(ex)>1e-6?(W/2)/Math.abs(ex/en):1e9,Math.abs(ey)>1e-6?(Hh/2)/Math.abs(ey/en):1e9);
+      if(en-cut>2.5) layerL.appendChild(svgEl("line",{x1:A.x+ex/en*3,y1:A.y+ey/en*3,x2:A.x+ex/en*(en-cut),y2:A.y+ey/en*(en-cut),stroke:c,"class":"ld"}));
+      layerT.appendChild(svgEl("text",{x:best.cx,y:best.cy+FS*0.36,"class":"lb",fill:c},t.w)) });
     pair.appendChild(s);
-    tips.forEach(function(t){ var e=el("span","tip"), n=el("b","",String(t.i+1)); n.style.background=KCOL[t.i%KCOL.length]; e.appendChild(n); e.appendChild(document.createTextNode(t.w)); tipRow.appendChild(e) });
-    if(!tips.length)tipRow.remove();
     layoutSquares() })
-  .catch(function(){ tipRow.remove() });
+  .catch(function(){});
   return box }
 function strokeFig(node,ch,bold,px,done){   // draws the kanji with one stroke bold; done(count) after loading
   node.textContent="";
@@ -731,7 +759,7 @@ function renderQuestion(){
   $("quiz").className="screen t-"+p.kind; $("wbox").hidden=!kaki; $("ibox").hidden=kaki; $("kfig").hidden=(p.kind!=="jun"); $("model").hidden=true;
   if(kaki){
     var mr=$("mrow"); mr.textContent="";
-    var nk=p.kind==="kaki"?p.chars.filter(isKanji).length:0, slots=p.chars.length+nk, gaps=(nk*6)+(p.chars.length-1)*10,
+    var nk=p.kind==="kaki"?p.chars.filter(isKanji).length:0, slots=p.chars.length+nk*1.25, gaps=(nk*6)+(p.chars.length-1)*10,
       px=Math.max(90,Math.min(160,Math.floor((($("qcard").clientWidth||360)-40-gaps)/slots)));
     p.chars.forEach(function(ch){mr.appendChild(p.kind==="kaki"&&isKanji(ch)?pointsFig(ch,px):modelBox(ch,px))});
     var ext=p.explain; if(p.kind==="yomi"&&p.alts.length>1)ext="ほかの読み方："+p.alts.slice(1).join("、")+(ext?"\n"+ext:"");
