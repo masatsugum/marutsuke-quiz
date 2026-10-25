@@ -198,6 +198,23 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
     <button class="plain" id="openCheck" type="button">問題チェック（大人用）</button>
     <button class="plain" id="openMake" type="button">問題をつくる（大人用）</button>
   </div>
+  <details id="cloudBox">
+    <summary id="cloudSum">記録をGoogleに預ける（同期）</summary>
+    <div class="form">
+      <p class="note">ここを設定すると、解答履歴がGoogleのスプレッドシートにも保存されます。Safariの記録が消えても、ひらき直すと元にもどります。まるつけクイズと同じURL・合言葉を使います（設定は両方のアプリで共通）。</p>
+      <label for="cloudUrl">同期用のURL（Apps Script の「ウェブアプリ」のURL。…/exec で終わるもの）</label>
+      <input id="cloudUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://script.google.com/macros/s/…/exec">
+      <label for="cloudKey">合言葉</label>
+      <input id="cloudKey" type="text" autocomplete="off" autocapitalize="off" spellcheck="false" maxlength="60" placeholder="例：masa-quiz-2026">
+      <button class="plain" id="cloudSave" type="button">保存して同期する</button>
+      <p class="note" id="cloudNote" aria-live="polite"></p>
+      <div class="form" id="cloudOn" hidden>
+        <button class="plain" id="cloudNow" type="button">いますぐ同期する</button>
+        <button class="plain" id="cloudLink" type="button">設定入りのリンクをコピー（ホーム画面用・ほかの端末用）</button>
+        <button class="plain" id="cloudOff" type="button">この端末の同期をやめる</button>
+      </div>
+    </div>
+  </details>
   <details id="setBox">
     <summary>問題セットを追加・更新する</summary>
     <div class="form">
@@ -755,8 +772,9 @@ function useCur(){ var s=curSet()||sets[0]||null; cur=s?s.id:"";
 var unitSel=lsGet("sq.unit",{});   // set id -> chosen 単元 ("" = all)
 function curUnit(){ var u=unitSel[cur]||""; return units().indexOf(u)>=0?u:"" }
 function units(){ var seen={}, out=[]; bank.forEach(function(p){ var u=String(p.row.tangen||"").trim(); if(p.ok&&p.confirmed&&u&&!seen[u]){seen[u]=1; out.push(u)} }); return out }
-function playable(){ var u=curUnit(); return bank.filter(function(p){return p.ok&&p.confirmed&&!flags[p.key]&&(!u||String(p.row.tangen||"").trim()===u)}) }
+function playable(){ var u=curUnit(); return bank.filter(function(p){return p.ok&&p.confirmed&&!flagOf(p)&&(!u||String(p.row.tangen||"").trim()===u)}) }
 function stat(p){return hist[p.key]||{w:0,r:0}}
+function flagOf(p){var f=flags[p.key]; return f&&!f.off?f:null}
 
 /* ---------- spreadsheet ---------- */
 function parseCsv(text){
@@ -815,14 +833,14 @@ $("addBtn").addEventListener("click",function(){
   loadSheet(url).then(function(rows){
     var s=ex||{id:"s"+Date.now().toString(36),name:"",url:url,rows:[]};
     s.name=name||s.name||("セット"+(sets.length+1)); s.url=url; s.rows=rows; s.at=Date.now();
-    if(!ex)sets.push(s); cur=s.id; lsSet("sq.sets",sets); lsSet("sq.cur",cur); $("setName").value=""; $("sheetUrl").value="";
+    if(!ex)sets.push(s); cur=s.id; lsSet("sq.sets",sets); lsSet("sq.cur",cur); touchSets(); $("setName").value=""; $("sheetUrl").value="";
     useCur(); renderHome(); msg("「"+s.name+"」を"+(ex?"更新":"登録")+"しました。"+summary())
   }).catch(function(e){msg(errText(e),true)}).then(function(){busy=false}) });
 $("reloadBtn").addEventListener("click",function(){var s=curSet(); if(s)syncSet(s,false)});
 var removeArmed=false;
 $("removeBtn").addEventListener("click",function(){ var s=curSet(); if(!s)return;
   if(!removeArmed){removeArmed=true; this.textContent="ほんとうに外す？ もう一度おすと外れます"; return}
-  sets=sets.filter(function(x){return x.id!==s.id}); cur=sets[0]?sets[0].id:""; lsSet("sq.sets",sets); lsSet("sq.cur",cur); useCur(); renderHome(); msg("「"+s.name+"」を外しました。") });
+  sets=sets.filter(function(x){return x.id!==s.id}); cur=sets[0]?sets[0].id:""; lsSet("sq.sets",sets); lsSet("sq.cur",cur); touchSets(); useCur(); renderHome(); msg("「"+s.name+"」を外しました。") });
 
 /* ---------- home ---------- */
 function show(id){ ["home","quiz","result","check","make"].forEach(function(s){$(s).hidden=(s!==id)}); $("app").classList.toggle("wide",id==="quiz"); window.scrollTo(0,0) }
@@ -848,8 +866,8 @@ var resetArmed=false;
 $("resetHist").addEventListener("click",function(){
   var s=curSet(); if(!s)return;
   if(!resetArmed){ resetArmed=true; this.textContent="ほんとうに消す？ もう一度おすと「"+s.name+"」の履歴が消えます"; return }
-  var n=0; bank.forEach(function(p){ if(hist[p.key]){delete hist[p.key]; n++} }); lsSet("sq.hist",hist);
-  renderHome(); $("resetNote").textContent="「"+s.name+"」の解答履歴を消しました（"+n+"問分）。" });
+  var n=0, now=Date.now(); bank.forEach(function(p){ var h=hist[p.key]; if(h&&(h.w||h.r)){hist[p.key]={w:0,r:0,t:now}; n++} }); lsSet("sq.hist",hist);
+  renderHome(); cloudSoon(); $("resetNote").textContent="「"+s.name+"」の解答履歴を消しました（"+n+"問分）。" });
 function newPool(){return playable().filter(function(p){return !(stat(p).r>0)})}
 function weakPool(){return playable().filter(function(p){return stat(p).w>0})}
 
@@ -918,16 +936,16 @@ function submit(){
     if(p.explain){ ex.textContent=""; ex.appendChild(el("b",null,"かいせつ")); ex.appendChild(document.createTextNode(p.explain)); ex.hidden=false } else ex.hidden=true;
   } }
 function flash(){ var a=$("answer"); a.animate&&a.animate([{transform:"translateX(0)"},{transform:"translateX(-8px)"},{transform:"translateX(8px)"},{transform:"translateX(0)"}],{duration:220}) }
-function record(p,ok){var s=hist[p.key]||{w:0,r:0}; hist[p.key]={w:s.w+(ok?0:1),r:s.r+(ok?1:0),t:Date.now()}; lsSet("sq.hist",hist)}
+function record(p,ok){var s=hist[p.key]||{w:0,r:0}; hist[p.key]={w:s.w+(ok?0:1),r:s.r+(ok?1:0),t:Date.now()}; lsSet("sq.hist",hist); cloudSoon()}
 $("nextBtn").addEventListener("click",function(){ if(Date.now()-answeredAt<400)return; if(game.i<game.items.length-1){game.i++; renderQuestion()} else showResult() });
 var flagArmed=false;
 $("flagBtn").addEventListener("click",function(){
   if(!flagArmed){flagArmed=true; this.textContent="もう一度おすと、この問題を出さないようにして、おうちの人に知らせます"; return}
-  var it=game.items[game.i]; flags[it.p.key]={t:Date.now(), given:it.given||input}; lsSet("sq.flags",flags);
+  var it=game.items[game.i]; flags[it.p.key]={t:Date.now(), given:it.given||input}; lsSet("sq.flags",flags); cloudSoon();
   this.textContent="知らせました。この問題はとばします。"; this.hidden=false;
   setTimeout(function(){ if(!game)return; game.items.splice(game.i,1); if(!game.items.length){game=null; renderHome(); show("home"); return}
     if(game.i>=game.items.length){showResult(); return} renderQuestion() },700) });
-$("quitBtn").addEventListener("click",function(){game=null; renderHome(); show("home")});
+$("quitBtn").addEventListener("click",function(){game=null; renderHome(); show("home"); cloudSync(true)});
 function showResult(){
   var items=game.items, total=items.length, right=items.filter(function(it){return it.ok}).length, miss=items.filter(function(it){return it.ok===false});
   $("rScore").textContent=right; $("rTotal").textContent=total;
@@ -940,15 +958,15 @@ function showResult(){
   game.missed=miss.map(function(it){return it.p}); $("retryMiss").hidden=!miss.length;
   show("result") }
 $("retryMiss").addEventListener("click",function(){startGame(game.missed)});
-$("homeBtn").addEventListener("click",function(){game=null; renderHome(); show("home")});
+$("homeBtn").addEventListener("click",function(){game=null; renderHome(); show("home"); cloudSync(true)});
 $("startNew").addEventListener("click",function(){startGame(newPool())});
 $("startWeak").addEventListener("click",function(){startGame(weakPool())});
 
 /* ---------- check screen (adults) ---------- */
 function renderCheck(){
   var ul=$("checkList"); ul.textContent="";
-  var flagged=bank.filter(function(p){return flags[p.key]}), bad=bank.filter(function(p){return !p.ok}),
-      wait=bank.filter(function(p){return p.ok&&!p.confirmed&&!flags[p.key]}), good=bank.filter(function(p){return p.ok&&p.confirmed&&!flags[p.key]});
+  var flagged=bank.filter(function(p){return flagOf(p)}), bad=bank.filter(function(p){return !p.ok}),
+      wait=bank.filter(function(p){return p.ok&&!p.confirmed&&!flagOf(p)}), good=bank.filter(function(p){return p.ok&&p.confirmed&&!flagOf(p)});
   $("checkNote").textContent="子どもから報告 "+flagged.length+"・エラー "+bad.length+"・確認待ち "+wait.length+"・出題中 "+good.length+"\n確認待ちの問題は、図と答えを見て正しければ、スプレッドシートの「確認」列に ○ を入れてください。";
   function item(p,tag,cls){ var li=el("li"); li.appendChild(el("span","tag "+cls,tag));
     var r=p.row; li.appendChild(el("p","note",(r.tangen?"単元："+r.tangen+"　":"")+"種類："+r.type+(r.data?"　データ："+r.data:"")));
@@ -957,8 +975,8 @@ function renderCheck(){
     if(p.svg){var m=el("div","mini"); m.innerHTML=p.svg; li.appendChild(m)}
     var a=el("p","a"); a.appendChild(document.createTextNode("答え：")); a.appendChild(el("b",null,p.answerText+" "+(p.unit||""))); li.appendChild(a);
     if(p.explain)li.appendChild(el("p","note",p.explain));
-    if(flags[p.key]){ li.appendChild(el("p","note err","子どもの答え："+(flags[p.key].given||"（なし）")+"　報告："+new Date(flags[p.key].t).toLocaleString("ja-JP")));
-      var b=el("button","plain","問題なし。また出題する"); b.type="button"; b.addEventListener("click",function(){delete flags[p.key]; lsSet("sq.flags",flags); renderCheck()}); li.appendChild(b) }
+    if(flagOf(p)){ li.appendChild(el("p","note err","子どもの答え："+(flags[p.key].given||"（なし）")+"　報告："+new Date(flags[p.key].t).toLocaleString("ja-JP")));
+      var b=el("button","plain","問題なし。また出題する"); b.type="button"; b.addEventListener("click",function(){flags[p.key]={t:Date.now(),off:1}; lsSet("sq.flags",flags); renderCheck(); cloudSoon()}); li.appendChild(b) }
     ul.appendChild(li) }
   flagged.forEach(function(p){item(p,"子どもから報告","bad")});
   bad.forEach(function(p){item(p,"エラー（出題しません）","bad")});
@@ -1008,8 +1026,87 @@ $("mCopyHead").addEventListener("click",function(){ copyText("種類\tデータ\
 $("openMake").addEventListener("click",function(){ if(!$("mData").value)$("mData").value=SAMPLE_DATA[$("mType").value]; renderMake(); show("make") });
 $("makeBack").addEventListener("click",function(){renderHome(); show("home")});
 
+/* ---------- cloud sync (same Apps Script web app and 合言葉 as まるつけクイズ, stored under its own slot) ----------
+   Settings live under the quiz's names (same site = shared), and can also arrive in the page address:
+   …/sansu.html?sync=<url>&key=<合言葉>. That address is kept, so a bookmark or home-screen icon made from it
+   brings the setting back even after Safari has wiped everything; the records then come back from the cloud. */
+var cloud={url:lsGet("mq.cloudUrl",""), key:lsGet("mq.cloudKey",""), at:lsGet("sq.cloudAt",0)};
+var setsAt=lsGet("sq.setsAt",0);
+var cloudBusy=false, cloudAgain=false, cloudFailed=false, missingBusy=false, soonT=null;
+(function(){ var q=(location.search+"&"+location.hash.slice(1)).replace(/^\?/,"");
+  var m=q.match(/(?:^|&)sync=([^&]*)/), k=q.match(/(?:^|&)key=([^&]*)/);
+  try{ if(m&&k){ var u=decodeURIComponent(m[1]), kk=decodeURIComponent(k[1]);
+    if(/^https:\/\/script\.google(usercontent)?\.com\//.test(u)&&kk.length>=4&&(u!==cloud.url||kk!==cloud.key))cloudUse(u,kk) } }catch(e){} })();
+try{ if(navigator.storage&&navigator.storage.persist)navigator.storage.persist() }catch(e){}
+function cloudReady(){return !!(cloud.url&&cloud.key)}
+function cloudUse(url,key){ cloud.url=url; cloud.key=key; cloud.at=0; lsSet("mq.cloudUrl",url); lsSet("mq.cloudKey",key); lsSet("sq.cloudAt",0) }
+function cloudSoon(){ if(!cloudReady())return; clearTimeout(soonT); soonT=setTimeout(function(){soonT=null; cloudSync(true)},4000) }
+function touchSets(){ setsAt=Date.now(); lsSet("sq.setsAt",setsAt); cloudSoon() }
+function cloudPayload(){ return {v:1,app:"sansu",hist:hist,flags:flags,setsAt:setsAt,unit:unitSel,
+  sets:sets.map(function(s){return {id:s.id,name:s.name,url:s.url}})} }
+function newest(a,b){   // per question keep the newer record
+  var out={}; [a||{},b||{}].forEach(function(h){ Object.keys(h).forEach(function(k){ var x=h[k];
+    if(!x||typeof x!=="object")return; if(!out[k]||(Number(x.t)||0)>(Number(out[k].t)||0))out[k]=x }) }); return out }
+function applyRemote(d){
+  if(!d||typeof d!=="object")return;
+  hist=newest(hist,d.hist); flags=newest(flags,d.flags); lsSet("sq.hist",hist); lsSet("sq.flags",flags);
+  if(d.unit&&typeof d.unit==="object"){ Object.keys(d.unit).forEach(function(k){ if(!(k in unitSel))unitSel[k]=d.unit[k] }); lsSet("sq.unit",unitSel) }
+  var rs=Array.isArray(d.sets)?d.sets.filter(function(x){return x&&x.url&&setKey(x.url)}):[], rAt=Number(d.setsAt)||0;
+  var old={}; sets.forEach(function(x){old[setKey(x.url)]=x});
+  function adopt(x){ var o=old[setKey(x.url)]; return o?(o.name=x.name||o.name,o):{id:x.id||"s"+Date.now().toString(36),name:x.name||"セット",url:x.url,rows:[],at:0} }
+  if(rs.length&&(rAt>setsAt||!sets.length)){ sets=rs.map(adopt); setsAt=rAt }
+  else if(rs.length&&!setsAt){ var seen={}, mg=rs.map(adopt); mg.forEach(function(x){seen[setKey(x.url)]=1});
+    sets.forEach(function(x){ if(!seen[setKey(x.url)])mg.push(x) }); sets=mg; setsAt=Math.max(rAt,1) }
+  else return after();
+  lsSet("sq.setsAt",setsAt); if(!curSet())cur=sets[0]?sets[0].id:""; lsSet("sq.sets",sets); lsSet("sq.cur",cur); after();
+  function after(){ if(!game){useCur(); renderHome()} }
+}
+function loadMissing(){   // sets that came from the cloud have no problems on this device yet
+  if(missingBusy)return; var list=sets.filter(function(x){return !(x.rows&&x.rows.length)}); if(!list.length)return;
+  missingBusy=true; var i=0;
+  (function next(){ if(i>=list.length){missingBusy=false; return} var x=list[i++];
+    loadSheet(x.url).then(function(rows){ x.rows=rows; x.at=Date.now(); lsSet("sq.sets",sets); if(x.id===cur&&!game){useCur(); renderHome()} }).catch(function(){}).then(next) })() }
+function asJson(r){ if(!r.ok)throw {code:"http"}; return r.text().then(function(t){ try{return JSON.parse(t)}catch(e){throw {code:"notjson"}} }) }
+function cloudErrText(e){ var c=e&&e.code;
+  if(c==="key")return "合言葉は4文字以上にしてください。";
+  if(c==="notjson"||c==="http")return "同期用のURLがちがうようです。Apps Script のウェブアプリのURL（…/exec）を入れてください。";
+  return "同期できませんでした。ネットにつながっているかを確認してください。記録はこの端末に残っていて、次にひらいたときにもう一度同期します。" }
+function cloudMsg(t,err){var n=$("cloudNote"); n.textContent=t||""; n.className="note"+(err?" err":"")}
+function renderCloud(){ var on=cloudReady(); $("cloudOn").hidden=!on;
+  $("cloudSum").textContent=on?("記録の同期：オン"+(cloudFailed?"（うまくいっていません）":cloud.at?"（さいご "+new Date(cloud.at).toLocaleString("ja-JP",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})+"）":"")):"記録をGoogleに預ける（同期）：オフ" }
+function cloudSync(silent){
+  if(!cloudReady())return; clearTimeout(soonT); soonT=null;
+  if(cloudBusy){cloudAgain=true; return}
+  cloudBusy=true; if(!silent)cloudMsg("同期しています…");
+  var url=cloud.url, key=cloud.key+"#sansu";   // own slot, so the quiz's records are never touched
+  fetch(url+(url.indexOf("?")<0?"?":"&")+"k="+encodeURIComponent(key)+"&_="+Date.now(),{credentials:"omit",cache:"no-store"}).then(asJson)
+  .then(function(r){ if(!r||!r.ok)throw {code:r&&r.err}; applyRemote(r.data);
+    return fetch(url,{method:"POST",credentials:"omit",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({k:key,data:cloudPayload()})}).then(asJson) })
+  .then(function(r){ if(!r||!r.ok)throw {code:r&&r.err}; cloud.at=Date.now(); lsSet("sq.cloudAt",cloud.at); cloudFailed=false; cloudMsg(silent?"":"同期しました。"); loadMissing() })
+  .catch(function(e){ cloudFailed=true; if(!silent||!$("cloudBox").open)cloudMsg(cloudErrText(e),true) })
+  .then(function(){ cloudBusy=false; renderCloud(); if(cloudAgain){cloudAgain=false; cloudSync(true)} }) }
+function setupLink(){ return location.origin+location.pathname+"?sync="+encodeURIComponent(cloud.url)+"&key="+encodeURIComponent(cloud.key) }
+$("cloudSave").addEventListener("click",function(){
+  var url=$("cloudUrl").value.trim(), key=$("cloudKey").value.trim();
+  if(!/^https:\/\/script\.google(usercontent)?\.com\//.test(url)){cloudMsg("同期用のURLは https://script.google.com/… で始まるものを入れてください。",true); return}
+  if(key.length<4){cloudMsg(cloudErrText({code:"key"}),true); return}
+  cloudUse(url,key); renderCloud(); cloudSync(false) });
+$("cloudNow").addEventListener("click",function(){cloudSync(false)});
+$("cloudOff").addEventListener("click",function(){ cloudUse("",""); $("cloudUrl").value=""; $("cloudKey").value=""; cloudFailed=false;
+  cloudMsg("この端末の同期をやめました（まるつけクイズの同期もオフになります）。この端末の記録はそのまま残っています。"); renderCloud() });
+$("cloudLink").addEventListener("click",function(){ var link=setupLink();
+  function shown(){cloudMsg("このリンクをひらいてから「ホーム画面に追加」すると、記録が消えても自動でもどります。合言葉が入っているので、ほかの人には送らないでください：\n"+link)}
+  if(navigator.clipboard&&navigator.clipboard.writeText)navigator.clipboard.writeText(link).then(function(){cloudMsg("リンクをコピーしました。Safariでこのリンクをひらいて「ホーム画面に追加」してください。記録が消えても、そのアイコンからひらけば自動でもどります。合言葉が入っているので、ほかの人には送らないでください。")},shown);
+  else shown() });
+document.addEventListener("visibilitychange",function(){
+  if(!cloudReady())return;
+  if(document.visibilityState==="hidden"&&soonT){ clearTimeout(soonT); soonT=null; cloudSync(true); return }   // leaving the app: send what is waiting now
+  if(document.visibilityState==="visible"&&!game&&Date.now()-cloud.at>60000)cloudSync(true) });
+$("cloudUrl").value=cloud.url; $("cloudKey").value=cloud.key; renderCloud();
+
 useCur(); renderHome();
 if(curSet())syncSet(curSet(),true);
+cloudSync(true);
 })();
 </script>
 </body>
