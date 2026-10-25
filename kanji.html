@@ -513,9 +513,16 @@ function renderHome(){
 var resetArmed=false;
 $("resetHist").addEventListener("click",function(){
   var s=curSet(); if(!s)return;
-  if(!resetArmed){ resetArmed=true; this.textContent="ほんとうに消す？ もう一度おすと「"+s.name+"」の履歴が消えます"; return }
-  var n=0, now=Date.now(); bank.forEach(function(p){ var h=hist[p.key]; if(h&&(h.w||h.r)){hist[p.key]={w:0,r:0,t:now}; n++} }); lsSet("kj.hist",hist);
-  renderHome(); cloudSoon(); $("resetNote").textContent="「"+s.name+"」の解答履歴を消しました（"+n+"問分）。" });
+  if(!resetArmed){ resetArmed=true; this.textContent="ほんとうに消す？ もう一度おすと「"+s.name+"」の履歴と書いた字が消えます"; return }
+  var n=0, now=Date.now(), inLog={}; log.forEach(function(x){inLog[x.k]=1});
+  bank.forEach(function(p){ var h=hist[p.key]; if((h&&(h.w||h.r))||inLog[p.key]){ hist[p.key]={w:0,r:0,t:now,c:now}; n++ } });   // c = "forget everything written before this time"
+  lsSet("kj.hist",hist); var m=pruneLog(); saveLog();
+  renderHome(); cloudSoon(); $("resetNote").textContent="「"+s.name+"」の解答履歴を消しました（"+n+"問分"+(m?"・書いた字 "+m+"こ":"")+"）。" });
+/* drops written answers older than a reset of their problem (also on other devices, through the sync) */
+function pruneLog(){ var n0=log.length;
+  log=log.filter(function(x){ var h=hist[x.k]; return !(h&&h.c&&(Number(x.t)||0)<=h.c) });
+  var ids={}; log.forEach(function(x){ids[x.id]=1}); Object.keys(rv).forEach(function(id){ if(!ids[id])delete rv[id] });
+  return n0-log.length }
 
 /* ---------- handwriting ----------
    Each square is a canvas. Strokes are kept as points in a 0–100 box (stored ×2 as whole numbers), so they can be
@@ -859,7 +866,7 @@ $("ngBtn").addEventListener("click",function(){judge(false)});
 $("nextBtn").addEventListener("click",function(){ if(state!=="trace"||Date.now()-stepAt<400)return; next() });
 function next(){ if(!game)return; if(game.i<game.items.length-1){game.i++; renderQuestion()} else showResult() }
 function record(p,ok,ink){
-  var s=hist[p.key]||{w:0,r:0}, now=Date.now(); hist[p.key]={w:s.w+(ok?0:1),r:s.r+(ok?1:0),t:now}; lsSet("kj.hist",hist);
+  var s=hist[p.key]||{w:0,r:0}, now=Date.now(); hist[p.key]={w:s.w+(ok?0:1),r:s.r+(ok?1:0),t:now}; if(s.c)hist[p.key].c=s.c; lsSet("kj.hist",hist);
   if(p.kind==="kaki"||p.kind==="yomi"){ log.push({id:now.toString(36)+Math.random().toString(36).slice(2,6), t:now, k:p.key, q:p.text, a:p.answer, y:p.kind==="yomi"?1:0, s:ok?1:0, ink:ink||[]});
     if(log.length>LOG_MAX)log=log.slice(-LOG_MAX); saveLog() }
   cloudSoon() }
@@ -960,12 +967,14 @@ function touchSets(){ setsAt=Date.now(); lsSet("kj.setsAt",setsAt); cloudSoon() 
 function cloudPayload(){ return {v:1,app:"kanji",hist:hist,log:log,rv:rv,setsAt:setsAt,unit:unitSel,
   sets:sets.map(function(s){return {id:s.id,name:s.name,url:s.url}})} }
 function newest(a,b){ var out={}; [a||{},b||{}].forEach(function(h){ Object.keys(h).forEach(function(k){ var x=h[k];
-    if(!x||typeof x!=="object")return; if(!out[k]||(Number(x.t)||0)>(Number(out[k].t)||0))out[k]=x }) }); return out }
+    if(!x||typeof x!=="object")return; var o=out[k], c=Math.max(Number(x.c)||0,o?Number(o.c)||0:0);
+    if(!o||(Number(x.t)||0)>(Number(o.t)||0))out[k]=x;
+    if(c&&(Number(out[k].c)||0)<c){ out[k]=Object.assign({},out[k]); out[k].c=c } }) }); return out }
 function mergeLog(a,b){ var seen={}, out=[]; (a||[]).concat(Array.isArray(b)?b:[]).forEach(function(x){ if(x&&x.id&&!seen[x.id]){seen[x.id]=1; out.push(x)} });
   out.sort(function(x,y){return x.t-y.t}); return out.slice(-LOG_MAX) }
 function applyRemote(d){
   if(!d||typeof d!=="object")return;
-  hist=newest(hist,d.hist); rv=newest(rv,d.rv); log=mergeLog(log,d.log); lsSet("kj.hist",hist); saveLog();
+  hist=newest(hist,d.hist); rv=newest(rv,d.rv); log=mergeLog(log,d.log); pruneLog(); lsSet("kj.hist",hist); saveLog();
   if(d.unit&&typeof d.unit==="object"){ Object.keys(d.unit).forEach(function(k){ if(!(k in unitSel))unitSel[k]=d.unit[k] }); lsSet("kj.unit",unitSel) }
   var rs=Array.isArray(d.sets)?d.sets.filter(function(x){return x&&x.url&&setKey(x.url)}):[], rAt=Number(d.setsAt)||0;
   var old={}; sets.forEach(function(x){old[setKey(x.url)]=x});
