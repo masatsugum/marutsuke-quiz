@@ -527,7 +527,7 @@ function pruneLog(){ var n0=log.length;
 /* ---------- handwriting ----------
    Each square is a canvas. Strokes are kept as points in a 0–100 box (stored ×2 as whole numbers), so they can be
    redrawn at any size, saved small, and shown later to a parent. A pen (Apple Pencil) wins over a palm touching the glass. */
-var sq=[], order=[], drawing=null, lastPen=0, state="", W=5.2;
+var sq=[], order=[], drawing=null, lastPen=0, state="", W=2.8;   // pen half-width in the 0–200 square
 function pathD(pts){   // smooth path through the points (midpoint quadratic curves)
   if(pts.length<4)return "";
   var d="M"+pts[0]+" "+pts[1];
