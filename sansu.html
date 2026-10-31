@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#f4f7fb">
-<title>まるつけ算数</title>
+<title>まるつけドリル</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Yusei+Magic&family=Zen+Maru+Gothic:wght@500;700;900&display=swap">
 <style>
 :root{color-scheme:light; padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
@@ -59,6 +59,17 @@ h1,h2{margin:0; text-wrap:balance}
 .go:disabled{opacity:.45; box-shadow:none; cursor:not-allowed; transform:none}
 .plain{background:var(--card); border:2px solid var(--line); border-radius:14px; padding:12px 16px; min-height:52px; font-weight:700; width:100%}
 .links{display:grid; grid-template-columns:1fr 1fr; gap:10px}
+.mode.quiet{border:1px solid var(--line)}
+.stepper{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-weight:700}
+.stepper button{width:48px; height:48px; border-radius:50%; border:2px solid var(--ink); background:var(--paper); color:inherit; font-size:1.4rem; font-weight:900; line-height:1}
+.stepper output{font-family:var(--display); font-size:2rem; line-height:1; min-width:1.6ch; text-align:center; color:var(--pen)}
+.stepper output.word{font-size:1.3rem; min-width:3ch}
+.timer{display:flex; align-items:center; gap:12px}
+.timer .track{flex:1; height:12px; border-radius:6px; background:var(--line); overflow:hidden}
+.timer .track i{display:block; height:100%; width:100%; background:var(--ink); border-radius:6px}
+.timer .tnum{flex:none; font-family:var(--display); font-size:1.7rem; line-height:1; min-width:2ch; text-align:right; font-variant-numeric:tabular-nums}
+.timer.hurry .track i{background:var(--pen)}
+.timer.hurry .tnum{color:var(--pen)}
 .sets{display:flex; flex-wrap:wrap; gap:8px}
 .chip{border:2px solid var(--ink); background:var(--card); border-radius:999px; padding:8px 16px; min-height:44px; font-weight:700; max-width:100%; overflow-wrap:anywhere; text-align:left}
 .chip.on{background:var(--marker); color:var(--on-marker); border-color:var(--on-marker)}
@@ -113,6 +124,16 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 .key:active{transform:translateY(2px); box-shadow:0 1px 0 var(--line)}
 .key:disabled{opacity:.4}
 .after{display:flex; flex-direction:column; gap:12px}
+.choices{display:flex; flex-direction:column; gap:10px}
+.choice{display:flex; align-items:center; gap:12px; text-align:left; width:100%; min-height:64px; padding:12px 14px; color:inherit; font-family:inherit;
+  background:var(--card); border:2px solid var(--ink); border-radius:14px; box-shadow:0 3px 0 var(--line); font-weight:700; font-size:1.15rem; cursor:pointer}
+.choice .k{flex:none; width:34px; height:34px; border-radius:50%; display:grid; place-items:center; background:var(--paper); border:1.5px solid var(--line); font-family:var(--display); font-size:1.1rem; line-height:1}
+.choice .t{min-width:0; overflow-wrap:anywhere}
+.choice:active:not(:disabled){transform:translateY(2px); box-shadow:0 1px 0 var(--line)}
+.choice:disabled{cursor:default; box-shadow:none}
+.choice.dim{opacity:.45}
+.choice.ok{border-color:var(--pen); background:var(--pen-bg)} .choice.ok .k{border-color:var(--pen); color:var(--pen); background:var(--card)}
+.choice.ng{border-color:var(--x); background:var(--x-bg)} .choice.ng .k{border-color:var(--x); color:var(--x); background:var(--card)}
 .verdict{margin:0; text-align:center; font-family:var(--display); font-size:1.9rem}
 .verdict.ok{color:var(--pen)} .verdict.ng{color:var(--x)}
 .explain{margin:0; background:var(--x-bg); border-left:4px solid var(--x); border-radius:10px; padding:12px 16px; font-size:1.1rem; line-height:1.8; white-space:pre-line; overflow-wrap:anywhere}
@@ -153,8 +174,8 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
   .app.wide{padding-block:12px}
   #quiz{display:grid; height:calc(100dvh - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); min-height:460px;
     grid-template-columns:minmax(0,1.15fr) minmax(0,1fr); column-gap:36px; row-gap:12px;
-    grid-template-rows:auto minmax(0,1fr) auto; grid-template-areas:"bar bar" "q right" "flag right"}
-  #quiz .bar{grid-area:bar} #qcard{grid-area:q; overflow:hidden} #qcard .fig{min-height:170px} #flagBtn{grid-area:flag} #right{grid-area:right; min-height:0; display:flex; flex-direction:column; gap:14px}
+    grid-template-rows:auto auto minmax(0,1fr) auto; grid-template-areas:"bar bar" "timer timer" "q right" "flag right"}
+  #quiz .bar{grid-area:bar} #timer{grid-area:timer} #qcard{grid-area:q; overflow:hidden} #qcard .fig{min-height:170px} #flagBtn{grid-area:flag} #right{grid-area:right; min-height:0; display:flex; flex-direction:column; gap:14px}
   #right .pad{flex:1; min-height:0; grid-auto-rows:1fr}
   .key{min-height:0}
   .fig svg{max-height:none}
@@ -170,7 +191,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 <section class="screen" id="home">
   <div class="brand">
     <svg viewBox="0 0 60 60" aria-hidden="true"><circle cx="30" cy="30" r="23" fill="none" stroke="var(--pen)" stroke-width="7" stroke-linecap="round" stroke-dasharray="138 8" transform="rotate(-70 30 30)"/></svg>
-    <div><h1>まるつけ算数</h1><p id="bankInfo">問題を読みこんでいます…</p></div>
+    <div><h1>まるつけドリル</h1><p id="bankInfo">問題を読みこんでいます…</p></div>
   </div>
   <div class="sets" id="setList" role="group" aria-label="問題セット"></div>
   <div class="units" id="unitList" role="group" aria-label="単元" hidden></div>
@@ -191,6 +212,16 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
     <p id="weakInfo"></p>
     <button class="go" id="startWeak" type="button">スタート</button>
   </div>
+  <div class="mode quiet" id="modeTime">
+    <h2 id="timeTitle">1問の解答時間</h2>
+    <div class="stepper">
+      <button type="button" id="timeDown" aria-label="時間をみじかくする">−</button>
+      <output id="timeOut" for="timeDown timeUp">10</output>
+      <button type="button" id="timeUp" aria-label="時間を長くする">＋</button>
+      <span id="timeUnit">秒</span>
+    </div>
+    <p id="timeHelp"></p>
+  </div>
   <button class="plain" id="resetHist" type="button">解答履歴をリセット</button>
   <p class="note" id="resetNote" aria-live="polite"></p>
   </div>
@@ -198,6 +229,8 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
     <button class="plain" id="openCheck" type="button">問題チェック（大人用）</button>
     <button class="plain" id="openMake" type="button">問題をつくる（大人用）</button>
   </div>
+  <button class="plain" id="soundBtn" type="button" aria-pressed="true">音：オン</button>
+  <p class="note">音が出ない端末では、「音」のボタンを押して「オン２」をためしてください（まるつけクイズと共通の設定です）。</p>
   <details id="cloudBox">
     <summary id="cloudSum">記録をGoogleに預ける（同期）</summary>
     <div class="form">
@@ -220,7 +253,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
     <div class="form">
       <label for="setName">セットの名前（例：角度、面積）</label>
       <input id="setName" type="text" maxlength="20" autocomplete="off" placeholder="角度">
-      <label for="sheetUrl">Google スプレッドシートのURL。列は 種類・データ・問題文・答え・単位・解説・確認・単元 の順。共有は「リンクを知っている全員が閲覧可」にしてください。</label>
+      <label for="sheetUrl">Google スプレッドシートのURL。算数（書いて答える）は 種類・データ・問題文・答え・単位・解説・確認・単元 の順、4択は 問題・選択肢1〜4・正解（1〜4）・解説・単元 の順。1行目の見出しで自動で見分けます。タブごとに1セットとして登録してください。共有は「リンクを知っている全員が閲覧可」にしてください。</label>
       <input id="sheetUrl" type="url" inputmode="url" autocomplete="off" placeholder="https://docs.google.com/spreadsheets/d/…">
       <button class="plain" id="addBtn" type="button">読みこんで登録する</button>
       <p class="note" id="syncNote" aria-live="polite"></p>
@@ -237,6 +270,10 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
     <div class="dots" id="dots"></div>
     <div class="count" id="count">1/10</div>
   </div>
+  <div class="timer" id="timer" role="timer" aria-label="のこり時間" hidden>
+    <div class="track"><i id="timeBar"></i></div>
+    <div class="tnum"><span id="timeNum">10</span></div>
+  </div>
   <div class="qcard" id="qcard">
     <span class="past" id="past" hidden></span>
     <p class="qtext" id="qtext"></p>
@@ -245,6 +282,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
   <button class="flag" id="flagBtn" type="button">この問題、へんかも？（おうちの人に知らせる）</button>
   <div id="right">
     <div class="answer" id="answer"><span class="lbl">こたえ</span><span class="val empty" id="aval">？</span><span class="unit" id="aunit"></span></div>
+    <div class="choices" id="choices" hidden></div>
     <div class="pad" id="pad">
       <button class="key" type="button" data-k="7">7</button><button class="key" type="button" data-k="8">8</button><button class="key" type="button" data-k="9">9</button><button class="key fn" type="button" data-k="back">1文字けす</button>
       <button class="key" type="button" data-k="4">4</button><button class="key" type="button" data-k="5">5</button><button class="key" type="button" data-k="6">6</button><button class="key fn" type="button" data-k="clear">ぜんぶけす</button>
@@ -722,6 +760,14 @@ function solveText(row){
   var a=parseNum(row.answer); if(!a)return {err:"答え「"+(row.answer||"")+"」を数として読めません（例 12、2.5、3/4、2と1/3）。"};
   return {answer:a, unit:row.unit||"", text:row.text, explain:""} }
 
+/* ---------- 4択: choose one of four (理科・社会など) ---------- */
+function buildChoice(row){
+  var ch=(row.choices||[]).map(function(c){return String(c||"").trim()}), n=parseInt(String(row.answer||"").normalize("NFKC"),10), text=String(row.text||"").trim();
+  var err=!text?"4択は「問題」が必要です。":ch.length<4||ch.some(function(c){return !c})?"選択肢が4つそろっていません。":!(n>=1&&n<=4)?"正解の列は 1〜4 の数字にしてください（いまは「"+(row.answer||"")+"」）。":"";
+  if(err)return {ok:false, err:err, row:row};
+  return {ok:true, row:row, type:"4択", text:text, svg:"", choices:ch, correct:n-1, answerText:ch[n-1], unit:"",
+    explain:String(row.explain||"").trim(), confirmed:!/^(×|x|X|未|no)$/.test(String(row.confirmed||"").trim())} }
+
 /* ---------- one row -> problem ---------- */
 var TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","文章"];
 function build(row){
@@ -735,6 +781,7 @@ function build(row){
   else if(type==="半円重ね"){ sol=solveHalfRing(row.data); if(!sol.err)svg=drawHalfRing(sol) }
   else if(type==="正方形と円"){ sol=solveSquareArcs(row.data); if(!sol.err)svg=drawSquareArcs(sol) }
   else if(type==="文章"){ sol=solveText(row) }
+  else if(type==="4択"){ return buildChoice(row) }
   else sol={err:"種類「"+type+"」は使えません（"+TYPES.join("・")+"）。"};
   if(sol.err)return {ok:false, err:sol.err, row:row, partial:sol};
   if(type!=="文章"&&String(row.answer||"").trim()){
@@ -787,10 +834,17 @@ function parseCsv(text){
   if(cell!==""||row.length){row.push(cell); rows.push(row)}
   return rows }
 var COLS=["type","data","text","answer","unit","explain","confirmed","tangen"];
-function parseSheet(t){ var out=[];
+var MATH_TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","文章"];
+function parseSheet(t){ var out=[], fmt="";
   parseCsv(t).forEach(function(r){ var c=r.map(function(x){return String(x).trim()});
-    if(c.every(function(x){return !x}))return; if(c[0]==="種類")return;
-    var o={}; COLS.forEach(function(k,i){o[k]=c[i]||""}); out.push(o) });
+    if(c.every(function(x){return !x}))return;
+    if(c[0]==="種類"){fmt="math"; return}
+    if(c[0]==="問題"||c[5]==="正解"){fmt="choice"; return}
+    if(!fmt)fmt=MATH_TYPES.indexOf(c[0])>=0?"math":"choice";   // no header row: guess from the first row
+    var o={};
+    if(fmt==="choice"){ o={type:"4択", data:"", text:c[0]||"", choices:c.slice(1,5), answer:c[5]||"", unit:"", explain:c[6]||"", confirmed:"", tangen:c[7]||""} }
+    else COLS.forEach(function(k,i){o[k]=c[i]||""});
+    out.push(o) });
   return out }
 function sheetCsvUrls(url){
   var m=url.match(/\/d\/([\w-]{20,})/)||url.match(/^([\w-]{20,})$/); if(!m)return null;
@@ -814,7 +868,7 @@ function loadSheet(url){ var urls=sheetCsvUrls(url); if(!urls)return Promise.rej
       return rows }).catch(function(){ return rows }) }) }
 function errText(e){ var c=e&&e.code;
   if(c==="url")return "スプレッドシートのURLを入れてください。";
-  if(c==="empty")return "問題が見つかりませんでした。列を 種類・データ・問題文・答え・単位・解説・確認・単元 の順にしてください。";
+  if(c==="empty")return "問題が見つかりませんでした。算数は 種類・データ・問題文・答え…、4択は 問題・選択肢1〜4・正解… の順にしてください。";
   if(c==="private"||(c==="http"&&(e.status===401||e.status===403||e.status===404)))return "スプレッドシートを開けませんでした。共有を「リンクを知っている全員が閲覧可」にして、URLをたしかめてください。";
   return "読みこめませんでした。通信の状態と、シートの共有設定をたしかめてください。" }
 function setKey(url){var m=url.match(/\/d\/([\w-]{20,})/); if(!m)return null; var g=url.match(/[#&?]gid=(\d+)/); return m[1]+"|"+(g?g[1]:"")}
@@ -852,6 +906,7 @@ function renderHome(){
   if(us.length>=2){ ul.appendChild(el("span","lbl","単元"));
     [""].concat(us).forEach(function(u){ var on=(u===cu), b=el("button","chip"+(on?" on":""),u||"すべて"); b.type="button"; b.setAttribute("aria-pressed",String(on));
       b.addEventListener("click",function(){ if(on)return; unitSel[cur]=u; lsSet("sq.unit",unitSel); renderHome() }); ul.appendChild(b) }) }
+  renderTime(); renderSound();
   $("tAll").textContent=pl.length; $("tDone").textContent=done; $("tWrong").textContent=wrong;
   var np=newPool().length, wp=weakPool().length;
   $("newInfo").textContent=np?"あてはまる問題："+np+"問":"ぜんぶ一度は正解しました！"; $("startNew").disabled=!np;
@@ -871,9 +926,120 @@ $("resetHist").addEventListener("click",function(){
 function newPool(){return playable().filter(function(p){return !(stat(p).r>0)})}
 function weakPool(){return playable().filter(function(p){return stat(p).w>0})}
 
+var soundMode=Number(lsGet("mq.sound2",lsGet("mq.sound",true)?1:0)); if(soundMode!==0&&soundMode!==2)soundMode=1;   // shared with まるつけクイズ: 0 off, 1 normal, 2 audio-file playback
+var soundOn=soundMode>0;
+/* ---------- sound ---------- */
+var actx=null, master=null, keepAlive=null, noiseBuf=null;
+function silentWav(){ var n=2000,b=new Uint8Array(44+n),v=new DataView(b.buffer),s="",i;
+  function w(o,t){for(var k=0;k<t.length;k++)b[o+k]=t.charCodeAt(k)}
+  w(0,"RIFF"); v.setUint32(4,36+n,true); w(8,"WAVEfmt "); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,8000,true); v.setUint32(28,8000,true); v.setUint16(32,1,true); v.setUint16(34,8,true); w(36,"data"); v.setUint32(40,n,true);
+  for(i=44;i<b.length;i++)b[i]=128; for(i=0;i<b.length;i++)s+=String.fromCharCode(b[i]); return "data:audio/wav;base64,"+btoa(s) }
+function unlock(){   // runs inside every tap: phones only start audio from a touch
+  if(!soundOn)return;
+  try{ if(navigator.audioSession)navigator.audioSession.type="playback" }catch(e){}   // iPhone: play even with the silent switch on
+  try{
+    if(!actx){var C=window.AudioContext||window.webkitAudioContext; if(!C)return; actx=new C(); master=actx.createGain(); master.gain.value=1; master.connect(actx.destination)}
+    if(actx.state!=="running")actx.resume();
+    var b=actx.createBuffer(1,1,22050), s=actx.createBufferSource(); s.buffer=b; s.connect(actx.destination); s.start(0);
+  }catch(e){}
+}
+function keepAliveOn(on){   // a silent loop keeps older iPhones from muting the game sounds
+  try{
+    if(on&&soundMode===1){ if(!keepAlive){keepAlive=new Audio(silentWav()); keepAlive.loop=true; keepAlive.setAttribute("playsinline","")}
+      if(keepAlive.paused){var p=keepAlive.play(); if(p&&p.catch)p.catch(function(){})} }
+    else if(keepAlive&&!keepAlive.paused)keepAlive.pause();
+  }catch(e){}
+}
+["pointerdown","touchend","click"].forEach(function(ev){document.addEventListener(ev,unlock,true)});
+/* second way to play: each sound drawn as a small audio file and played like ordinary web audio */
+var RATE=22050, clips={};
+function render(name){
+  var len={tick:0.05,tickHi:0.05,ok:0.62,ng:0.58,fan:1.9}[name], n=Math.floor(RATE*len), d=new Float32Array(n), i, t;
+  function add(f,at,dur,type,vol){ var s=Math.floor(at*RATE), e=Math.min(n,Math.floor((at+dur)*RATE));
+    for(var k=s;k<e;k++){ var x=(k-s)/RATE, p=(x*f)%1, w=type==="square"?(p<0.5?1:-1):type==="saw"?2*p-1:type==="tri"?1-4*Math.abs(p-0.5):Math.sin(2*Math.PI*p);
+      d[k]+=w*vol*Math.min(1,x/0.008)*Math.pow(0.001,x/dur) } }
+  if(name==="tick"||name==="tickHi"){ var hi=name==="tickHi", prev=0;
+    for(i=0;i<Math.floor(RATE*0.035);i++){ var r=Math.random()*2-1; d[i]+=(r-prev)*(hi?0.6:0.45)*Math.pow(1-i/(RATE*0.035),3); prev=r }
+    add(hi?2400:1800,0,0.03,"square",hi?0.25:0.18) }
+  else if(name==="ok"){ add(1046.5,0,0.1,"square",0.22); add(1568,0.1,0.42,"square",0.22); add(1568,0.1,0.5,"sine",0.28) }
+  else if(name==="ng"){ for(i=0;i<n;i++){ t=i/RATE; var env=Math.min(1,t/0.015,(len-t)/0.05);
+      d[i]=((t*140%1)*2-1 + (t*141.7%1)*2-1 + ((t*282.8%1)<0.5?1:-1)*0.6)*0.14*Math.max(0,env) } }
+  else { [523.25,523.25,523.25,659.25,783.99,659.25,783.99,1046.5].forEach(function(f,j){add(f,[0,.13,.26,.39,.58,.77,.9,1.03][j],j===7?0.7:0.2,"tri",0.4)}); [1318.5,1568,2093].forEach(function(f){add(f,1.03,0.8,"sine",0.12)}) }
+  var b=new Uint8Array(44+n*2), v=new DataView(b.buffer), s="";
+  function w(o,x){for(var k=0;k<x.length;k++)b[o+k]=x.charCodeAt(k)}
+  w(0,"RIFF"); v.setUint32(4,36+n*2,true); w(8,"WAVEfmt "); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,RATE,true); v.setUint32(28,RATE*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,"data"); v.setUint32(40,n*2,true);
+  for(i=0;i<n;i++)v.setInt16(44+i*2,Math.max(-1,Math.min(1,d[i]))*32000,true);
+  for(i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));
+  return "data:audio/wav;base64,"+btoa(s);
+}
+function alt(name){   // true when the second way handled the sound
+  if(soundMode!==2)return false;
+  try{ var c=clips[name]; if(!c){c=clips[name]=new Audio(render(name)); c.preload="auto"; c.setAttribute("playsinline","")}
+    c.currentTime=0; var p=c.play(); if(p&&p.catch)p.catch(function(){}) }catch(e){}
+  return true;
+}
+function audio(){ if(soundMode!==1||!actx)return null; if(actx.state!=="running"){try{actx.resume()}catch(e){}} return actx }
+function tone(f,at,dur,type,vol){var a=actx,o=a.createOscillator(),g=a.createGain(),t=a.currentTime+at;
+  o.type=type; o.frequency.setValueAtTime(f,t); g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+0.012); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+0.03)}
+function buzz(f,dur,vol){var a=actx,g=a.createGain(),t=a.currentTime;
+  g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(vol,t+0.015); g.gain.setValueAtTime(vol,t+dur-0.05); g.gain.linearRampToValueAtTime(0.0001,t+dur);
+  [f,f*1.012,f*2.02].forEach(function(x,i){var o=a.createOscillator(); o.type=i<2?"sawtooth":"square"; o.frequency.setValueAtTime(x,t); o.connect(g); o.start(t); o.stop(t+dur+0.03)});
+  g.connect(master)}
+function click(hi){var a=actx,t=a.currentTime,i;
+  if(!noiseBuf){noiseBuf=a.createBuffer(1,Math.floor(a.sampleRate*0.035),a.sampleRate); var d=noiseBuf.getChannelData(0); for(i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3)}
+  var s=a.createBufferSource(),f=a.createBiquadFilter(),g=a.createGain(); s.buffer=noiseBuf; f.type="bandpass"; f.frequency.value=hi?3800:2700; f.Q.value=1.1; g.gain.value=hi?1:0.75;
+  s.connect(f); f.connect(g); g.connect(master); s.start(t); tone(hi?2400:1800,0,0.03,"square",hi?0.09:0.06)}
+function sndTick(s){ if(alt(s<=3?"tickHi":"tick")||!audio())return; click(s<=3) }                                                   // チッ
+function sndOk(){ if(alt("ok")||!audio())return; tone(1046.5,0,0.1,"square",0.13); tone(1568,0.1,0.42,"square",0.13); tone(1568,0.1,0.55,"sine",0.16) }   // ピコン
+function sndNg(){ if(alt("ng")||!audio())return; buzz(140,0.55,0.16) }                                                // ブー
+function sndFanfare(){ if(alt("fan")||!audio())return; [523.25,523.25,523.25,659.25,783.99,659.25,783.99,1046.5].forEach(function(f,i){tone(f,[0,.13,.26,.39,.58,.77,.9,1.03][i],i===7?0.7:0.2,"triangle",0.22)}); [1318.5,1568,2093].forEach(function(f){tone(f,1.03,0.8,"sine",0.07)}) }
+
+/* ---------- time limit: 4択 and 書いて答える問題 keep separate settings ---------- */
+var TIME={choice:{key:"sq.time4",def:10,step:5,max:60}, math:{key:"sq.timeM",def:0,step:30,max:600}};
+var timeSet={choice:Number(lsGet(TIME.choice.key,10)), math:Number(lsGet(TIME.math.key,0))};
+Object.keys(TIME).forEach(function(k){ var t=TIME[k], v=timeSet[k]; if(!(v>=0&&v<=t.max))timeSet[k]=t.def });
+function kindOf(list){ var c=0,m=0; list.forEach(function(p){ if(p.ok){ if(p.type==="4択")c++; else m++ } }); return c>m?"choice":"math" }
+function curKind(){ return kindOf(bank) }
+function fmtTime(sec){ return sec<60?sec+"秒":(sec%60?Math.floor(sec/60)+"分"+(sec%60)+"秒":(sec/60)+"分") }
+function renderTime(){ var k=curKind(), t=TIME[k], v=timeSet[k];
+  $("timeTitle").textContent=k==="choice"?"1問の解答時間（4択）":"1問の解答時間（書いて答える問題）";
+  $("timeOut").textContent=v?(v<60?v:fmtTime(v)):"なし"; $("timeOut").classList.toggle("word",!v||v>=60); $("timeUnit").hidden=!v||v>=60;
+  $("timeHelp").textContent=t.step+"秒ずつ変えられます。"+t.step+"秒より下げると、時間制限なしになります。" }
+function stepTime(dir){ var k=curKind(), t=TIME[k], v=timeSet[k];
+  v=dir<0?(v<=t.step?0:v-t.step):Math.min(t.max,v+t.step); timeSet[k]=v; lsSet(t.key,v); renderTime() }
+$("timeDown").addEventListener("click",function(){stepTime(-1)});
+$("timeUp").addEventListener("click",function(){stepTime(1)});
+$("soundBtn").addEventListener("click",function(){ soundMode=[1,2,0][soundMode]; soundOn=soundMode>0; lsSet("mq.sound2",soundMode); lsSet("mq.sound",soundOn);
+  keepAliveOn(false); renderSound(); if(soundOn){unlock(); sndOk()} });
+function renderSound(){ $("soundBtn").textContent="音："+["オフ","オン","オン２"][soundMode]; $("soundBtn").setAttribute("aria-pressed",String(soundOn)) }
+var timer=null;
+function stopTimer(){ if(timer){clearInterval(timer); timer=null} }
+function paintTimer(sec,frac,limit){ $("timeNum").textContent=limit>=60&&sec>=60?Math.floor(sec/60)+":"+("0"+sec%60).slice(-2):sec;
+  $("timeBar").style.width=(Math.max(0,frac)*100).toFixed(1)+"%"; $("timer").classList.toggle("hurry",sec<=Math.min(10,Math.max(3,Math.round(limit/6)))) }
+function startTimer(){
+  var it=game.items[game.i], limit=timeSet[it.p.type==="4択"?"choice":"math"];
+  stopTimer(); $("timer").hidden=!limit; if(!limit)return;
+  var end=Date.now()+limit*1000, last=limit, g=game, idx=game.i, hurry=Math.min(10,Math.max(3,Math.round(limit/6))); paintTimer(limit,1,limit);
+  timer=setInterval(function(){
+    if(game!==g||g.i!==idx||it.ok!==null){stopTimer(); return}
+    var left=(end-Date.now())/1000;
+    if(left<=0){ stopTimer(); paintTimer(0,0,limit); timeUp(it); return }
+    var s=Math.ceil(left); if(s!==last){ last=s; if(it.p.type==="4択"||s<=hurry)sndTick(s) }
+    paintTimer(s,left/limit,limit);
+  },100) }
+function timeUp(it){ var p=it.p;
+  if(p.type==="4択"){ Array.prototype.forEach.call($("choices").children,function(b){ b.disabled=true; b.classList.add(+b.dataset.ci===p.correct?"ok":"dim") }) }
+  else { $("pad").hidden=true; $("answer").className="answer ng" }
+  judged(it,false,"（時間切れ）",null,true) }
+
 /* ---------- quiz ---------- */
 var game=null, input="", shownAt=0, answeredAt=0;
 function startGame(pool){ if(!pool.length)return;
+  unlock(); keepAliveOn(true);
   game={items:shuffle(pool).slice(0,GAME_SIZE).map(function(p){return {p:p,ok:null,given:""}}), i:0};
   show("quiz"); renderQuestion() }
 function renderDots(){var d=$("dots"); d.textContent=""; game.items.forEach(function(it,i){var c=el("i"); if(it.ok===true)c.className="ok"; else if(it.ok===false)c.className="ng"; else if(i===game.i)c.className="now"; d.appendChild(c)})}
@@ -884,8 +1050,19 @@ function renderQuestion(){
   $("past").hidden=!s.w; $("past").textContent="これまで "+s.w+"回まちがえた";
   var old=$("qcard").querySelector(".maru"); if(old)old.remove();
   $("aunit").textContent=p.unit||""; $("answer").className="answer";
-  $("pad").hidden=false; $("after").hidden=true; $("flagBtn").hidden=false; $("flagBtn").textContent="この問題、へんかも？（おうちの人に知らせる）"; flagArmed=false;
-  paintInput(); fitQ() }
+  var isC=(p.type==="4択"); $("answer").hidden=isC; $("pad").hidden=isC; $("choices").hidden=!isC; if(isC)renderChoices(it);
+  $("after").hidden=true; $("flagBtn").hidden=false; $("flagBtn").textContent="この問題、へんかも？（おうちの人に知らせる）"; flagArmed=false;
+  paintInput(); fitQ(); startTimer() }
+var KANA=["ア","イ","ウ","エ"];
+function renderChoices(it){ var box=$("choices"), p=it.p; box.textContent="";
+  if(!it.order)it.order=shuffle([0,1,2,3]);
+  it.order.forEach(function(ci,pos){ var b=el("button","choice"); b.type="button"; b.dataset.ci=ci;
+    b.appendChild(el("span","k",KANA[pos])); b.appendChild(el("span","t",p.choices[ci]));
+    b.addEventListener("click",function(){ if(Date.now()-shownAt<300||it.ok!==null)return; chooseAnswer(it,ci) }); box.appendChild(b) }) }
+function chooseAnswer(it,ci){ var p=it.p, ok=(ci===p.correct);
+  Array.prototype.forEach.call($("choices").children,function(b){ var k=+b.dataset.ci; b.disabled=true;
+    if(k===p.correct)b.classList.add("ok"); else if(k===ci)b.classList.add("ng"); else b.classList.add("dim") });
+  judged(it,ok,p.choices[ci]) }
 function fitQ(){   // make the question text smaller until the card shows everything
   var c=$("qcard"), t=$("qtext"); t.style.fontSize=""; if($("quiz").hidden||!c.clientHeight)return;
   var s=parseFloat(getComputedStyle(t).fontSize);
@@ -910,29 +1087,34 @@ function press(k){
   paintInput() }
 Array.prototype.forEach.call(document.querySelectorAll("#pad .key"),function(b){ b.addEventListener("click",function(){ if(Date.now()-shownAt<300)return; press(b.dataset.k) }) });
 document.addEventListener("keydown",function(e){ if($("quiz").hidden)return;
+  if(game&&game.items[game.i].p.type==="4択"){ var it=game.items[game.i];
+    if(it.ok!==null){ if(e.key==="Enter"){e.preventDefault(); $("nextBtn").click()} return }
+    var n=parseInt(e.key,10); if(n>=1&&n<=4){ e.preventDefault(); $("choices").children[n-1].click() } return }
   var m={"Enter":"enter","Backspace":"back","Escape":"clear","/":"frac",".":"."}; var k=m[e.key]||(/^\d$/.test(e.key)?e.key:null);
   if(k){e.preventDefault(); if(game&&game.items[game.i].ok!==null){ if(k==="enter")$("nextBtn").click(); return } press(k)} });
 function submit(){
   var it=game.items[game.i], p=it.p;
   if(!input||/[\/.]$/.test(input)){ flash(); return }
   var q=Engine.parseNum(input); if(!q){flash(); return}
-  var ok=Engine.qEq(q,p.answer); it.ok=ok; it.given=input; answeredAt=Date.now();
+  var ok=Engine.qEq(q,p.answer);
+  $("pad").hidden=true; $("answer").className="answer "+(ok?"ok":"ng");
+  judged(it,ok,input,q) }
+function judged(it,ok,given,q,late){ var p=it.p; stopTimer(); it.ok=ok; it.given=given; answeredAt=Date.now(); if(ok)sndOk(); else sndNg();
   record(p,ok); renderDots();
-  $("pad").hidden=true; $("after").hidden=false; $("flagBtn").hidden=false;
-  $("answer").className="answer "+(ok?"ok":"ng");
+  $("after").hidden=false; $("flagBtn").hidden=false;
   var last=(game.i===game.items.length-1); $("nextBtn").textContent=last?"けっかを見る":"つぎへ";
   var ex=$("explain");
   if(ok){
     $("verdict").textContent="せいかい！"; $("verdict").className="verdict ok";
-    var unred=(input.indexOf("/")>0&&(function(){var a=input.split("/");return +a[1]!==q.d})());
+    var unred=(q&&given.indexOf("/")>0&&(function(){var a=given.split("/");return +a[1]!==q.d})());
     $("rightAns").textContent=unred?"約分すると "+Engine.fmt(q)+" になるね。":"";
     var ns="http://www.w3.org/2000/svg", svg=document.createElementNS(ns,"svg"), c=document.createElementNS(ns,"circle");
     svg.setAttribute("class","maru"); svg.setAttribute("viewBox","0 0 150 150");
     c.setAttribute("cx","75"); c.setAttribute("cy","75"); c.setAttribute("r","60"); c.setAttribute("transform","rotate(-80 75 75)");
     svg.appendChild(c); $("qcard").appendChild(svg); ex.hidden=true;
   }else{
-    $("verdict").textContent="ざんねん…"; $("verdict").className="verdict ng";
-    $("rightAns").textContent="正しい答えは "+p.answerText+(p.unit?" "+p.unit:"");
+    $("verdict").textContent=late?"時間切れ！":"ざんねん…"; $("verdict").className="verdict ng";
+    $("rightAns").textContent=p.type==="4択"?"正しい答えは「"+p.answerText+"」":"正しい答えは "+p.answerText+(p.unit?" "+p.unit:"");
     if(p.explain){ ex.textContent=""; ex.appendChild(el("b",null,"かいせつ")); ex.appendChild(document.createTextNode(p.explain)); ex.hidden=false } else ex.hidden=true;
   } }
 function flash(){ var a=$("answer"); a.animate&&a.animate([{transform:"translateX(0)"},{transform:"translateX(-8px)"},{transform:"translateX(8px)"},{transform:"translateX(0)"}],{duration:220}) }
@@ -941,11 +1123,11 @@ $("nextBtn").addEventListener("click",function(){ if(Date.now()-answeredAt<400)r
 var flagArmed=false;
 $("flagBtn").addEventListener("click",function(){
   if(!flagArmed){flagArmed=true; this.textContent="もう一度おすと、この問題を出さないようにして、おうちの人に知らせます"; return}
-  var it=game.items[game.i]; flags[it.p.key]={t:Date.now(), given:it.given||input}; lsSet("sq.flags",flags); cloudSoon();
+  stopTimer(); var it=game.items[game.i]; flags[it.p.key]={t:Date.now(), given:it.given||input}; lsSet("sq.flags",flags); cloudSoon();
   this.textContent="知らせました。この問題はとばします。"; this.hidden=false;
   setTimeout(function(){ if(!game)return; game.items.splice(game.i,1); if(!game.items.length){game=null; renderHome(); show("home"); return}
     if(game.i>=game.items.length){showResult(); return} renderQuestion() },700) });
-$("quitBtn").addEventListener("click",function(){game=null; renderHome(); show("home"); cloudSync(true)});
+$("quitBtn").addEventListener("click",function(){stopTimer(); keepAliveOn(false); game=null; renderHome(); show("home"); cloudSync(true)});
 function showResult(){
   var items=game.items, total=items.length, right=items.filter(function(it){return it.ok}).length, miss=items.filter(function(it){return it.ok===false});
   $("rScore").textContent=right; $("rTotal").textContent=total;
@@ -956,9 +1138,9 @@ function showResult(){
     a.appendChild(document.createTextNode("　きみの答え："+it.given)); li.appendChild(a);
     if(it.p.explain)li.appendChild(el("p","note",it.p.explain)); ul.appendChild(li) });
   game.missed=miss.map(function(it){return it.p}); $("retryMiss").hidden=!miss.length;
-  show("result") }
+  show("result"); keepAliveOn(false); if(total&&right>=total*0.8)sndFanfare() }
 $("retryMiss").addEventListener("click",function(){startGame(game.missed)});
-$("homeBtn").addEventListener("click",function(){game=null; renderHome(); show("home"); cloudSync(true)});
+$("homeBtn").addEventListener("click",function(){keepAliveOn(false); game=null; renderHome(); show("home"); cloudSync(true)});
 $("startNew").addEventListener("click",function(){startGame(newPool())});
 $("startWeak").addEventListener("click",function(){startGame(weakPool())});
 
@@ -969,9 +1151,10 @@ function renderCheck(){
       wait=bank.filter(function(p){return p.ok&&!p.confirmed&&!flagOf(p)}), good=bank.filter(function(p){return p.ok&&p.confirmed&&!flagOf(p)});
   $("checkNote").textContent="子どもから報告 "+flagged.length+"・エラー "+bad.length+"・確認待ち "+wait.length+"・出題中 "+good.length+"\n確認待ちの問題は、図と答えを見て正しければ、スプレッドシートの「確認」列に ○ を入れてください。";
   function item(p,tag,cls){ var li=el("li"); li.appendChild(el("span","tag "+cls,tag));
-    var r=p.row; li.appendChild(el("p","note",(r.tangen?"単元："+r.tangen+"　":"")+"種類："+r.type+(r.data?"　データ："+r.data:"")));
+    var r=p.row; li.appendChild(el("p","note",(r.tangen?"単元："+r.tangen+"　":"")+"種類："+(r.type||"（空）")+(r.data?"　データ："+r.data:"")));
     if(!p.ok){ li.appendChild(el("p","note err",p.err)); ul.appendChild(li); return }
     li.appendChild(el("p","q",p.text));
+    if(p.choices)li.appendChild(el("p","note",p.choices.map(function(c,i){return (i+1)+". "+c}).join("　")));
     if(p.svg){var m=el("div","mini"); m.innerHTML=p.svg; li.appendChild(m)}
     var a=el("p","a"); a.appendChild(document.createTextNode("答え：")); a.appendChild(el("b",null,p.answerText+" "+(p.unit||""))); li.appendChild(a);
     if(p.explain)li.appendChild(el("p","note",p.explain));
