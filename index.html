@@ -368,7 +368,7 @@ function kv(parts){ var o={}; parts.forEach(function(p){ var m=p.match(/^([^=]+)
 /* ---------- 地図: prefecture map ---------- */
 var VIEWS={"全国":[128.6,146.1,30.0,45.7],"北海道":[139.3,146.0,41.3,45.6],"東北":[138.9,142.2,36.7,41.6],"関東":[138.3,141.0,34.8,37.2],
   "中部":[135.9,139.4,34.5,38.6],"近畿":[134.1,137.0,33.4,35.9],"中国四国":[130.8,134.9,32.6,35.7],"四国":[131.9,134.9,32.6,34.6],
-  "瀬戸内":[132.5,134.5,33.8,34.8],"九州":[128.6,132.2,29.8,34.8]};
+  "瀬戸内":[132.5,134.5,33.8,34.8],"西日本":[129.5,136.6,30.8,36.0],"九州":[128.6,132.2,29.8,34.8]};
 var GEO=null;
 function geo(){ if(GEO)return GEO; var q=MAP.q, arcs=MAP.a.map(function(f){ var x=f[0],y=f[1],p=[[x/q,y/q]]; for(var i=2;i<f.length;i+=2){x+=f[i];y+=f[i+1];p.push([x/q,y/q])} return p });
   GEO={arcs:arcs,prefs:MAP.p}; return GEO }
@@ -410,7 +410,11 @@ function drawClimate(parts){
   if(!r||r.length!==12)return {err:"降水量を12か月分、カンマで区切って書いてください。"};
   if(t.some(function(v){return v<-20||v>30}))return {err:"気温は −20〜30℃ の目もりにおさまる値にしてください。"};
   if(r.some(function(v){return v<0||v>500}))return {err:"降水量は 0〜500mm の目もりにおさまる値にしてください。"};
-  var avg=t.reduce(function(a,b){return a+b},0)/12, tot=Math.round(r.reduce(function(a,b){return a+b},0));
+  var avg=t.reduce(function(a,b){return a+b},0)/12, tot=r.reduce(function(a,b){return a+b},0), at=avg.toFixed(1), rt=String(Math.round(tot));
+  // the official yearly values can differ a little from the mean of the 12 monthly values; allow them only when close
+  var oa=(o["年平均気温"]||[])[0], orr=(o["年降水量"]||[])[0];
+  if(oa!=null){ if(isNaN(+oa)||Math.abs(+oa-avg)>0.3)return {err:"年平均気温 "+oa+"℃ が、月ごとの気温から計算した "+avg.toFixed(1)+"℃ と合いません。"}; at=String(oa) }
+  if(orr!=null){ if(isNaN(+orr)||Math.abs(+orr-tot)>tot*0.03)return {err:"年降水量 "+orr+"mm が、月ごとの降水量の合計 "+Math.round(tot)+"mm と合いません。"}; rt=String(orr) }
   var W=320,H=296,L=46,R=W-40,T=50,B=H-34, ph=(B-T);
   function Yr(v){return B-v/500*ph} function Yt(v){return B-(v+20)/50*ph}   // 0-500mm ↔ -20-30℃ share the grid
   var bw=(R-L)/12, out=[svgOpen(W,H,"気候グラフ")];
@@ -424,7 +428,7 @@ function drawClimate(parts){
   out.push(txt((L+R)/2,B+25,"（月）",{s:10}));
   out.push('<line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+B+'" stroke="var(--fig)"/><line x1="'+R+'" y1="'+T+'" x2="'+R+'" y2="'+B+'" stroke="var(--fig)"/><line x1="'+L+'" y1="'+B+'" x2="'+R+'" y2="'+B+'" stroke="var(--fig)"/>');
   out.push(txt(L,T-12,"降水量（mm）",{s:11,a:"middle"})); out.push(txt(R,T-12,"気温（℃）",{s:11,a:"middle"}));
-  out.push(txt(W/2,12,"年平均気温 "+avg.toFixed(1)+"℃　年間降水量 "+tot+"mm",{s:12}));
+  out.push(txt(W/2,12,"年平均気温 "+at+"℃　年間降水量 "+rt+"mm",{s:12}));
   out.push('</svg>'); return {svg:out.join("")} }
 
 /* ---------- 表: a small table ---------- */
@@ -432,7 +436,8 @@ function drawTable(parts){
   var rows=parts.slice(1).map(function(p){return p.split(/[,、，]/).map(function(c){return c.trim()})});
   if(rows.length<2)return {err:"表は「見出し,値,値…」の行を2行以上、| で区切って書いてください。"};
   var n=rows[0].length; if(n<2||rows.some(function(r){return r.length!==n}))return {err:"表の行ごとに、区切りの数をそろえてください。"};
-  var c0=Math.max.apply(null,rows.map(function(r){return r[0].length}))*13+20, cw=Math.max(44,Math.max.apply(null,rows.map(function(r){return Math.max.apply(null,r.slice(1).map(function(c){return c.length}))}))*9+18);
+  function tw(t){ var w=0; for(var i=0;i<t.length;i++)w+=/[\x20-\x7e]/.test(t[i])?8.6:14.5; return w }
+  var c0=Math.max.apply(null,rows.map(function(r){return tw(r[0])}))+20, cw=Math.max(44,Math.max.apply(null,rows.map(function(r){return Math.max.apply(null,r.slice(1).map(tw))}))+18);
   var W=c0+cw*(n-1), rh=32, H=rh*rows.length, out=[svgOpen(W,H,"表")];
   out.push('<rect x="0.5" y="0.5" width="'+(W-1)+'" height="'+(rh-1)+'" fill="var(--shade)"/>');
   rows.forEach(function(r,i){ r.forEach(function(c,j){ var x=j?c0+cw*(j-1)+cw/2:c0/2; out.push(txt(x,i*rh+rh/2,c,{s:14})) }) });
@@ -456,7 +461,7 @@ function drawBend(){
   out.push('</svg>'); return {svg:out.join("")} }
 
 /* ---------- 層: layers settled in a beaker (bottom → top) ---------- */
-var GRAIN={"レキ":"big","砂":"mid","どろ":"fine","泥":"fine"};
+var GRAIN={"レキ":"big","れき":"big","小石":"big","砂":"mid","どろ":"fine","泥":"fine"};
 function drawLayers(parts){
   var items=(parts[1]||"").split(/[,、，]/).map(function(s){ var m=s.trim().split(/[:：]/); return {m:m[0].trim(), l:(m[1]||m[0]).trim()} }).filter(function(x){return x.m});
   if(items.length<1||items.length>4)return {err:"層は下から順に、1〜4つ書いてください（例 レキ,砂,どろ:？）。"};
@@ -476,15 +481,100 @@ function drawLayers(parts){
   out.push('</svg>'); return {svg:out.join("")} }
 
 /* ---------- 河口: sediment bands off a river mouth, seen from above ---------- */
-function drawMouth(){
+function drawMouth(parts){
+  var lb=((parts&&parts.length>1)?parts[1]:"あ,い,う").split(/[,、，]/).map(function(s){return s.trim()}); if(lb.length!==3)return {err:"河口の図のラベルは3つ書いてください（例 A,B,C）。"};
   var W=320,H=210, cx=160, cy=64, out=[svgOpen(W,H,"河口付近を上から見た図")];
   out.push('<rect x="0" y="'+cy+'" width="'+W+'" height="'+(H-cy)+'" fill="var(--sea)"/>');
   [[140,"う"],[96,"い"],[52,"あ"]].forEach(function(b){ out.push('<path d="M'+(cx-b[0])+' '+cy+' A'+b[0]+' '+b[0]+' 0 0 0 '+(cx+b[0])+' '+cy+'" fill="var(--land)" stroke="var(--fig)" stroke-width="1.6"/>') });
-  out.push(txt(cx,cy+30,"あ",{s:16})); out.push(txt(cx,cy+74,"い",{s:16})); out.push(txt(cx,cy+118,"う",{s:16}));
+  out.push(txt(cx,cy+30,lb[0],{s:16})); out.push(txt(cx,cy+74,lb[1],{s:16})); out.push(txt(cx,cy+118,lb[2],{s:16}));
   out.push('<path d="M'+(cx-12)+' 0 L'+(cx-12)+' '+cy+' M'+(cx+12)+' 0 L'+(cx+12)+' '+cy+'" stroke="var(--fig)" stroke-width="2"/>');
   out.push('<line x1="0" y1="'+cy+'" x2="'+(cx-12)+'" y2="'+cy+'" stroke="var(--fig)" stroke-width="2"/><line x1="'+(cx+12)+'" y1="'+cy+'" x2="'+W+'" y2="'+cy+'" stroke="var(--fig)" stroke-width="2"/>');
   out.push('<path d="M'+cx+' 8 L'+cx+' 40 M'+(cx-6)+' 32 L'+cx+' 40 L'+(cx+6)+' 32" fill="none" stroke="var(--fig)" stroke-width="2"/>');
   out.push(txt(cx+20,18,"川",{s:14,a:"start"})); out.push(txt(cx+20,cy-14,"河口",{s:13,a:"start"})); out.push(txt(W-6,cy-14,"海岸線",{s:13,a:"end"})); out.push(txt(W-8,H-14,"海",{s:14,a:"end"}));
+  out.push('</svg>'); return {svg:out.join("")} }
+
+/* ---------- 地層: a column of layers seen from the side (bottom → top) ---------- */
+function drawStrata(parts){
+  var items=(parts[1]||"").split(/[,、，]/).map(function(s){ var m=s.trim().split(/[:：]/); return {m:m[0].trim(), l:(m[1]||m[0]).trim()} }).filter(function(x){return x.m});
+  if(items.length<2||items.length>5)return {err:"地層は下から順に、2〜5つ書いてください（例 どろ,砂,レキ）。"};
+  var badm=items.filter(function(x){return !GRAIN[x.m]})[0]; if(badm)return {err:"「"+badm.m+"」は使えません（レキ・砂・どろ）。"};
+  var lh=34, W=280, bx=60, bw=120, top=26, H=top+lh*items.length+30, bot=top+lh*items.length, out=[svgOpen(W,H,"地層の重なり")];
+  items.forEach(function(it,i){ var y0=bot-lh*(i+1), g=GRAIN[it.m];
+    out.push('<rect x="'+bx+'" y="'+y0+'" width="'+bw+'" height="'+lh+'" fill="var(--land)" stroke="var(--fig)" stroke-width="1.2"/>');
+    if(g==="big")for(var x=bx+10;x<bx+bw-4;x+=20)out.push('<circle cx="'+x+'" cy="'+(y0+lh/2+((x/20)%2?-5:5))+'" r="6" fill="none" stroke="var(--fig)" stroke-width="1.4"/>');
+    if(g==="mid")for(var yy=y0+6;yy<y0+lh-2;yy+=7)for(var xx=bx+5+((yy/7)%2?3:0);xx<bx+bw-2;xx+=7)out.push('<circle cx="'+xx+'" cy="'+yy+'" r="1.4" fill="var(--fig)"/>');
+    if(g==="fine")out.push('<rect x="'+(bx+1)+'" y="'+(y0+1)+'" width="'+(bw-2)+'" height="'+(lh-2)+'" fill="var(--shade)"/>');
+    out.push('<line x1="'+(bx+bw+4)+'" y1="'+(y0+lh/2)+'" x2="'+(bx+bw+20)+'" y2="'+(y0+lh/2)+'" stroke="var(--fig)"/>');
+    out.push(txt(bx+bw+26,y0+lh/2,it.l,{s:15,a:"start"})) });
+  out.push(txt(bx-10,top+8,"上",{s:13,a:"end",c:"var(--sub)"})); out.push(txt(bx-10,bot-8,"下",{s:13,a:"end",c:"var(--sub)"}));
+  out.push('<path d="M'+(bx-22)+' '+(top+20)+' L'+(bx-22)+' '+(bot-20)+'" stroke="var(--sub)" stroke-width="1.4"/>');
+  out.push(txt(W/2,H-12,"（下の層ほど古い）",{s:11,c:"var(--sub)"}));
+  out.push('</svg>'); return {svg:out.join("")} }
+
+/* ---------- ばね: spring diagrams ---------- */
+function coil(x,y1,y2,w){ // vertical zig-zag spring from y1 to y2 centred on x
+  var n=10, d="M"+f1(x)+" "+f1(y1)+" L"+f1(x)+" "+f1(y1+6), h=(y2-y1-12)/n;
+  for(var i=0;i<n;i++)d+=" L"+f1(x+(i%2?-w:w))+" "+f1(y1+6+h*(i+0.5));
+  d+=" L"+f1(x)+" "+f1(y2-6)+" L"+f1(x)+" "+f1(y2);
+  return '<path d="'+d+'" fill="none" stroke="var(--fig)" stroke-width="2" stroke-linejoin="round"/>' }
+function hcoil(y,x1,x2,w){ var n=12, d="M"+f1(x1)+" "+f1(y)+" L"+f1(x1+6)+" "+f1(y), h=(x2-x1-12)/n;
+  for(var i=0;i<n;i++)d+=" L"+f1(x1+6+h*(i+0.5))+" "+f1(y+(i%2?-w:w));
+  d+=" L"+f1(x2-6)+" "+f1(y)+" L"+f1(x2)+" "+f1(y); return '<path d="'+d+'" fill="none" stroke="var(--fig)" stroke-width="2" stroke-linejoin="round"/>' }
+function dim(x,y1,y2,label,side){ // vertical dimension bracket with a label
+  var s=side==="l"?-1:1, out='<path d="M'+f1(x-4*s)+' '+f1(y1)+' L'+f1(x)+' '+f1(y1)+' L'+f1(x)+' '+f1(y2)+' L'+f1(x-4*s)+' '+f1(y2)+'" fill="none" stroke="var(--pen)" stroke-width="1.6"/>';
+  return out+txt(x+6*s,(y1+y2)/2,label,{s:15,a:s<0?"end":"start",c:"var(--pen)"}) }
+function weight(cx,y,label){ return '<rect x="'+f1(cx-22)+'" y="'+f1(y)+'" width="44" height="30" rx="4" fill="var(--shade)" stroke="var(--fig)" stroke-width="1.6"/>'+(label?txt(cx,y+15,label,{s:13}):"") }
+function drawSpring(parts){
+  var o=kv(parts.slice(2)), mode=parts[1]||"つるす", out;
+  function L(k){return (o[k]||[])[0]}
+  if(mode==="つるす"){
+    var W=340,H=250, top=24, nat=110, st=70, out=[svgOpen(W,H,"ばねにおもりをつるした図")];
+    out.push('<rect x="20" y="'+(top-10)+'" width="'+(W-40)+'" height="10" fill="var(--shade)" stroke="var(--fig)"/>');
+    var x1=96, x2=186;
+    out.push(coil(x1,top,top+nat,10)); out.push(txt(x1,top+nat+18,"何もつるさない",{s:12,c:"var(--sub)"}));
+    out.push(coil(x2,top,top+nat+st,10)); out.push(weight(x2,top+nat+st,L("おもり")||""));
+    out.push('<line x1="'+(x1+16)+'" y1="'+(top+nat)+'" x2="'+(x2+40)+'" y2="'+(top+nat)+'" stroke="var(--sub)" stroke-dasharray="4 4"/>');
+    if(L("自然長"))out.push(dim(x1-24,top,top+nat,L("自然長"),"l"));
+    if(L("のび"))out.push(dim(x2+40,top+nat,top+nat+st,L("のび"),"r"));
+    if(L("全長"))out.push(dim(x2+100,top,top+nat+st,L("全長"),"r"));
+    out.push('</svg>'); return {svg:out.join("")} }
+  if(mode==="台"){
+    var W=320,H=230, base=200, nat=130, cmp=40, out=[svgOpen(W,H,"ばねの上の台におもりをのせた図")];
+    out.push('<rect x="20" y="'+base+'" width="'+(W-40)+'" height="10" fill="var(--shade)" stroke="var(--fig)"/>');
+    var x1=100, x2=220;
+    out.push(coil(x1,base-nat,base,12)); out.push('<rect x="'+(x1-26)+'" y="'+(base-nat-6)+'" width="52" height="6" fill="var(--fig)"/>'); out.push(txt(x1,base-nat-22,"何ものせない",{s:12,c:"var(--sub)"}));
+    out.push(coil(x2,base-nat+cmp,base,12)); out.push('<rect x="'+(x2-26)+'" y="'+(base-nat+cmp-6)+'" width="52" height="6" fill="var(--fig)"/>'); out.push(weight(x2,base-nat+cmp-36,L("おもり")||""));
+    out.push('<line x1="'+(x1+28)+'" y1="'+(base-nat-6)+'" x2="'+(x2+44)+'" y2="'+(base-nat-6)+'" stroke="var(--sub)" stroke-dasharray="4 4"/>');
+    if(L("自然長"))out.push(dim(x1-32,base-nat-6,base,L("自然長"),"l"));
+    if(L("縮み"))out.push(dim(x2+44,base-nat-6,base-nat+cmp-6,L("縮み"),"r"));
+    out.push('</svg>'); return {svg:out.join("")} }
+  if(mode==="横"){
+    var W=340,H=200, y=60, x1=70, x2=270, out=[svgOpen(W,H,"ばねの両はしにおもりをつるした図")];
+    out.push('<rect x="10" y="'+(y+40)+'" width="'+(W-20)+'" height="8" fill="var(--shade)" stroke="var(--fig)"/>');
+    [x1-26,x2+26].forEach(function(px){ out.push('<circle cx="'+px+'" cy="'+(y+12)+'" r="14" fill="var(--card)" stroke="var(--fig)" stroke-width="2"/><line x1="'+px+'" y1="'+(y+26)+'" x2="'+px+'" y2="'+(y+40)+'" stroke="var(--fig)" stroke-width="2"/>') });
+    out.push(hcoil(y,x1+30,x2-30,9));
+    out.push('<path d="M'+(x1-26)+' '+(y-2)+' L'+(x1+30)+' '+y+' M'+(x2-30)+' '+y+' L'+(x2+26)+' '+(y-2)+'" stroke="var(--fig)" stroke-width="1.6"/>');
+    out.push('<line x1="'+(x1-40)+'" y1="'+(y+12)+'" x2="'+(x1-40)+'" y2="'+(y+100)+'" stroke="var(--fig)" stroke-width="1.6"/><line x1="'+(x2+40)+'" y1="'+(y+12)+'" x2="'+(x2+40)+'" y2="'+(y+100)+'" stroke="var(--fig)" stroke-width="1.6"/>');
+    out.push(weight(x1-40,y+100,L("左")||"")); out.push(weight(x2+40,y+100,L("右")||""));
+    out.push(txt((x1+x2)/2,y-22,"ばね",{s:13,c:"var(--sub)"}));
+    out.push('</svg>'); return {svg:out.join("")} }
+  return {err:"ばねの図は つるす・台・横 のどれかにしてください。"} }
+
+/* ---------- 川の流れ: a river from the mountains to the sea, with up to 4 marked places ---------- */
+function drawRiverCourse(parts){
+  var labs=(parts[1]||"").split(/[,、，]/).map(function(s){return s.trim()});
+  var W=360,H=250, out=[svgOpen(W,H,"山から海までの川のようす")];
+  out.push('<rect x="0" y="0" width="'+W+'" height="196" fill="var(--land)"/><rect x="0" y="196" width="'+W+'" height="54" fill="var(--sea)"/>');
+  out.push('<path d="M170 0 L360 0 L360 130 L330 118 L300 122 L270 104 L246 100 L230 82 L210 60 L194 30 Z" fill="var(--shade)" stroke="var(--fig)" stroke-width="1.2"/>');
+  [[230,40],[270,30],[320,22],[300,80],[340,80],[255,70]].forEach(function(m){ out.push('<path d="M'+(m[0]-12)+' '+(m[1]+8)+' L'+m[0]+' '+(m[1]-6)+' L'+(m[0]+12)+' '+(m[1]+8)+'" fill="none" stroke="var(--fig)" stroke-width="1.2"/>') });
+  out.push('<path d="M0 196 L360 196" stroke="var(--fig)" stroke-width="1.6"/>');
+  out.push('<path d="M232 98 L204 126 M232 98 L218 132 M232 98 L240 130" stroke="var(--sub)" stroke-width="1"/>');
+  out.push('<path d="M64 196 L40 216 M64 196 L64 222 M64 196 L88 216" stroke="var(--x)" stroke-width="2"/>');
+  out.push('<path d="M335 30 C315 50 290 60 275 75 C262 88 245 92 232 98 C210 108 205 125 185 130 C160 136 170 158 145 160 C120 162 130 140 105 145 C85 150 95 178 75 185 C68 188 66 192 64 196" fill="none" stroke="var(--x)" stroke-width="4" stroke-linecap="round"/>');
+  out.push(txt(345,14,"山",{s:13})); out.push(txt(320,232,"海",{s:13})); out.push(txt(60,110,"平野",{s:13,c:"var(--sub)"}));
+  var P=[[290,62],[232,98],[150,158],[64,198]];
+  labs.forEach(function(l,i){ if(!l||!P[i])return; var p=P[i];
+    out.push('<circle cx="'+p[0]+'" cy="'+p[1]+'" r="12" fill="var(--card)" stroke="var(--pen)" stroke-width="2.2"/>'); out.push(txt(p[0],p[1],l,{s:13,c:"var(--pen)"})) });
   out.push('</svg>'); return {svg:out.join("")} }
 
 /* ---------- 川のかたむき: river profiles (distance from the mouth, height) ---------- */
@@ -507,7 +597,7 @@ function drawProfile(parts){
     var e=l.p[l.p.length-1], ex=X(e[0]), ey=Y(e[1]), far=e[0]>xm*0.4; if(l.at){out.push(txt(X(l.at[0]),Y(l.at[1]),l.n,{s:11,a:"start"}));return} out.push(txt(far?ex-4:ex+5,far?ey-11:ey-8,l.n,{s:11,a:far?"end":"start"})) });
   out.push('</svg>'); return {svg:out.join("")} }
 
-var TYPES={"地図":drawMap,"気候":drawClimate,"表":drawTable,"川の曲がり":drawBend,"層":drawLayers,"河口":drawMouth,"川のかたむき":drawProfile};
+var TYPES={"地図":drawMap,"気候":drawClimate,"表":drawTable,"川の曲がり":drawBend,"層":drawLayers,"河口":drawMouth,"地層":drawStrata,"ばね":drawSpring,"川の流れ":drawRiverCourse,"川のかたむき":drawProfile};
 function build(spec){
   var parts=splitSpec(spec); if(!parts.length)return {svg:""};
   var f=TYPES[parts[0]]; if(!f)return {err:"図の種類「"+parts[0]+"」は使えません（"+Object.keys(TYPES).join("・")+"）。"};
