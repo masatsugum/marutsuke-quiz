@@ -321,7 +321,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
   <div class="head"><button class="quit" id="makeBack" type="button" aria-label="もどる">←</button><h1>問題をつくる</h1></div>
   <div class="form">
     <label for="mType">種類</label>
-    <select id="mType"><option>角度</option><option>方眼</option><option>正多角形</option><option>三角形</option><option>おうぎ形</option><option>半円重ね</option><option>正方形と円</option><option>印の角の和</option><option>半円3つ</option><option>展開図</option><option>多角形つなぎ</option><option>ひもの羊</option><option>記号</option><option>文章</option></select>
+    <select id="mType"><option>角度</option><option>方眼</option><option>正多角形</option><option>三角形</option><option>おうぎ形</option><option>半円重ね</option><option>正方形と円</option><option>印の角の和</option><option>半円3つ</option><option>展開図</option><option>多角形つなぎ</option><option>ひもの羊</option><option>おうぎ形重ね</option><option>木の葉</option><option>花びら</option><option>ひし形重ね</option><option>円の等分</option><option>円の9分割</option><option>犬とロープ</option><option>半円と直線</option><option>円と四角形</option><option>三角形と点</option><option>正方形と五角形</option><option>カード五角形</option><option>星の角の和</option><option>記号</option><option>文章</option></select>
     <p class="note" id="mHelp"></p>
     <label for="mData">データ</label>
     <textarea id="mData" autocomplete="off" spellcheck="false"></textarea>
@@ -931,6 +931,358 @@ function drawSheep(sol){
   dot(r,r+h,"P",14); if(sol.ask!=="P")dot(2*r,h,"Q",14);
   out.push('</svg>'); return out.join("") }
 
+/* ---------- 追加の図形 (EXTRA): each type = {solve(data) -> sol, draw(sol) -> svg, help, sample} ---------- */
+function tok(data){return String(data||"").normalize("NFKC").split(/[,、，\s]+/).filter(Boolean)}
+function P2(p){return p[0].toFixed(1)+" "+p[1].toFixed(1)}
+function svgOpen(W,H,label){return '<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="'+esc(label)+'">'}
+function ln(a,b,cls,extra){return '<line class="'+(cls||"fg-line")+'" x1="'+a[0].toFixed(1)+'" y1="'+a[1].toFixed(1)+'" x2="'+b[0].toFixed(1)+'" y2="'+b[1].toFixed(1)+'"'+(extra||"")+'/>'}
+var DASH=' stroke-dasharray="6 5"';
+// svg arc from the current point to 'to' around c; minor arc unless big=true (then sweep must be given)
+function arcTo(from,to,c,big,sweep){ var r=dist(from,c), cr=(from[0]-c[0])*(to[1]-c[1])-(from[1]-c[1])*(to[0]-c[0]);
+  return " A"+r.toFixed(1)+" "+r.toFixed(1)+" 0 "+(big?1:0)+" "+(sweep!==undefined?sweep:(cr>0?1:0))+" "+P2(to) }
+function poly(pts,cls){return '<path class="'+(cls||"fg-shade")+'" d="M'+pts.map(P2).join(" L")+' Z"/>'}
+function dot(p,r){return '<circle cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="'+(r||4.5)+'" fill="var(--fig)"/>'}
+function lerp(a,b,t){return [a[0]+(b[0]-a[0])*t,a[1]+(b[1]-a[1])*t]}
+function away(p,c,d){var u=unit([p[0]-c[0],p[1]-c[1]]); return [p[0]+u[0]*d,p[1]+u[1]*d]}   // push a label outward from c
+function rightMark(v,u1,u2,s){ s=s||10; var a=[v[0]+u1[0]*s,v[1]+u1[1]*s], b=[v[0]+u2[0]*s,v[1]+u2[1]*s], c=[a[0]+u2[0]*s,a[1]+u2[1]*s];
+  return '<path class="fg-thin" d="M'+P2(a)+' L'+P2(c)+' L'+P2(b)+'"/>' }
+function angLab(v,a,b,r,t,cls){ var u1=unit([a[0]-v[0],a[1]-v[1]]), u2=unit([b[0]-v[0],b[1]-v[1]]), m=unit([u1[0]+u2[0],u1[1]+u2[1]]);
+  return arc(v,u1,u2,r)+text(v[0]+m[0]*(r+16),v[1]+m[1]*(r+16),t,cls) }
+function sinQ(deg){ deg=((deg%360)+360)%360; return {0:Q(0),30:Q(1,2),90:Q(1),150:Q(1,2),180:Q(0)}[deg] }
+function posNum(s){var q=parseNum(s); return q&&q.n>0?q:null}
+function lt(a,b){return a.n*b.d<b.n*a.d}
+var EXTRA={};
+
+/* おうぎ形重ね: "6, 6, 60, 弧" small radius r, extra length e (big radius r+e), angle, ask 弧・面積・まわり. shaded = big minus small */
+EXTRA["おうぎ形重ね"]={
+  help:"同じ中心・同じ中心角のおうぎ形を2つ重ねた図です。かげは大きいおうぎ形から小さいおうぎ形をのぞいた部分。\n「小さい半径, のばした長さ, 中心角, 聞くこと（弧・面積・まわり）」。弧は大きいおうぎ形の弧ABです。\n例：6, 6, 60, 弧",
+  sample:"6, 6, 60, 弧",
+  solve:function(data){ var t=tok(data);
+    if(t.length!==4)return {err:"「小さい半径, のばした長さ, 中心角, 聞くこと」の4つを書いてください（例 6, 6, 60, 弧）。"};
+    var r=posNum(t[0]), e=posNum(t[1]), th=+t[2], ask=t[3];
+    if(!r||!e)return {err:"長さを数で書いてください。"};
+    if(!(th>=20&&th<=150)||th!==Math.round(th))return {err:"中心角は20〜150の整数にしてください。"};
+    if(["弧","面積","まわり"].indexOf(ask)<0)return {err:"聞くことは 弧・面積・まわり のどれかにしてください。"};
+    var R=qAdd(r,e), part=Q(th,360), ft=fracText(th,360), ex=["大きいおうぎ形の半径は "+fmt(r)+"＋"+fmt(e)+"＝"+fmt(R)+"cm"], k, ans;
+    if(ask==="弧"){ k=qMul(qMul(R,Q(2)),part); ans=piTimes(k); ex.push(fmt(R)+"×2×3.14×"+ft+"＝"+fmt(k)+"×3.14＝"+fmt(ans)+"cm") }
+    else if(ask==="面積"){ k=qMul(qSub(qMul(R,R),qMul(r,r)),part); ans=piTimes(k);
+      ex.push(fmt(R)+"×"+fmt(R)+"×3.14×"+ft+"−"+fmt(r)+"×"+fmt(r)+"×3.14×"+ft+"＝"+fmt(k)+"×3.14＝"+fmt(ans)+"cm²") }
+    else{ var kb=qMul(qMul(R,Q(2)),part), ks=qMul(qMul(r,Q(2)),part); k=qAdd(kb,ks); var arcs=piTimes(k); ans=qAdd(arcs,qMul(e,Q(2)));
+      ex.push("弧2つ："+fmt(R)+"×2×3.14×"+ft+"＋"+fmt(r)+"×2×3.14×"+ft+"＝"+fmt(k)+"×3.14＝"+fmt(arcs)+"cm");
+      ex.push("直線2本 "+fmt(e)+"×2＝"+fmt(qMul(e,Q(2)))+"cm をたして "+fmt(ans)+"cm") }
+    return {r:r,e:e,R:R,th:th,ask:ask,answer:ans,unit:ask==="面積"?"cm²":"cm",
+      text:"下の図は、おうぎ形を2つ重ねたものです。"+(ask==="弧"?"弧ABの長さは何cmですか。":ask==="面積"?"かげの部分の面積は何cm²ですか。":"かげの部分のまわりの長さは何cmですか。"),
+      explain:ex.join("\n")} },
+  draw:function(s){ var W=380,H=300, th=s.th*Math.PI/180, Rv=s.R.n/s.R.d, rv=s.r.n/s.r.d, f=rv/Rv;
+    var pts=[[0,0],[1,0]]; for(var i=0;i<=24;i++){var a=th*i/24; pts.push([Math.cos(a),Math.sin(a)])}
+    var minx=Math.min.apply(null,pts.map(function(p){return p[0]})), maxy=Math.max.apply(null,pts.map(function(p){return p[1]}));
+    var M=42, sc=Math.min((W-2*M)/(1-minx),(H-2*M)/maxy), ox=M+(-minx)*sc+((W-2*M)-(1-minx)*sc)/2, oy=H-M;
+    function S(x,y){return [ox+x*sc,oy-y*sc]}
+    var O=S(0,0), A=S(1,0), B=S(Math.cos(th),Math.sin(th)), a=S(f,0), b=S(f*Math.cos(th),f*Math.sin(th));
+    var out=[svgOpen(W,H,"2つのおうぎ形を重ねた図")];
+    out.push('<path class="fg-shade" d="M'+P2(A)+arcTo(A,B,O)+' L'+P2(b)+arcTo(b,a,O)+' Z"/>');
+    out.push('<path class="fg-line" d="M'+P2(B)+' L'+P2(O)+' L'+P2(A)+'"/>');
+    out.push(angLab(O,A,B,26,s.th+"°"));
+    out.push(text((O[0]+a[0])/2,O[1]+20,fmt(s.r)+"cm")); out.push(text((a[0]+A[0])/2,O[1]+20,fmt(s.e)+"cm"));
+    out.push(ln([a[0],O[1]+4],[a[0],O[1]+12],"fg-thin"));
+    if(s.ask==="弧"){ out.push(text(A[0]+12,A[1]-12,"A")); var bb=away(B,O,16); out.push(text(bb[0],bb[1],"B")) }
+    out.push('</svg>'); return out.join("") } };
+
+/* 木の葉: square with quarter circles centered at A and C. "4, 面積" / "4, まわり" */
+EXTRA["木の葉"]={
+  help:"正方形ABCDの中に、AとCを中心とする四分円をかいた図です（重なった木の葉の形にかげ）。「正方形の1辺, 面積 か まわり」。\n例：4, 面積",
+  sample:"4, 面積",
+  solve:function(data){ var t=tok(data); if(t.length!==2)return {err:"「正方形の1辺, 面積 か まわり」の2つを書いてください（例 4, 面積）。"};
+    var s=posNum(t[0]), ask=t[1]; if(!s)return {err:"1辺の長さを数で書いてください。"};
+    if(["面積","まわり"].indexOf(ask)<0)return {err:"2つ目は 面積 か まわり にしてください。"};
+    var ss=qMul(s,s), quarter=qMul(piTimes(ss),Q(1,4)), tri=qMul(ss,Q(1,2)), one=qSub(quarter,tri), ans, ex;
+    if(ask==="面積"){ ans=qMul(one,Q(2));
+      ex=["四分円 "+fmt(s)+"×"+fmt(s)+"×3.14÷4＝"+fmt(quarter)+"cm² から、直角二等辺三角形 "+fmt(s)+"×"+fmt(s)+"÷2＝"+fmt(tri)+"cm² をひくと "+fmt(one)+"cm²。",
+        "木の葉の形はこれが2つ分なので "+fmt(one)+"×2＝"+fmt(ans)+"cm²"] }
+    else{ var a1=qMul(piTimes(qMul(s,Q(2))),Q(1,4)); ans=qMul(a1,Q(2));
+      ex=["木の葉の形のまわりは、四分円の弧2本です。","弧1本 "+fmt(s)+"×2×3.14÷4＝"+fmt(a1)+"cm、2本で "+fmt(ans)+"cm"] }
+    return {s:s,ask:ask,answer:ans,unit:ask==="面積"?"cm²":"cm",
+      text:"下の図のように、1辺"+fmt(s)+"cmの正方形ABCDの中に、Aを中心とする半径"+fmt(s)+"cmの四分円と、Cを中心とする半径"+fmt(s)+"cmの四分円をかきました。かげの部分（木の葉の形）の"+(ask==="面積"?"面積は何cm²ですか。":"まわりの長さは何cmですか。"),
+      explain:ex.join("\n")} },
+  draw:function(s){ var W=300,H=300,M=46,S=W-2*M, A=[M,M],B=[M+S,M],C=[M+S,M+S],D=[M,M+S];
+    var out=[svgOpen(W,H,"正方形の中の木の葉の形")];
+    out.push('<path class="fg-shade" d="M'+P2(B)+arcTo(B,D,A)+arcTo(D,B,C)+' Z"/>');
+    out.push(poly([A,B,C,D],"fg-line"));
+    out.push(text(A[0]-14,A[1]-12,"A")); out.push(text(B[0]+14,B[1]-12,"B")); out.push(text(C[0]+14,C[1]+12,"C")); out.push(text(D[0]-14,D[1]+12,"D"));
+    out.push(text(M+S/2,M+S+22,fmt(s.s)+"cm"));
+    out.push('</svg>'); return out.join("") } };
+
+/* 花びら: square with a semicircle on each side drawn inward; the 4 petals are shaded. "12, まわり" / "12, 面積" */
+EXTRA["花びら"]={
+  help:"正方形の4つの辺を直径とする半円を、内がわに4つかいた図です（重なった4まいの花びらにかげ）。「正方形の1辺, まわり か 面積」。\n例：12, まわり",
+  sample:"12, まわり",
+  solve:function(data){ var t=tok(data); if(t.length!==2)return {err:"「正方形の1辺, まわり か 面積」の2つを書いてください（例 12, まわり）。"};
+    var s=posNum(t[0]), ask=t[1]; if(!s)return {err:"1辺の長さを数で書いてください。"};
+    if(["面積","まわり"].indexOf(ask)<0)return {err:"2つ目は まわり か 面積 にしてください。"};
+    var ans, ex;
+    if(ask==="まわり"){ var k=qMul(s,Q(2)); ans=piTimes(k);
+      ex=["花びらのまわりを全部合わせると、半円の弧4つ分になります。",fmt(s)+"×3.14×1/2×4＝"+fmt(k)+"×3.14＝"+fmt(ans)+"cm"] }
+    else{ var r=qMul(s,Q(1,2)), half4=qMul(piTimes(qMul(r,r)),Q(2)), sq=qMul(s,s); ans=qSub(half4,sq);
+      ex=["半円4つの面積の合計から正方形の面積をひくと、2回数えた花びらの部分が残ります。半径は "+fmt(s)+"÷2＝"+fmt(r)+"cm。",
+        fmt(r)+"×"+fmt(r)+"×3.14×1/2×4−"+fmt(s)+"×"+fmt(s)+"＝"+fmt(half4)+"−"+fmt(sq)+"＝"+fmt(ans)+"cm²"] }
+    return {s:s,ask:ask,answer:ans,unit:ask==="面積"?"cm²":"cm",
+      text:"下の図は、正方形の中に半円を4つかいたものです。かげの部分の"+(ask==="面積"?"面積の和は何cm²ですか。":"まわりの長さの和は何cmですか。"),
+      explain:ex.join("\n")} },
+  draw:function(s){ var W=300,H=300,M=40,S=W-2*M,h=S/2, TL=[M,M],TR=[M+S,M],BR=[M+S,M+S],BL=[M,M+S], O=[M+h,M+h];
+    var cT=[M+h,M],cR=[M+S,M+h],cB=[M+h,M+S],cL=[M,M+h], out=[svgOpen(W,H,"正方形の中の4まいの花びら")];
+    function petal(corner,c1,c2){ return '<path class="fg-shade" d="M'+P2(corner)+arcTo(corner,O,c1)+arcTo(O,corner,c2)+' Z"/>' }
+    out.push(petal(TL,cT,cL)); out.push(petal(TR,cR,cT)); out.push(petal(BR,cB,cR)); out.push(petal(BL,cL,cB));
+    out.push(poly([TL,TR,BR,BL],"fg-line"));
+    out.push(text(M+h,M+S+20,fmt(s.s)+"cm"));
+    out.push('</svg>'); return out.join("") } };
+
+/* ひし形重ね: two equal rhombuses whose overlap is a regular octagon; angle イ = half of the sharp angle (22.5°) */
+EXTRA["ひし形重ね"]={
+  help:"2つの同じひし形を重ねて、重なった部分が正八角形になる図です。データは イ（とがった角の頂点で、辺と対角線がつくる角）。\n例：イ",
+  sample:"イ",
+  solve:function(data){ if(String(data||"").trim()!=="イ")return {err:"データは イ と書いてください。"};
+    return {answer:Q(45,2),unit:"°",text:"下の図は、2つの同じひし形を重ねたもので、重なった部分の図形は正八角形になっています。角イの大きさは何度ですか。",
+      explain:["正八角形の1つの角は 180×(8−2)÷8＝135°。",
+        "ひし形のとがった角の先には、矢じりの形の四角形ができます。その角は、正八角形の頂点のところが 180−135＝45° が2つと、360−135＝225°。",
+        "とがった角は 360−45−45−225＝45°（正八角形の外角 360÷8＝45° と同じ）。",
+        "ひし形は対角線で同じ形に2つに分かれるので、角イは 45÷2＝22.5°"].join("\n")} },
+  draw:function(){ var W=340,H=340,c=[170,170],a=150,b=a*(Math.SQRT2-1), out=[svgOpen(W,H,"2つのひし形を重ねた図")];
+    var L=[c[0]-a,c[1]],R=[c[0]+a,c[1]],T=[c[0],c[1]-a],Bt=[c[0],c[1]+a];
+    out.push(ln(L,R,"fg-thin",DASH)); out.push(ln(T,Bt,"fg-thin",DASH));
+    out.push(poly([L,[c[0],c[1]-b],R,[c[0],c[1]+b]],"fg-line")); out.push(poly([T,[c[0]+b,c[1]],Bt,[c[0]-b,c[1]]],"fg-line"));
+    out.push(angLab(L,[c[0],c[1]-b],R,46,"イ","fg-ask"));
+    out.push('</svg>'); return out.join("") } };
+
+/* 円の等分: circle divided into n equal parts; the polygon through the given points is shaded. "6, 12, 11-2-3-6" (clock positions, n at the top) */
+EXTRA["円の等分"]={
+  help:"円周を等分する点を結んだ図形の面積です。「半径, 等分する数, 結ぶ点」。点は時計のように上を n として、右回りの順に - でつなぎます。\n中心と結んだ三角形の角が 30°・90°・150° になる点だけ使えます。\n例：6, 12, 11-2-3-6",
+  sample:"6, 12, 11-2-3-6",
+  solve:function(data){ var t=tok(data); if(t.length!==3)return {err:"「半径, 等分する数, 結ぶ点」の3つを書いてください（例 6, 12, 11-2-3-6）。"};
+    var r=posNum(t[0]), n=+t[1], ps=t[2].split(/[-－ー]/).map(Number);
+    if(!r)return {err:"半径を数で書いてください。"};
+    if([4,6,12].indexOf(n)<0)return {err:"等分する数は 4・6・12 のどれかにしてください。"};
+    if(ps.length<3||ps.some(function(p){return !(p>=1&&p<=n)||p!==Math.round(p)}))return {err:"結ぶ点を 1〜"+n+" の番号で3つ以上、- でつないで書いてください。"};
+    var step=360/n, gaps=[], tot=0;
+    for(var i=0;i<ps.length;i++){ var g=((ps[(i+1)%ps.length]-ps[i])%n+n)%n*step; if(g<=0)return {err:"同じ点が続いています。"}; gaps.push(g); tot+=g }
+    if(tot!==360)return {err:"点は右回り（時計の数字がふえる向き）の順に1周するように書いてください。"};
+    if(gaps.some(function(g){return g>=180}))return {err:"円の中心が図形の外に出てしまいます。点をえらびなおしてください。"};
+    var rr=qMul(r,r), area=Q(0), ex=["円の中心をOとして、Oと各頂点を結び、三角形に分けます。円周を"+n+"等分しているので、となりの点との間の角は 360÷"+n+"＝"+step+"°。"], LET="ABCDEFGH";
+    for(var j=0;j<ps.length;j++){ var g2=gaps[j], sn=sinQ(g2), nm=LET[j]+"O"+LET[(j+1)%ps.length];
+      if(!sn)return {err:"中心の角が "+g2+"° の三角形は、算数のはんいでは面積を出せません（30°・90°・150°だけ）。"};
+      var a=qMul(qMul(rr,sn),Q(1,2)); area=qAdd(area,a);
+      if(g2===90)ex.push("三角形"+nm+"：角"+nm+"＝90°の直角二等辺三角形なので "+fmt(r)+"×"+fmt(r)+"÷2＝"+fmt(a)+"cm²");
+      else if(g2===30)ex.push("三角形"+nm+"：角"+nm+"＝30°。"+LET[(j+1)%ps.length]+"からO"+LET[j]+"に垂直な線をひくと、正三角形の半分の形で高さは "+fmt(r)+"÷2＝"+fmt(qMul(r,Q(1,2)))+"cm。"+fmt(r)+"×"+fmt(qMul(r,Q(1,2)))+"÷2＝"+fmt(a)+"cm²");
+      else ex.push("三角形"+nm+"：角"+nm+"＝150°。"+LET[(j+1)%ps.length]+"から、O"+LET[j]+"をのばした直線に垂直な線をひくと、高さは "+fmt(r)+"÷2＝"+fmt(qMul(r,Q(1,2)))+"cm。"+fmt(r)+"×"+fmt(qMul(r,Q(1,2)))+"÷2＝"+fmt(a)+"cm²") }
+    ex.push("合わせて "+fmt(area)+"cm²");
+    return {r:r,n:n,ps:ps,answer:area,unit:"cm²",text:"下の図の円の半径は"+fmt(r)+"cmで、•は円周を"+n+"等分する点です。かげの部分の面積は何cm²ですか。",explain:ex.join("\n")} },
+  draw:function(s){ var W=320,H=320,c=[160,160],R=124, out=[svgOpen(W,H,"円周を等分した点を結んだ図")];
+    function P(k){var a=(k*360/s.n-90)*Math.PI/180; return [c[0]+R*Math.cos(a),c[1]+R*Math.sin(a)]}
+    out.push(poly(s.ps.map(P))); out.push('<circle class="fg-line" cx="'+c[0]+'" cy="'+c[1]+'" r="'+R+'"/>');
+    for(var k=1;k<=s.n;k++)out.push(dot(P(k),3.6));
+    out.push(dot(c,4)); out.push(text(c[0]+14,c[1]+14,"O"));
+    s.ps.forEach(function(k,i){ var q=away(P(k),c,20); out.push(text(q[0],q[1],"ABCDEFGH"[i])) });
+    out.push('</svg>'); return out.join("") } };
+
+/* 円の9分割: two vertical and two horizontal lines at distance d from the center cut a circle into 9 parts; 2 edge parts + 2 corner parts shaded */
+EXTRA["円の9分割"]={
+  help:"円を、中心から同じきょりの たて2本・横2本の直線で9つに分けた図です（まわりの8つのうち4つにかげ）。「半径, 中心から直線までのきょり」。\n例：6, 2",
+  sample:"6, 2",
+  solve:function(data){ var t=tok(data); if(t.length!==2)return {err:"「半径, 中心から直線までのきょり」の2つを書いてください（例 6, 2）。"};
+    var r=posNum(t[0]), d=posNum(t[1]); if(!r||!d)return {err:"長さを数で書いてください。"};
+    var rv=r.n/r.d, dv=d.n/d.d; if(!(dv*Math.SQRT2<rv*0.8))return {err:"きょりが長すぎて、四すみの部分ができません。"};
+    var side=qMul(d,Q(2)), sq=qMul(side,side), circ=piTimes(qMul(r,r)), ans=qMul(qSub(circ,sq),Q(1,2));
+    return {r:r,d:d,answer:ans,unit:"cm²",text:"下の図の円の半径は"+fmt(r)+"cmで、•は円の中心です。かげの部分の面積の和は何cm²ですか。",
+      explain:["真ん中の部分は1辺 "+fmt(d)+"×2＝"+fmt(side)+"cm の正方形です。",
+        "正方形の辺にとなり合う4つの部分はどれも同じ形、四すみの4つの部分もどれも同じ形なので、かげの部分は、円から真ん中の正方形をのぞいた部分のちょうど半分です。",
+        "("+fmt(r)+"×"+fmt(r)+"×3.14−"+fmt(side)+"×"+fmt(side)+")÷2＝("+fmt(circ)+"−"+fmt(sq)+")÷2＝"+fmt(ans)+"cm²"].join("\n")} },
+  draw:function(s){ var W=320,H=320,c=[160,160],R=130,k=R*(s.d.n/s.d.d)/(s.r.n/s.r.d), id="c9"+Math.floor(Math.random()*1e9);
+    var out=[svgOpen(W,H,"9つに分けた円の図")];
+    out.push('<defs><clipPath id="'+id+'"><circle cx="'+c[0]+'" cy="'+c[1]+'" r="'+R+'"/></clipPath></defs>');
+    var x0=c[0]-R,x1=c[0]-k,x2=c[0]+k,x3=c[0]+R,y0=c[1]-R,y1=c[1]-k,y2=c[1]+k,y3=c[1]+R;
+    function rect(xa,ya,xb,yb){return '<rect x="'+xa.toFixed(1)+'" y="'+ya.toFixed(1)+'" width="'+(xb-xa).toFixed(1)+'" height="'+(yb-ya).toFixed(1)+'" fill="var(--shade)" clip-path="url(#'+id+')"/>'}
+    out.push(rect(x1,y0,x2,y1)); out.push(rect(x0,y1,x1,y2)); out.push(rect(x2,y0,x3,y1)); out.push(rect(x0,y2,x1,y3));
+    [[x1,y0,x1,y3],[x2,y0,x2,y3],[x0,y1,x3,y1],[x0,y2,x3,y2]].forEach(function(l){ out.push('<line class="fg-line" x1="'+l[0].toFixed(1)+'" y1="'+l[1].toFixed(1)+'" x2="'+l[2].toFixed(1)+'" y2="'+l[3].toFixed(1)+'" clip-path="url(#'+id+')"/>') });
+    out.push('<circle class="fg-line" cx="'+c[0]+'" cy="'+c[1]+'" r="'+R+'"/>');
+    out.push(ln(c,[x2,c[1]],"fg-thin",' stroke-dasharray="4 4"')); out.push(ln(c,[c[0],y1],"fg-thin",' stroke-dasharray="4 4"'));
+    out.push(rightMark([x2,c[1]],[-1,0],[0,-1],7)); out.push(rightMark([c[0],y1],[0,1],[1,0],7));
+    out.push(dot(c,4));
+    out.push(text((c[0]+x2)/2,c[1]+14,fmt(s.d)+"cm","fg-text\" style=\"font-size:14px")); out.push(text(c[0]+22,(c[1]+y1)/2,fmt(s.d)+"cm","fg-text\" style=\"font-size:14px"));
+    out.push('</svg>'); return out.join("") } };
+
+/* 犬とロープ: square hut, dog tied at the middle E of side DC. "8, 8" side s, rope L (s/2 < L <= s) */
+EXTRA["犬とロープ"]={
+  help:"正方形の小屋の辺DCのまん中の点Eに、犬をロープでつないだ図です。「小屋の1辺, ロープの長さ」（ロープは1辺の半分より長く、1辺以下）。\n例：8, 8",
+  sample:"8, 8",
+  solve:function(data){ var t=tok(data); if(t.length!==2)return {err:"「小屋の1辺, ロープの長さ」の2つを書いてください（例 8, 8）。"};
+    var s=posNum(t[0]), L=posNum(t[1]); if(!s||!L)return {err:"長さを数で書いてください。"};
+    var h=qMul(s,Q(1,2)); if(!lt(h,L)||lt(s,L))return {err:"ロープは、小屋の1辺の半分より長く、1辺以下にしてください。"};
+    var k=qSub(L,h), half=qMul(piTimes(qMul(L,L)),Q(1,2)), q2=qMul(piTimes(qMul(k,k)),Q(1,2)), ans=qAdd(half,q2);
+    return {s:s,L:L,k:k,answer:ans,unit:"m²",
+      text:"下の図のように、1辺"+fmt(s)+"mの正方形ABCDの小屋があります。辺DCのまん中の点Eに、"+fmt(L)+"mのロープで犬がつながれています。小屋の外で犬が動けるはんいの面積は何m²ですか。ただし、犬の大きさは考えないものとします。",
+      explain:["Eを中心に、半径"+fmt(L)+"mの半円：" +fmt(L)+"×"+fmt(L)+"×3.14÷2＝"+fmt(half)+"m²。",
+        "ロープはDとCで "+fmt(L)+"−"+fmt(h)+"＝"+fmt(k)+"m あまり、角を回って半径"+fmt(k)+"mの四分円が2つ："+fmt(k)+"×"+fmt(k)+"×3.14÷4×2＝"+fmt(q2)+"m²。",
+        "合わせて "+fmt(ans)+"m²"].join("\n")} },
+  draw:function(s){ var sv=s.s.n/s.s.d, Lv=s.L.n/s.L.d, kv=s.k.n/s.k.d, sc=Math.min(300/(2*Lv),210/(sv+Lv)), W=Math.round(2*Lv*sc+60), H=Math.round((sv+Lv)*sc+60);
+    var ox=W/2, base=30+sv*sc, D=[ox-sv*sc/2,base], C=[ox+sv*sc/2,base], A=[D[0],base-sv*sc], B=[C[0],base-sv*sc], E=[ox,base], Lp=Lv*sc, kp=kv*sc;
+    var out=[svgOpen(W,H,"小屋と犬の図")];
+    out.push('<path class="fg-shade" d="M'+P2([ox-Lp,base])+arcTo([ox-Lp,base],[ox+Lp,base],E,true,0)+' Z"/>');
+    out.push('<path class="fg-shade" d="M'+P2(D)+' L'+P2([D[0]-kp,base])+arcTo([D[0]-kp,base],[D[0],base-kp],D)+' Z"/>');
+    out.push('<path class="fg-shade" d="M'+P2(C)+' L'+P2([C[0],base-kp])+arcTo([C[0],base-kp],[C[0]+kp,base],C)+' Z"/>');
+    out.push(poly([A,B,C,D],"fg-hole")); out.push(text(ox,(A[1]+base)/2,"小屋"));
+    out.push(text(A[0]-12,A[1]-10,"A")); out.push(text(B[0]+12,B[1]-10,"B")); out.push(text(C[0]+10,C[1]-12,"C")); out.push(text(D[0]-10,D[1]-12,"D"));
+    out.push(dot(E)); out.push(text(E[0],E[1]-14,"E"));
+    out.push(text(ox,A[1]-12,fmt(s.s)+"m"));
+    var Pp=[ox+Lp*Math.cos(Math.PI/3),base+Lp*Math.sin(Math.PI/3)]; out.push(ln(E,Pp,"fg-thin",DASH)); out.push(text((E[0]+Pp[0])/2+18,(E[1]+Pp[1])/2-4,fmt(s.L)+"m"));
+    out.push('</svg>'); return out.join("") } };
+
+/* 半円と直線: semicircles r and R on the same center O, a line from O at angle th from the right radius.
+   shaded = small sector [0,th] + ring part [th,180]. "6, 12, 120, まわり" */
+EXTRA["半円と直線"]={
+  help:"中心Oをそろえた2つの半円に、Oから直線を1本ひいた図です。かげは、小さい半円の直線より右（中心角＝角）と、2つの半円の間の直線より左。\n「小さい半径, 大きい半径, 右の直径と直線の角, まわり か 面積」。\n例：6, 12, 120, まわり",
+  sample:"6, 12, 120, まわり",
+  solve:function(data){ var t=tok(data); if(t.length!==4)return {err:"「小さい半径, 大きい半径, 角, まわり か 面積」の4つを書いてください（例 6, 12, 120, まわり）。"};
+    var r=posNum(t[0]), R=posNum(t[1]), th=+t[2], ask=t[3];
+    if(!r||!R||!lt(r,R))return {err:"大きい半径は、小さい半径より長くしてください。"};
+    if(!(th>=30&&th<=150)||th!==Math.round(th))return {err:"角は30〜150の整数にしてください。"};
+    if(["まわり","面積"].indexOf(ask)<0)return {err:"4つ目は まわり か 面積 にしてください。"};
+    var p1=Q(th,360), p2=Q(180-th,360), f1=fracText(th,360), f2=fracText(180-th,360), w=qSub(R,r), ex=[], ans;
+    if(ask==="まわり"){ var k1=qMul(qMul(r,Q(2)),p1), a1=qAdd(piTimes(k1),qMul(r,Q(2)));
+      var kb=qMul(qMul(R,Q(2)),p2), ks=qMul(qMul(r,Q(2)),p2), a2=qAdd(piTimes(qAdd(kb,ks)),qMul(w,Q(2))); ans=qAdd(a1,a2);
+      ex.push("右のかげ（半径"+fmt(r)+"cm、中心角"+th+"°のおうぎ形）："+fmt(r)+"×2×3.14×"+f1+"＋"+fmt(r)+"×2＝"+fmt(a1)+"cm");
+      ex.push("左のかげ（中心角"+(180-th)+"°）："+fmt(R)+"×2×3.14×"+f2+"＋"+fmt(r)+"×2×3.14×"+f2+"＋"+fmt(w)+"×2＝"+fmt(a2)+"cm");
+      ex.push("合わせて "+fmt(ans)+"cm") }
+    else{ var s1=piTimes(qMul(qMul(r,r),p1)), s2=piTimes(qMul(qSub(qMul(R,R),qMul(r,r)),p2)); ans=qAdd(s1,s2);
+      ex.push("右のかげ："+fmt(r)+"×"+fmt(r)+"×3.14×"+f1+"＝"+fmt(s1)+"cm²");
+      ex.push("左のかげ：("+fmt(R)+"×"+fmt(R)+"−"+fmt(r)+"×"+fmt(r)+")×3.14×"+f2+"＝"+fmt(s2)+"cm²");
+      ex.push("合わせて "+fmt(ans)+"cm²") }
+    return {r:r,R:R,th:th,ask:ask,answer:ans,unit:ask==="面積"?"cm²":"cm",
+      text:"下の図は、半径"+fmt(r)+"cmの半円と半径"+fmt(R)+"cmの半円を、中心Oをそろえて重ね、Oから直線を1本ひいたものです。かげの部分の"+(ask==="面積"?"面積の和は何cm²ですか。":"まわりの長さの和は何cmですか。"),
+      explain:ex.join("\n")} },
+  draw:function(s){ var W=380,H=230,Rp=160,rp=Rp*(s.r.n/s.r.d)/(s.R.n/s.R.d), O=[W/2,H-40], th=s.th*Math.PI/180;
+    function at(rad,a){return [O[0]+rad*Math.cos(a),O[1]-rad*Math.sin(a)]}
+    var out=[svgOpen(W,H,"2つの半円と直線の図")];
+    out.push('<path class="fg-shade" d="M'+P2(O)+' L'+P2(at(rp,0))+arcTo(at(rp,0),at(rp,th),O)+' Z"/>');
+    out.push('<path class="fg-shade" d="M'+P2(at(rp,th))+' L'+P2(at(Rp,th))+arcTo(at(Rp,th),at(Rp,Math.PI),O)+' L'+P2(at(rp,Math.PI))+arcTo(at(rp,Math.PI),at(rp,th),O)+' Z"/>');
+    out.push('<path class="fg-line" d="M'+P2(at(Rp,Math.PI))+' L'+P2(at(Rp,0))+arcTo(at(Rp,0),at(Rp,Math.PI),O,true,0)+'"/>');
+    out.push('<path class="fg-thin" d="M'+P2(at(rp,Math.PI))+arcTo(at(rp,Math.PI),at(rp,0),O,true,1)+'"/>');
+    out.push(ln(O,at(Rp,th),"fg-line"));
+    out.push(angLab(O,at(Rp,0),at(Rp,th),22,s.th+"°"));
+    out.push(dot(O,3.5)); out.push(text(O[0]-14,O[1]+16,"O"));
+    out.push(text(O[0]+rp/2,O[1]+18,fmt(s.r)+"cm")); out.push(text(O[0]+(rp+Rp)/2,O[1]+18,fmt(qSub(s.R,s.r))+"cm"));
+    out.push(ln([O[0]+rp,O[1]+4],[O[0]+rp,O[1]+12],"fg-thin"));
+    out.push('</svg>'); return out.join("") } };
+
+/* 円と四角形: P, Q, R on a circle centered O; quadrilateral OPQR. Given angle OPQ and ORQ, ask angle POR (the side with Q). "63, 40" */
+EXTRA["円と四角形"]={
+  help:"点Oを中心とする円の円周上の3点P、Q、Rと、Oを結んだ四角形OPQRです。「角OPQ, 角ORQ」を書くと、Oのところの角xを聞きます（2つの角の和は90より大きく、それぞれ90より小さく）。\n例：63, 40",
+  sample:"63, 40",
+  solve:function(data){ var t=tok(data).map(function(x){return x.replace(/[°度]/g,"")});
+    if(t.length!==2||t.some(function(x){return !/^\d+$/.test(x)}))return {err:"「角OPQ, 角ORQ」を整数で2つ書いてください（例 63, 40）。"};
+    var a=+t[0], b=+t[1]; if(!(a>20&&a<90&&b>20&&b<90&&a+b>95))return {err:"角はそれぞれ20〜89にして、2つの和を95より大きくしてください。"};
+    var c1=180-2*a, c2=180-2*b, x=c1+c2;
+    return {a:a,b:b,c1:c1,c2:c2,answer:Q(x),unit:"°",text:"下の図のように、点Oを中心とする円の円周上に、3つの点P、Q、Rがあります。角xの大きさは何度ですか。",
+      explain:["OとQを結びます。OP、OQ、ORはどれも円の半径なので、三角形OPQと三角形OQRは二等辺三角形です。",
+        "三角形OPQはOP＝OQの二等辺三角形なので、角OQP＝角OPQ＝"+a+"°。角POQ＝180−"+a+"×2＝"+c1+"°。",
+        "同じように、角OQR＝角ORQ＝"+b+"°なので、角QOR＝180−"+b+"×2＝"+c2+"°。",
+        "角x＝"+c1+"＋"+c2+"＝"+x+"°"].join("\n")} },
+  draw:function(s){ var W=320,H=320,c=[160,170],R=125, out=[svgOpen(W,H,"円と四角形OPQRの図")];
+    function at(deg){var a=deg*Math.PI/180; return [c[0]+R*Math.cos(a),c[1]-R*Math.sin(a)]}
+    var Qp=at(90), P=at(90+s.c1), Rr=at(90-s.c2);
+    out.push('<circle class="fg-line" cx="'+c[0]+'" cy="'+c[1]+'" r="'+R+'"/>');
+    out.push(poly([c,P,Qp,Rr],"fg-line"));
+    out.push(dot(c,3.5)); out.push(text(c[0],c[1]+18,"O"));
+    [[P,"P"],[Qp,"Q"],[Rr,"R"]].forEach(function(x){var q=away(x[0],c,16); out.push(text(q[0],q[1],x[1]))});
+    out.push(angLab(P,c,Qp,26,s.a+"°")); out.push(angLab(Rr,c,Qp,26,s.b+"°")); out.push(angLab(c,P,Rr,22,"x","fg-ask"));
+    out.push('</svg>'); return out.join("") } };
+
+/* 三角形と点: triangle with base b; point P on the perpendicular from the top T, TP = h. Shaded = triangles TLP and TRP. "8, 3" */
+EXTRA["三角形と点"]={
+  help:"三角形の頂点Tから底辺に垂直な線をひき、その上の点Pと底辺の両はしを結んだ図です（Pの上の2つの三角形にかげ）。「底辺, TPの長さ」。\n例：8, 3",
+  sample:"8, 3",
+  solve:function(data){ var t=tok(data); if(t.length!==2)return {err:"「底辺, TPの長さ」の2つを書いてください（例 8, 3）。"};
+    var b=posNum(t[0]), h=posNum(t[1]); if(!b||!h)return {err:"長さを数で書いてください。"};
+    var ans=qMul(qMul(b,h),Q(1,2));
+    return {b:b,h:h,answer:ans,unit:"cm²",text:"下の図で、かげの部分の面積の和は何cm²ですか。",
+      explain:["2つの三角形の共通の辺（"+fmt(h)+"cm）を底辺と見ると、高さは底辺の左はし・右はしまでの横のきょりで、その和は "+fmt(b)+"cm です。",
+        fmt(h)+"×"+fmt(b)+"÷2＝"+fmt(ans)+"cm²"].join("\n")} },
+  draw:function(s){ var W=360,H=250, bv=s.b.n/s.b.d, hv=s.h.n/s.h.d, Hv=hv*1.75, sc=Math.min(290/bv,180/Hv), L=[35,H-40], Rr=[35+bv*sc,H-40];
+    var T=[35+bv*sc*0.6,H-40-Hv*sc], P=[T[0],T[1]+hv*sc], F=[T[0],H-40], out=[svgOpen(W,H,"三角形の中の点の図")];
+    out.push(poly([L,T,P])); out.push(poly([Rr,T,P]));
+    out.push(poly([L,Rr,T],"fg-line")); out.push(ln(L,P)); out.push(ln(Rr,P));
+    out.push(ln(P,F,"fg-thin",DASH)); out.push(rightMark(F,[0,-1],[1,0],9));
+    out.push(text(T[0]-26,P[1]-14,fmt(s.h)+"cm")); out.push(text((L[0]+Rr[0])/2,L[1]+20,fmt(s.b)+"cm"));
+    out.push('</svg>'); return out.join("") } };
+
+/* 正方形と五角形: pentagon in a square. "12, 4, 5, 2, 1" = side s, a (left vertex below the top), b (top side of the pentagon), c, d (see figure) */
+EXTRA["正方形と五角形"]={
+  help:"正方形の中に五角形をかいた図です。「正方形の1辺, 4cm(左), 5cm(上), 2cm(右), 1cm(下)」の5つ。左の頂点は上から a、上の辺は b、右の頂点は点線より c 下、下の頂点は点線より d 左。\n例：12, 4, 5, 2, 1",
+  sample:"12, 4, 5, 2, 1",
+  solve:function(data){ var t=tok(data); if(t.length!==5)return {err:"「1辺, a, b, c, d」の5つを書いてください（例 12, 4, 5, 2, 1）。"};
+    var v=t.map(posNum); if(v.some(function(x){return !x||x.d!==1}))return {err:"長さは整数で書いてください。"};
+    var s=v[0].n,a=v[1].n,b=v[2].n,c=v[3].n,d=v[4].n; if(!(a+c<s-1&&b+d<s-1))return {err:"長さが正方形からはみ出します。"};
+    var inner=a*b+c*(b+d), ans=(s*s-inner)/2+inner;
+    return {s:s,a:a,b:b,c:c,d:d,answer:Q(ans),unit:"cm²",text:"下の図は、1辺"+s+"cmの正方形の中に五角形をかいたものです。この五角形（かげをつけた部分）の面積は何cm²ですか。",
+      explain:["図の点線で、正方形を長方形と直角三角形に分けます。点線でかこまれた長方形の部分は "+a+"×"+b+"＋"+c+"×("+d+"＋"+b+")＝"+inner+"cm²。",
+        "のこりの部分は、同じ形の直角三角形が2つずつ組になっていて、その半分が五角形に入ります：("+s+"×"+s+"−"+inner+")÷2＝"+((s*s-inner)/2)+"cm²。",
+        ((s*s-inner)/2)+"＋"+inner+"＝"+ans+"cm²"].join("\n")} },
+  draw:function(s){ var W=340,H=340,M=52,k=(W-2*M)/s.s, x1=s.d+Math.max(1,Math.round((s.s-s.b-s.d)/2)), out=[svgOpen(W,H,"正方形の中の五角形")];
+    function S(x,y){return [M+x*k,M+y*k]}   // y from the top
+    var P1=S(0,s.a),P2=S(x1,0),P3=S(x1+s.b,0),P4=S(s.s,s.a+s.c),P5=S(x1-s.d,s.s);
+    out.push(poly([P1,P2,P3,P4,P5]));
+    out.push(poly([S(0,0),S(s.s,0),S(s.s,s.s),S(0,s.s)],"fg-line"));
+    var dsh=' stroke-dasharray="4 4"';
+    out.push(ln(P1,S(s.s,s.a),"fg-thin",dsh)); out.push(ln(P2,S(x1,s.s),"fg-thin",dsh)); out.push(ln(P3,S(x1+s.b,s.a+s.c),"fg-thin",dsh)); out.push(ln(S(x1-s.d,s.a),P5,"fg-thin",dsh)); out.push(ln(S(x1-s.d,s.a+s.c),P4,"fg-thin",dsh));
+    out.push(rightMark(P5,[0,-1],[1,0],8)); out.push(rightMark(P4,[-1,0],[0,-1],8));
+    out.push(text(M-26,(M+P1[1])/2,s.a+"cm")); out.push(text((P2[0]+P3[0])/2,M-14,s.b+"cm"));
+    out.push(text(M+s.s*k+26,(S(0,s.a)[1]+P4[1])/2,s.c+"cm")); out.push(text((P5[0]+S(x1,0)[0])/2,M+s.s*k+16,s.d+"cm"));
+    out.push('</svg>'); return out.join("") } };
+
+/* カード五角形: cards 1..10 on the vertices A..E of a pentagon, differences written on the sides. "3,4,9,3,1, 小" (AB,BC,CD,DE,EA, 小 or 大) */
+EXTRA["カード五角形"]={
+  help:"1〜10のカードを五角形の頂点A〜Eに置き、となり合うカードの差を辺に書いた図です。「ABの差, BCの差, CDの差, DEの差, EAの差, 小 か 大」。Aに置いたカードの数（考えられるもののうち小さいほう・大きいほう）を聞きます。\n例：3, 4, 9, 3, 1, 小",
+  sample:"3, 4, 9, 3, 1, 小",
+  solve:function(data){ var t=tok(data); if(t.length!==6)return {err:"「AB, BC, CD, DE, EAの差, 小 か 大」の6つを書いてください（例 3, 4, 9, 3, 1, 小）。"};
+    var g=t.slice(0,5).map(Number), ask=t[5]; if(g.some(function(x){return !(x>=1&&x<=9)||x!==Math.round(x)}))return {err:"差は1〜9の整数にしてください。"};
+    if(["小","大"].indexOf(ask)<0)return {err:"6つ目は 小 か 大 にしてください。"};
+    var sols=[];
+    function rec(v){ if(v.length===5){ if(Math.abs(v[4]-v[0])===g[4])sols.push(v.slice()); return }
+      var p=v[v.length-1]; [p-g[v.length-1],p+g[v.length-1]].forEach(function(x){ if(x>=1&&x<=10&&v.indexOf(x)<0){v.push(x); rec(v); v.pop()} }) }
+    for(var a=1;a<=10;a++)rec([a]);
+    var As=[]; sols.forEach(function(v){ if(As.indexOf(v[0])<0)As.push(v[0]) }); As.sort(function(x,y){return x-y});
+    if(As.length<2)return {err:"Aに入る数が"+As.length+"通りしかありません（2通り以上のときだけ使えます）。"};
+    var ans=ask==="小"?As[0]:As[As.length-1];
+    return {g:g,ask:ask,answer:Q(ans),unit:"",
+      text:"1〜10の数が1つずつかかれた10まいのカードから5まいを選んで、五角形の頂点A〜Eに1まいずつ置き、となり合う2まいのカードの数の差を、その2まいの間にかきます。下の図のようになるとき、Aに置いたカードの数として考えられるもののうち、"+(ask==="小"?"小さいほう":"大きいほう")+"はいくつですか。",
+      explain:["差がいちばん大きい "+Math.max.apply(null,g)+" のところは、1と"+(1+Math.max.apply(null,g))+"のように、とれる数が少ないので、そこから決めていきます。"].concat(sols.map(function(v){return "A＝"+v[0]+"、B＝"+v[1]+"、C＝"+v[2]+"、D＝"+v[3]+"、E＝"+v[4]})).concat(["Aは "+As.join("か")+" なので、"+(ask==="小"?"小さいほう":"大きいほう")+"は "+ans]).join("\n")} },
+  draw:function(s){ var W=300,H=280,c=[150,150],R=105, out=[svgOpen(W,H,"カードを置いた五角形")];
+    var V=[0,1,2,3,4].map(function(i){var a=(-90-72*i)*Math.PI/180; return [c[0]+R*Math.cos(a),c[1]+R*Math.sin(a)]});   // A top, B upper left, C lower left, D lower right, E upper right
+    out.push(poly(V,"fg-line"));
+    "ABCDE".split("").forEach(function(n,i){var q=away(V[i],c,20); out.push(text(q[0],q[1],n))});
+    for(var i=0;i<5;i++){ var m=lerp(V[i],V[(i+1)%5],0.5), q=away(m,c,16); out.push(text(q[0],q[1],String(s.g[i]))) }
+    out.push('</svg>'); return out.join("") } };
+
+/* 星の角の和: six points joined T→BL→R→TR→L→BR→T; the six marked angles sum to 360. "6" */
+EXTRA["星の角の和"]={
+  help:"6つの点を1本の線でつないだ星のような図です。6つの印の角の和を聞きます。データは 6。\n例：6",
+  sample:"6",
+  pts:{T:[110,0],L:[0,75],TR:[200,60],R:[200,155],BL:[5,160],BR:[150,200]},
+  order:["T","BL","R","TR","L","BR"],
+  solve:function(data){ if(String(data||"").trim()!=="6")return {err:"データは 6 と書いてください。"};
+    var me=EXTRA["星の角の和"], p=me.order.map(function(k){return me.pts[k]}), sum=0;
+    for(var i=0;i<6;i++){ var v=p[i], a=p[(i+5)%6], b=p[(i+1)%6], u1=unit([a[0]-v[0],a[1]-v[1]]), u2=unit([b[0]-v[0],b[1]-v[1]]);
+      sum+=Math.acos(Math.max(-1,Math.min(1,u1[0]*u2[0]+u1[1]*u2[1]))) }
+    var deg=Math.round(sum*180/Math.PI); if(deg!==360)return {err:"図の角の和が360°になりません（"+deg+"°）。"};
+    return {answer:Q(360),unit:"°",text:"下の図で、印をつけた6つの角の大きさの和は何度ですか。",
+      explain:["左がわの2つの点を直線で結ぶと、まん中で交わる2本の直線の上と下に三角形が2つできます。",
+        "交わったところの向かい合う角は同じ大きさなので、上の頂点の角＋右下の頂点の角＝左の2つの点にできる三角形の2つの角（ア＋イ＝ウ＋エ）。",
+        "すると、印の角の和は、左の2つの点・右上・右下の点を結んだ四角形の4つの角の和と同じになり、360°です。"].join("\n")} },
+  draw:function(){ var me=EXTRA["星の角の和"], W=320,H=300, out=[svgOpen(W,H,"6つの点をつないだ星のような図")];
+    function S(k){var p=me.pts[k]; return [60+p[0]*1.0,45+p[1]*1.05]}
+    var p=me.order.map(S);
+    out.push('<path class="fg-line" d="M'+p.map(P2).join(" L")+' Z"/>');
+    for(var i=0;i<6;i++)out.push(wedge(p[i],p[(i+5)%6],p[(i+1)%6],16));
+    out.push('</svg>'); return out.join("") } };
+
 /* ---------- 記号: choose a symbol such as A〜E (answer typed in the 答え column) ---------- */
 function buildSymbol(row){
   var ch=String(row.data||"").normalize("NFKC").split(/[,、，\s]+/).filter(Boolean), a=String(row.answer||"").normalize("NFKC").trim(), text=String(row.text||"").trim();
@@ -954,7 +1306,7 @@ function buildChoice(row){
     explain:String(row.explain||"").trim(), confirmed:!/^(×|x|X|未|no)$/.test(String(row.confirmed||"").trim())} }
 
 /* ---------- one row -> problem ---------- */
-var TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","印の角の和","半円3つ","展開図","多角形つなぎ","ひもの羊","記号","文章"];
+var TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","印の角の和","半円3つ","展開図","多角形つなぎ","ひもの羊","おうぎ形重ね","木の葉","花びら","ひし形重ね","円の等分","円の9分割","犬とロープ","半円と直線","円と四角形","三角形と点","正方形と五角形","カード五角形","星の角の和","記号","文章"];
 function build(row){
   var type=String(row.type||"").trim(), sol, svg="";
   row=Object.assign({},row,{data:String(row.data||"").replace(/^'/,"")});
@@ -970,6 +1322,7 @@ function build(row){
   else if(type==="展開図"){ sol=solveNet(row.data); if(!sol.err)svg=drawNet(sol) }
   else if(type==="多角形つなぎ"){ sol=solvePolyChain(row.data); if(!sol.err)svg=drawPolyChain(sol) }
   else if(type==="ひもの羊"){ sol=solveSheep(row.data); if(!sol.err)svg=drawSheep(sol) }
+  else if(EXTRA[type]){ sol=EXTRA[type].solve(row.data); if(!sol.err)svg=EXTRA[type].draw(sol) }
   else if(type==="記号"){ return buildSymbol(row) }
   else if(type==="文章"){ sol=solveText(row) }
   else if(type==="4択"){ return buildChoice(row) }
@@ -983,7 +1336,7 @@ function build(row){
   return {ok:true, row:row, type:type, text:String(row.text||"").trim()||sol.text, svg:svg, answer:sol.answer, answerText:at, unit:sol.unit,
     explain:exp, confirmed:/^(○|◯|o|O|ok|OK|済|1|true)$/.test(String(row.confirmed||"").trim())} }
 
-return {build:build, parseNum:parseNum, fmt:fmt, qEq:qEq, Q:Q, parseGrid:parseGrid, drawGrid:drawGrid, solveGrid:solveGrid, TYPES:TYPES};
+return {EXTRA:EXTRA, build:build, parseNum:parseNum, fmt:fmt, qEq:qEq, Q:Q, parseGrid:parseGrid, drawGrid:drawGrid, solveGrid:solveGrid, TYPES:TYPES};
 })();
 </script>
 
@@ -1035,7 +1388,7 @@ function parseCsv(text){
   if(cell!==""||row.length){row.push(cell); rows.push(row)}
   return rows }
 var COLS=["type","data","text","answer","unit","explain","confirmed","tangen"];
-var MATH_TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","印の角の和","半円3つ","展開図","多角形つなぎ","ひもの羊","記号","文章"];
+var MATH_TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","印の角の和","半円3つ","展開図","多角形つなぎ","ひもの羊","おうぎ形重ね","木の葉","花びら","ひし形重ね","円の等分","円の9分割","犬とロープ","半円と直線","円と四角形","三角形と点","正方形と五角形","カード五角形","星の角の和","記号","文章"];
 function parseSheet(t){ var out=[], fmt="";
   parseCsv(t).forEach(function(r){ var c=r.map(function(x){return String(x).trim()});
     if(c.every(function(x){return !x}))return;
@@ -1386,6 +1739,7 @@ var HELP={
   "記号":"A〜Eなどの記号を選んで答える問題です。データに選ぶ記号をカンマで区切って書き、答えの列に正しい記号を書きます。\n例：A,B,C,D,E",
   "文章":"データは空でかまいません。問題文と答え（12、2.5、3/4 など）を入れてください。"};
 var SAMPLE_DATA={"角度":"50, 直角, ア, 115","方眼":"6x4: ","正多角形":"12, 20, 三角形","三角形":"8, 10, 30","おうぎ形":"半径6, 300, まわり","半円重ね":"8, 4, まわり","正方形と円":"4, 半円","印の角の和":"38","半円3つ":"8, まわり","展開図":"6, 4, 7, ア","多角形つなぎ":"ウ","ひもの羊":"6, 2, 合計","記号":"A,B,C,D,E","文章":""};
+Object.keys(Engine.EXTRA).forEach(function(k){ HELP[k]=Engine.EXTRA[k].help; SAMPLE_DATA[k]=Engine.EXTRA[k].sample });
 function mRow(){return {type:$("mType").value, data:$("mData").value.trim(), text:$("mText").value.trim(), answer:$("mAns").value.trim(),
   unit:$("mUnit").value.trim(), explain:$("mExp").value.trim(), confirmed:$("mOk").checked?"○":"", tangen:$("mTangen").value.trim()}}
 function renderMake(){
