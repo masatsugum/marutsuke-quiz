@@ -873,32 +873,78 @@ function polyChain(){
   var sq=[A,B,[B[0]+v[0],B[1]+v[1]],[A[0]+v[0],A[1]+v[1]]];
   return {hx:hx, pe:pe, sq:sq} }
 function solvePolyChain(data){
-  var ask=String(data).normalize("NFKC").trim();
-  if(["ア","イ","ウ"].indexOf(ask)<0)return {err:"データは ア・イ・ウ のどれかにしてください（聞く角）。"};
-  // the angles follow from interior angles 120°, 108°, 90° and the directions of the sides
-  var ans={"ア":108,"イ":132,"ウ":24}[ask];
-  var ex={"ア":"角アは正五角形の1つの角なので、180×(5−2)÷5＝108°",
+  var t=String(data).normalize("NFKC").split(/[,、，\s]+/).filter(Boolean), ask=t[t.length-1];
+  if(["ア","イ","ウ"].indexOf(ask)<0)return {err:"最後に聞く角（ア・イ・ウ）を書いてください（例 ウ　／　8, 6, 4, ウ）。"};
+  var ns=t.length===1?[6,5,4]:t.slice(0,-1).map(Number);
+  if(ns.length!==3||ns.some(function(n){return [3,4,5,6,8,9,10,12].indexOf(n)<0}))return {err:"「正多角形1, 正多角形2, 正多角形3, 聞く角」の4つを書いてください。正多角形は 3・4・5・6・8・9・10・12 のどれか（例 8, 6, 4, ウ）。"};
+  var g=polyChainG(ns[0],ns[1],ns[2]); if(g.err)return g;
+  var isOrig=ns.join(",")==="6,5,4";
+  var a=ns.map(function(n){return 180*(n-2)/n}), e=ns.map(function(n){return 360/n}), nm=ns.map(function(n){return n===4?"正方形":"正"+(KANJI_N[n]||n)+"角形"});
+  if(ask==="イ"){ var vI=g.A[(g.k+1)%ns[0]]; if(g.C.some(function(p){return dist(p,vI)<1e-6}))return {err:"角イのところに3つ目の正多角形が重なります。組み合わせを変えてください。"} }
+  var ans={"ア":a[1],"イ":360-a[0]-a[1],"ウ":g.u}[ask];
+  if(Math.abs(ans-Math.round(ans))>1e-6)return {err:"角の大きさが整数になりません。正多角形の組み合わせを変えてください。"};
+  var ex;
+  if(isOrig)ex={"ア":"角アは正五角形の1つの角なので、180×(5−2)÷5＝108°",
     "イ":"正六角形の1つの角は120°、正五角形の1つの角は108°。1つの点のまわりは360°なので、角イは 360−120−108＝132°",
     "ウ":"直線Lと重なる正六角形の辺から、辺の向きを順に考えます。正六角形と正五角形が重なる辺は、Lに対して60°かたむいています。\n正五角形では、となりの辺に進むたびに向きが 180−108＝72° ずつ変わるので、正方形と重なる辺のかたむきは 60−72−72＝−84°、その次の辺（正方形と重なる辺）は −84−72＝−156°、つまり直線に対して 180−156＝24° かたむいています。\n正方形の向かい合う辺は平行なので、直線Mとつくる角ウも24°です。"}[ask];
-  return {ask:ask, answer:Q(ans), unit:"°",
-    text:"下の図は、平行な直線L、Mの間に、辺の長さが等しい正六角形、正五角形、正方形をつなげてかいたものです。正六角形の1つの辺は直線Lとぴったり重なっています。角"+ask+"の大きさは何度ですか。",
+  else ex={"ア":"角アは"+nm[1]+"の1つの角なので、180×("+ns[1]+"−2)÷"+ns[1]+"＝"+fmt(Q(Math.round(a[1])))+"°",
+    "イ":nm[0]+"の1つの角は"+a[0]+"°、"+nm[1]+"の1つの角は"+a[1]+"°。1つの点のまわりは360°なので、角イは 360−"+a[0]+"−"+a[1]+"＝"+(360-a[0]-a[1])+"°",
+    "ウ":"直線Lと重なる"+nm[0]+"の辺から、辺のかたむきを順に考えます（となりの辺に進むたびに、向きが「180−1つの角」ずつ変わります）。\n"+
+      nm[0]+"は 180−"+a[0]+"＝"+e[0]+"° ずつ変わるので、"+nm[1]+"と重なる辺は、Lに対して "+g.tilt[0]+"° かたむいています。\n"+
+      nm[1]+"は 180−"+a[1]+"＝"+e[1]+"° ずつ変わるので、"+nm[2]+"と重なる辺は "+g.tilt[1]+"° かたむいています。\n"+
+      nm[2]+"は 180−"+a[2]+"＝"+e[2]+"° ずつ変わるので、直線Mにふれる頂点から右にのびる辺は "+g.u+"° かたむいています。LとMは平行なので、角ウは "+g.u+"°です。"}[ask];
+  return {ask:ask, ns:ns, g:g, answer:Q(Math.round(ans)), unit:"°",
+    text:"下の図は、平行な直線L、Mの間に、辺の長さが等しい"+nm[0]+"、"+nm[1]+"、"+nm[2]+"をつなげてかいたものです。"+nm[0]+"の1つの辺は直線Lとぴったり重なっています。角"+ask+"の大きさは何度ですか。",
     explain:ex} }
+/* three regular polygons: P1 has its top side on L; P2 is glued on the side of P1 that faces down-right; P3 on the side of P2 that faces down; M touches the lowest corner */
+function polyChainG(n1,n2,n3){
+  var D=Math.PI/180;
+  function build(start,dir0,n){ var v=[start], p=start, d=dir0, dirs=[]; for(var i=0;i<n-1;i++){ dirs.push(d); p=[p[0]+Math.cos(d*D),p[1]+Math.sin(d*D)]; v.push(p); d-=360/n } dirs.push(d); return {v:v,dirs:dirs} }
+  function angDiff(x,y){ var d=((x-y)%360+540)%360-180; return Math.abs(d) }
+  function pick(dirs,target){ var best=-1,bd=1e9; for(var k=1;k<dirs.length;k++){ var dd=angDiff(dirs[k]+90,target); if(dd<bd-1e-9){bd=dd;best=k} } return best }
+  var A=build([0,0],0,n1), k=pick(A.dirs,-30);
+  var B=build(A.v[(k+1)%n1],A.dirs[k]+180,n2), j=pick(B.dirs,-90);
+  var C=build(B.v[(j+1)%n2],B.dirs[j]+180,n3);
+  var all=A.v.concat(B.v,C.v), top=0, eps=1e-7;
+  if(all.some(function(p){return p[1]>top+eps}))return {err:"図が直線Lの上にはみ出します。正多角形の組み合わせを変えてください。"};
+  // the three polygons must not overlap
+  function inside(p,P){ for(var i=0;i<P.length;i++){ var a=P[i],b=P[(i+1)%P.length]; if((b[0]-a[0])*(p[1]-a[1])-(b[1]-a[1])*(p[0]-a[0])>-1e-6)return false } return true }   // clockwise polygons: strictly inside = right of every side
+  function cen(P){ var x=0,y=0; P.forEach(function(p){x+=p[0];y+=p[1]}); return [x/P.length,y/P.length] }
+  function overlap(P,Q){ return P.some(function(p){return inside(lerp(p,cen(P),0.02),Q)})||Q.some(function(p){return inside(lerp(p,cen(Q),0.02),P)})||inside(cen(P),Q)||inside(cen(Q),P) }
+  if(overlap(A.v,C.v)||overlap(A.v,B.v)||overlap(B.v,C.v))return {err:"正多角形どうしが重なってしまいます。組み合わせを変えてください。"};
+  var low=Math.min.apply(null,all.map(function(p){return p[1]})), lows=[];
+  all.forEach(function(p){ if(p[1]<low+1e-6&&!lows.some(function(q){return dist(p,q)<1e-6}))lows.push(p) });
+  if(lows.length!==1)return {err:"いちばん下が1つの頂点になりません（辺が直線Mにのってしまいます）。組み合わせを変えてください。"};
+  var Vi=-1; C.v.forEach(function(p,i){ if(dist(p,lows[0])<1e-6)Vi=i });
+  if(Vi<2)return {err:"直線Mにふれるのが3つ目の正多角形の頂点になりません。組み合わせを変えてください。"};
+  var nb=[C.v[(Vi+1)%n3],C.v[(Vi+n3-1)%n3]].filter(function(p){return p[0]>lows[0][0]+1e-9});
+  if(nb.length!==1)return {err:"角ウの位置が決まりません。組み合わせを変えてください。"};
+  var u=Math.atan2(nb[0][1]-lows[0][1],nb[0][0]-lows[0][0])/D;
+  if(u<10||u>80)return {err:"角ウが "+Math.round(u)+"° になり、図で見分けにくくなります（10〜80°になる組み合わせにしてください）。"};
+  function tilt(d){ var x=((d%180)+180)%180; x=Math.min(x,180-x); return Math.round(x*1000)/1000 }
+  return {A:A.v,B:B.v,C:C.v,k:k,j:j,Vi:Vi,low:lows[0],right:nb[0],u:Math.round(u*1000)/1000,tilt:[tilt(A.dirs[k]),tilt(B.dirs[j])]} }
 function drawPolyChain(sol){
-  var g=polyChain(), pts=g.hx.concat(g.pe,g.sq), minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+  var g=sol.g, n1=sol.ns[0], n2=sol.ns[1], pts=g.A.concat(g.B,g.C), minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
   pts.forEach(function(p){minx=Math.min(minx,p[0]);maxx=Math.max(maxx,p[0]);miny=Math.min(miny,p[1]);maxy=Math.max(maxy,p[1])});
   var W=360,H=300, M=34, sc=Math.min((W-2*M-30)/(maxx-minx),(H-2*M)/(maxy-miny));
   function X(x){return M+20+(x-minx)*sc} function Y(y){return M+(maxy-y)*sc}
-  function poly(a){return '<path class="fg-line" d="M'+a.map(function(p){return X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1)}).join("L")+'Z"/>'}
-  var out=['<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="正六角形・正五角形・正方形をつなげた図">'];
+  function S(p){return [X(p[0]),Y(p[1])]}
+  function pl(a){return '<path class="fg-line" d="M'+a.map(function(p){return X(p[0]).toFixed(1)+" "+Y(p[1]).toFixed(1)}).join("L")+'Z"/>'}
+  var out=['<svg viewBox="0 0 '+W+' '+H+'" role="img" aria-label="正多角形を3つつなげた図">'];
   out.push('<line class="fg-thin" x1="22" y1="'+Y(maxy).toFixed(1)+'" x2="'+(W-6)+'" y2="'+Y(maxy).toFixed(1)+'"/>'); out.push(text(12,Y(maxy),"L"));
   out.push('<line class="fg-thin" x1="22" y1="'+Y(miny).toFixed(1)+'" x2="'+(W-6)+'" y2="'+Y(miny).toFixed(1)+'"/>'); out.push(text(12,Y(miny),"M"));
-  out.push(poly(g.hx)); out.push(poly(g.pe)); out.push(poly(g.sq));
-  function arcAt(c,a1,a2,r,lab,lx,ly){ var D=Math.PI/180, x1=X(c[0])+r*Math.cos(a1*D), y1=Y(c[1])-r*Math.sin(a1*D), x2=X(c[0])+r*Math.cos(a2*D), y2=Y(c[1])-r*Math.sin(a2*D);
-    out.push('<path class="fg-thin" d="M'+x1.toFixed(1)+' '+y1.toFixed(1)+' A'+r+' '+r+' 0 0 0 '+x2.toFixed(1)+' '+y2.toFixed(1)+'"/>'); out.push(text(X(c[0])+lx,Y(c[1])+ly,lab)) }
-  var low=g.sq[3]; if(g.sq[2][1]<low[1])low=g.sq[2];
-  if(sol.ask==="ウ")arcAt(low,0,24,20,"ウ",72,-7);
-  if(sol.ask==="ア")arcAt(g.pe[4],24,132,16,"ア",0,-30);
-  if(sol.ask==="イ")arcAt(g.hx[2],180,312,14,"イ",-2,28);
+  out.push(pl(g.A)); out.push(pl(g.B)); out.push(pl(g.C));
+  // arc at v from direction d1 to d2 (degrees, counterclockwise in math coords), label in the middle
+  function arcDeg(v,d1,d2,r,lab){ var D=Math.PI/180, c=S(v), span=((d2-d1)%360+360)%360, mid=d1+span/2;
+    var x1=c[0]+r*Math.cos(d1*D), y1=c[1]-r*Math.sin(d1*D), x2=c[0]+r*Math.cos(d2*D), y2=c[1]-r*Math.sin(d2*D);
+    out.push('<path class="fg-thin" d="M'+x1.toFixed(1)+' '+y1.toFixed(1)+' A'+r+' '+r+' 0 '+(span>180?1:0)+' 0 '+x2.toFixed(1)+' '+y2.toFixed(1)+'"/>');
+    out.push(text(c[0]+(r+13)*Math.cos(mid*D),c[1]-(r+13)*Math.sin(mid*D)+5,lab)) }
+  function dirOf(a,b){return Math.atan2(b[1]-a[1],b[0]-a[0])*180/Math.PI}
+  if(sol.ask==="ウ")arcDeg(g.low,0,g.u,20,"ウ");
+  if(sol.ask==="ア"){ var w=g.B[(g.j+1)%n2], p1=g.B[g.j], p2=g.B[(g.j+2)%n2], d1=dirOf(w,p1), d2=dirOf(w,p2);   // interior of P2 (clockwise polygon: interior is clockwise from p1 to p2)
+    arcDeg(w,d1,d2,16,"ア") }
+  if(sol.ask==="イ"){ var v=g.A[(g.k+1)%n1], q1=g.A[(g.k+2)%n1], q2=g.B[n2-1];   // outside both polygons, between P1's next side and P2's last side
+    var e1=dirOf(v,q1), e2=dirOf(v,q2); arcDeg(v,e1,e2,14,"イ") }
   out.push('</svg>'); return out.join("") }
 
 /* ---------- ひもの羊: two sheep tied to corners of an L-shaped building ---------- */
@@ -1041,19 +1087,26 @@ EXTRA["花びら"]={
 
 /* ひし形重ね: two equal rhombuses whose overlap is a regular octagon; angle イ = half of the sharp angle (22.5°) */
 EXTRA["ひし形重ね"]={
-  help:"2つの同じひし形を重ねて、重なった部分が正八角形になる図です。データは イ（とがった角の頂点で、辺と対角線がつくる角）。\n例：イ",
+  help:"2つの同じひし形を重ねて、重なった部分が正八角形になる図です。聞く角を書きます。\nア：ひし形のとがった角　イ：とがった角の頂点で、辺と対角線がつくる角　ウ：ひし形のにぶい角\n例：イ",
   sample:"イ",
-  solve:function(data){ if(String(data||"").trim()!=="イ")return {err:"データは イ と書いてください。"};
-    return {answer:Q(45,2),unit:"°",text:"下の図は、2つの同じひし形を重ねたもので、重なった部分の図形は正八角形になっています。角イの大きさは何度ですか。",
-      explain:["正八角形の1つの角は 180×(8−2)÷8＝135°。",
+  solve:function(data){ var ask=String(data||"").normalize("NFKC").trim(); if(["ア","イ","ウ"].indexOf(ask)<0)return {err:"データは ア・イ・ウ のどれかにしてください（聞く角）。"};
+    var base=["正八角形の1つの角は 180×(8−2)÷8＝135°。",
         "ひし形のとがった角の先には、矢じりの形の四角形ができます。その角は、正八角形の頂点のところが 180−135＝45° が2つと、360−135＝225°。",
-        "とがった角は 360−45−45−225＝45°（正八角形の外角 360÷8＝45° と同じ）。",
-        "ひし形は対角線で同じ形に2つに分かれるので、角イは 45÷2＝22.5°"].join("\n")} },
-  draw:function(){ var W=340,H=340,c=[170,170],a=150,b=a*(Math.SQRT2-1), out=[svgOpen(W,H,"2つのひし形を重ねた図")];
-    var L=[c[0]-a,c[1]],R=[c[0]+a,c[1]],T=[c[0],c[1]-a],Bt=[c[0],c[1]+a];
+        "とがった角は 360−45−45−225＝45°（正八角形の外角 360÷8＝45° と同じ）。"];
+    var ans={"ア":Q(45),"イ":Q(45,2),"ウ":Q(135)}[ask];
+    var ex={"ア":base.concat(["だから角アは45°"]),
+      "イ":base.concat(["ひし形は対角線で同じ形に2つに分かれるので、角イは 45÷2＝22.5°"]),
+      "ウ":base.concat(["ひし形のとなり合う角の和は180°なので、角ウは 180−45＝135°（正八角形の1つの角と同じ）"])}[ask];
+    return {ask:ask,answer:ans,unit:"°",text:"下の図は、2つの同じひし形を重ねたもので、重なった部分の図形は正八角形になっています。角"+ask+"の大きさは何度ですか。",
+      explain:ex.join("\n")} },
+  draw:function(sol){ var W=340,H=340,c=[170,170],a=150,b=a*(Math.SQRT2-1), out=[svgOpen(W,H,"2つのひし形を重ねた図")];
+    var L=[c[0]-a,c[1]],R=[c[0]+a,c[1]],T=[c[0],c[1]-a],Bt=[c[0],c[1]+a], U=[c[0],c[1]-b], Dn=[c[0],c[1]+b];
     out.push(ln(L,R,"fg-thin",DASH)); out.push(ln(T,Bt,"fg-thin",DASH));
-    out.push(poly([L,[c[0],c[1]-b],R,[c[0],c[1]+b]],"fg-line")); out.push(poly([T,[c[0]+b,c[1]],Bt,[c[0]-b,c[1]]],"fg-line"));
-    out.push(angLab(L,[c[0],c[1]-b],R,46,"イ","fg-ask"));
+    out.push(poly([L,U,R,Dn],"fg-line")); out.push(poly([T,[c[0]+b,c[1]],Bt,[c[0]-b,c[1]]],"fg-line"));
+    var ask=sol&&sol.ask||"イ";
+    if(ask==="イ")out.push(angLab(L,U,R,46,"イ","fg-ask"));
+    if(ask==="ア")out.push(angLab(L,U,Dn,40,"ア","fg-ask"));
+    if(ask==="ウ")out.push(angLab(U,L,R,18,"ウ","fg-ask"));
     out.push('</svg>'); return out.join("") } };
 
 /* 円の等分: circle divided into n equal parts; the polygon through the given points is shaded. "6, 12, 11-2-3-6" (clock positions, n at the top) */
@@ -1264,26 +1317,48 @@ EXTRA["カード五角形"]={
     for(var i=0;i<5;i++){ var m=lerp(V[i],V[(i+1)%5],0.5), q=away(m,c,16); out.push(text(q[0],q[1],String(s.g[i]))) }
     out.push('</svg>'); return out.join("") } };
 
-/* 星の角の和: six points joined T→BL→R→TR→L→BR→T; the six marked angles sum to 360. "6" */
+/* 星の角の和: "6" = six points joined T→BL→R→TR→L→BR→T (sum 360). "5" / "7" = star polygons {5/2}, {7/2} with uneven points (sum 180×(n−4)).
+   An optional second number (1〜3) picks another shape: "5, 2" */
 EXTRA["星の角の和"]={
-  help:"6つの点を1本の線でつないだ星のような図です。6つの印の角の和を聞きます。データは 6。\n例：6",
+  help:"いくつかの点を1本の線でつないだ星のような図です。印をつけた先の角の和を聞きます。データは 点の数（5・6・7）。2つ目に 1〜3 を書くと、形がかわります。\n例：6　／　5, 2　／　7",
   sample:"6",
   pts:{T:[110,0],L:[0,75],TR:[200,60],R:[200,155],BL:[5,160],BR:[150,200]},
+  pts6:[{T:[110,0],L:[0,75],TR:[200,60],R:[200,155],BL:[5,160],BR:[150,200]},
+        {T:[90,0],L:[0,90],TR:[195,45],R:[205,150],BL:[15,175],BR:[140,205]},
+        {T:[120,5],L:[5,65],TR:[210,70],R:[190,165],BL:[0,150],BR:[160,195]}],
   order:["T","BL","R","TR","L","BR"],
-  solve:function(data){ if(String(data||"").trim()!=="6")return {err:"データは 6 と書いてください。"};
-    var me=EXTRA["星の角の和"], p=me.order.map(function(k){return me.pts[k]}), sum=0;
-    for(var i=0;i<6;i++){ var v=p[i], a=p[(i+5)%6], b=p[(i+1)%6], u1=unit([a[0]-v[0],a[1]-v[1]]), u2=unit([b[0]-v[0],b[1]-v[1]]);
+  jit:{5:[[0,0,0,0,0],[8,-6,10,-4,4],[-6,10,-8,6,-10]],7:[[0,0,0,0,0,0,0],[6,-8,4,-6,8,-4,6],[-8,6,-4,8,-6,4,-6]]},
+  rad:{5:[[100,100,100,100,100],[100,88,104,92,110],[92,106,96,110,90]],7:[[100,100,100,100,100,100,100],[104,92,100,108,94,102,96],[94,106,98,92,108,96,104]]},
+  path:function(n,shape){ var me=EXTRA["星の角の和"];
+    if(n===6){ var P=me.pts6[shape-1]; return me.order.map(function(k){return P[k]}) }
+    var J=me.jit[n][shape-1], R=me.rad[n][shape-1], v=[];
+    for(var i=0;i<n;i++){ var a=(-90+360*i/n+J[i])*Math.PI/180; v.push([100+R[i]*Math.cos(a),105+R[i]*Math.sin(a)]) }   // screen coords (y down)
+    var p=[], k=0; for(var t=0;t<n;t++){ p.push(v[k]); k=(k+2)%n } return p },
+  solve:function(data){ var t=String(data||"").normalize("NFKC").split(/[,、，\s]+/).filter(Boolean), n=+t[0], shape=t.length>1?+t[1]:1;
+    if([5,6,7].indexOf(n)<0||t.length>2||[1,2,3].indexOf(shape)<0)return {err:"データは 点の数（5・6・7）を書いてください。2つ目に 1〜3 を書くと形がかわります（例 6　／　5, 2）。"};
+    var me=EXTRA["星の角の和"], p=me.path(n,shape), sum=0;
+    for(var i=0;i<n;i++){ var v=p[i], a=p[(i+n-1)%n], b=p[(i+1)%n], u1=unit([a[0]-v[0],a[1]-v[1]]), u2=unit([b[0]-v[0],b[1]-v[1]]);
       sum+=Math.acos(Math.max(-1,Math.min(1,u1[0]*u2[0]+u1[1]*u2[1]))) }
-    var deg=Math.round(sum*180/Math.PI); if(deg!==360)return {err:"図の角の和が360°になりません（"+deg+"°）。"};
-    return {answer:Q(360),unit:"°",text:"下の図で、印をつけた6つの角の大きさの和は何度ですか。",
-      explain:["左がわの2つの点を直線で結ぶと、まん中で交わる2本の直線の上と下に三角形が2つできます。",
+    var want=n===6?360:180*(n-4), deg=Math.round(sum*180/Math.PI*1000)/1000;
+    if(Math.abs(deg-want)>0.01)return {err:"図の角の和が"+want+"°になりません（"+deg+"°）。"};
+    var ex=n===6?["左がわの2つの点を直線で結ぶと、まん中で交わる2本の直線の上と下に三角形が2つできます。",
         "交わったところの向かい合う角は同じ大きさなので、上の頂点の角＋右下の頂点の角＝左の2つの点にできる三角形の2つの角（ア＋イ＝ウ＋エ）。",
-        "すると、印の角の和は、左の2つの点・右上・右下の点を結んだ四角形の4つの角の和と同じになり、360°です。"].join("\n")} },
-  draw:function(){ var me=EXTRA["星の角の和"], W=320,H=300, out=[svgOpen(W,H,"6つの点をつないだ星のような図")];
-    function S(k){var p=me.pts[k]; return [60+p[0]*1.0,45+p[1]*1.05]}
-    var p=me.order.map(S);
+        "すると、印の角の和は、左の2つの点・右上・右下の点を結んだ四角形の4つの角の和と同じになり、360°です。"]
+      :n===5?["星形のとがった角を1つ選び、そのとなりの2本の線が作る三角形を考えます。",
+        "三角形の外角は、となり合わない2つの内角の和に等しいので、残りの4つの角は、2つずつまとめて1つの三角形の2つの角に集められます。",
+        "すると、5つの印の角は1つの三角形の3つの角になるので、和は180°です。"]
+      :["まん中にできる七角形のまわりに、とがった角をもつ三角形が7つできます。",
+        "三角形7つの角の和は 180×7＝1260°。",
+        "そのうち、とがった角でない角（三角形の底の2つの角）は、まん中の七角形の外角と同じ大きさで、外角の和360°を2回ずつ使っています（360×2＝720°）。",
+        "だから、印の7つの角の和は 1260−720＝540°（180×(7−4) と同じ）です。"];
+    return {n:n,shape:shape,answer:Q(want),unit:"°",text:"下の図で、印をつけた"+(KANJI_N[n]?n:n)+"つの角の大きさの和は何度ですか。",explain:ex.join("\n")} },
+  draw:function(sol){ var me=EXTRA["星の角の和"], n=sol&&sol.n||6, shape=sol&&sol.shape||1, W=320,H=300, out=[svgOpen(W,H,n+"つの点をつないだ星のような図")];
+    var raw=me.path(n,shape), minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+    raw.forEach(function(q){minx=Math.min(minx,q[0]);maxx=Math.max(maxx,q[0]);miny=Math.min(miny,q[1]);maxy=Math.max(maxy,q[1])});
+    var sc=Math.min((W-90)/(maxx-minx),(H-80)/(maxy-miny)), ox=(W-(maxx-minx)*sc)/2, oy=(H-(maxy-miny)*sc)/2;
+    var p=raw.map(function(q){return [ox+(q[0]-minx)*sc, oy+(q[1]-miny)*sc]});
     out.push('<path class="fg-line" d="M'+p.map(P2).join(" L")+' Z"/>');
-    for(var i=0;i<6;i++)out.push(wedge(p[i],p[(i+5)%6],p[(i+1)%6],16));
+    for(var i=0;i<n;i++)out.push(wedge(p[i],p[(i+n-1)%n],p[(i+1)%n],16));
     out.push('</svg>'); return out.join("") } };
 
 /* ---------- 記号: choose a symbol such as A〜E (answer typed in the 答え column) ---------- */
@@ -1743,7 +1818,7 @@ var HELP={
   "印の角の和":"底辺の上の点で2つの三角形が重なった図です。まん中の角の大きさ（25〜70）を1つ書きます。黒い印の4つの角の和を聞く問題になります。\n例：38",
   "半円3つ":"正方形の左・右・下の辺を直径とする半円3つの図です。「正方形の1辺, 面積 か まわり」を書きます。\n例：8, まわり",
   "展開図":"長方形の紙から直方体の展開図を切り取る図です。「側面の横の長さa, b, 高さ, ア か 体積」を書きます（アは b の長さ）。\n例：6, 4, 7, ア",
-  "多角形つなぎ":"平行な直線L、Mの間に正六角形・正五角形・正方形をつなげた図です。聞く角（ア・イ・ウ）を書きます。\n例：ウ",
+  "多角形つなぎ":"平行な直線L、Mの間に、辺の長さが等しい正多角形を3つつなげた図です。「正多角形1, 正多角形2, 正多角形3, 聞く角（ア・イ・ウ）」を書きます（正多角形は 3・4・5・6・8・9・10・12）。聞く角だけを書くと 正六角形・正五角形・正方形 になります。\n例：ウ　／　8, 6, 4, ウ",
   "ひもの羊":"建物の角に羊をひもでつないだ図です。「ひもの長さ, 低い部分の高さ, P か 合計」を書きます。\n例：6, 2, 合計",
   "記号":"A〜Eなどの記号を選んで答える問題です。データに選ぶ記号をカンマで区切って書き、答えの列に正しい記号を書きます。\n例：A,B,C,D,E",
   "文章":"データは空でかまいません。問題文と答え（12、2.5、3/4 など）を入れてください。"};
