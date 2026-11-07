@@ -123,7 +123,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 .pad{display:grid; grid-template-columns:repeat(4,1fr); gap:12px}
 .key{background:var(--card); border:2px solid var(--ink); border-radius:14px; box-shadow:0 3px 0 var(--line); min-height:68px; font-family:var(--display); font-size:2rem; line-height:1}
 .key.fn{font-family:var(--body); font-weight:900; font-size:.95rem; background:var(--paper); white-space:nowrap; padding:0 4px; letter-spacing:-.02em}
-.key.ok{grid-column:span 2; background:var(--marker); color:var(--on-marker); border-color:var(--on-marker); box-shadow:0 4px 0 var(--marker-edge); font-family:var(--body); font-weight:900; font-size:1.35rem}
+.key.ok{background:var(--marker); color:var(--on-marker); border-color:var(--on-marker); box-shadow:0 4px 0 var(--marker-edge); font-family:var(--body); font-weight:900; font-size:1.35rem}
 .key:active{transform:translateY(2px); box-shadow:0 1px 0 var(--line)}
 .key:disabled{opacity:.4}
 .after{display:flex; flex-direction:column; gap:12px}
@@ -290,7 +290,7 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
       <button class="key" type="button" data-k="7">7</button><button class="key" type="button" data-k="8">8</button><button class="key" type="button" data-k="9">9</button><button class="key fn" type="button" data-k="back">1文字けす</button>
       <button class="key" type="button" data-k="4">4</button><button class="key" type="button" data-k="5">5</button><button class="key" type="button" data-k="6">6</button><button class="key fn" type="button" data-k="clear">ぜんぶけす</button>
       <button class="key" type="button" data-k="1">1</button><button class="key" type="button" data-k="2">2</button><button class="key" type="button" data-k="3">3</button><button class="key fn" type="button" data-k="frac">分数</button>
-      <button class="key" type="button" data-k="0">0</button><button class="key" type="button" data-k=".">.</button><button class="key ok" type="button" data-k="enter">こたえる</button>
+      <button class="key" type="button" data-k="0">0</button><button class="key" type="button" data-k=".">.</button><button class="key fn" type="button" data-k="mixed">帯分数</button><button class="key ok" type="button" data-k="enter">こたえる</button>
     </div>
     <div class="after" id="after" hidden>
       <p class="verdict" id="verdict"></p>
@@ -375,6 +375,9 @@ function fmt(q){ if(!q)return ""; if(q.d===1)return String(q.n);
   var d=q.d; while(d%2===0)d/=2; while(d%5===0)d/=5;
   if(d===1){var v=q.n/q.d; return String(+v.toFixed(6))}
   return q.n+"/"+q.d }
+function mixed(q){ // 7/3 -> "2と1/3", 2/3 -> "2/3", 6/3 -> "2"
+  if(!q)return ""; if(q.d===1)return String(q.n); var w=Math.floor(q.n/q.d), r=q.n-w*q.d;
+  return (w?w+"と":"")+r+"/"+q.d }
 function niceQ(x){ // float that should be a short decimal -> exact fraction, or null
   var r=Math.round(x*100); if(Math.abs(x*100-r)>1e-6)return null; return Q(r,100) }
 var KANJI_N={3:"三",4:"四",5:"五",6:"六",7:"七",8:"八",9:"九",10:"十",12:"十二"};
@@ -1332,11 +1335,11 @@ function build(row){
     var given=parseNum(String(row.answer).replace(/[°度cm²㎠㎡平方センチメートル\s]/g,""));
     if(!given||!qEq(given,sol.answer))return {ok:false, row:row, err:"答えの列（"+row.answer+"）と、図から計算した答え（"+fmt(sol.answer)+(sol.unit||"")+"）が合いません。"} }
   var exp=[sol.explain,row.explain].filter(function(s){return s&&String(s).trim()}).join("\n");
-  var at=fmt(sol.answer); if(/\//.test(String(row.answer||"")))at=sol.answer.d===1?String(sol.answer.n):sol.answer.n+"/"+sol.answer.d;   // keep fractions when the sheet wrote one
+  var at=fmt(sol.answer); if(/\//.test(String(row.answer||""))||/\//.test(at))at=mixed(sol.answer);   // fractions are written as mixed numbers (帯分数), like in the test
   return {ok:true, row:row, type:type, text:String(row.text||"").trim()||sol.text, svg:svg, answer:sol.answer, answerText:at, unit:sol.unit,
     explain:exp, confirmed:/^(○|◯|o|O|ok|OK|済|1|true)$/.test(String(row.confirmed||"").trim())} }
 
-return {EXTRA:EXTRA, build:build, parseNum:parseNum, fmt:fmt, qEq:qEq, Q:Q, parseGrid:parseGrid, drawGrid:drawGrid, solveGrid:solveGrid, TYPES:TYPES};
+return {EXTRA:EXTRA, build:build, parseNum:parseNum, fmt:fmt, mixed:mixed, qEq:qEq, Q:Q, parseGrid:parseGrid, drawGrid:drawGrid, solveGrid:solveGrid, TYPES:TYPES};
 })();
 </script>
 
@@ -1626,17 +1629,20 @@ if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitQ);
 function paintInput(){
   var v=$("aval"); v.textContent=""; v.className="val"+(input?"":" empty");
   if(!input){v.textContent="？"; return}
-  var k=input.indexOf("/");
-  if(k<0){v.textContent=input; return}
-  var f=el("span","frac"), num=el("i",null,input.slice(0,k)||" "), den=el("i","cur",input.slice(k+1)||" ");
+  var u=input.indexOf("_"), whole=u<0?"":input.slice(0,u), rest=u<0?input:input.slice(u+1), k=rest.indexOf("/");
+  if(u<0&&k<0){v.textContent=input; return}
+  if(whole)v.appendChild(el("span",null,whole));
+  var f=el("span","frac"), num=el("i",k<0?"cur":null,(k<0?rest:rest.slice(0,k))||" "), den=el("i",k<0?null:"cur",(k<0?"":rest.slice(k+1))||" ");
   f.appendChild(num); f.appendChild(den); v.appendChild(f) }
+function inputText(s){ return String(s).replace("_","と") }   // "2_1/3" -> "2と1/3"
 function press(k){
   if(!game||game.items[game.i].ok!==null)return;
   if(k==="enter"){ submit(); return }
   if(k==="back"){input=input.slice(0,-1)}
   else if(k==="clear"){input=""}
-  else if(k==="frac"){ if(input&&input.indexOf("/")<0&&input.indexOf(".")<0)input+="/" }
-  else if(k==="."){ var part=input.split("/").pop(); if(input.indexOf("/")<0&&part.indexOf(".")<0)input+=(part?"":"0")+"." }
+  else if(k==="frac"){ if(input&&!/[\/._]/.test(input))input+="/"; else if(/_\d+$/.test(input))input+="/" }
+  else if(k==="mixed"){ if(/^\d+$/.test(input)&&+input>0)input+="_" }   // whole part first, then the fraction
+  else if(k==="."){ var part=input.split("/").pop(); if(input.indexOf("/")<0&&input.indexOf("_")<0&&part.indexOf(".")<0)input+=(part?"":"0")+"." }
   else if(/^\d$/.test(k)){ if(input.replace(/[^\d]/g,"").length<9)input+=k }
   paintInput() }
 Array.prototype.forEach.call(document.querySelectorAll("#pad .key"),function(b){ b.addEventListener("click",function(){ if(Date.now()-shownAt<300)return; press(b.dataset.k) }) });
@@ -1644,15 +1650,17 @@ document.addEventListener("keydown",function(e){ if($("quiz").hidden)return;
   if(game&&game.items[game.i].p.type==="4択"){ var it=game.items[game.i];
     if(it.ok!==null){ if(e.key==="Enter"){e.preventDefault(); $("nextBtn").click()} return }
     var n=parseInt(e.key,10); if(n>=1&&n<=$("choices").children.length){ e.preventDefault(); $("choices").children[n-1].click() } return }
-  var m={"Enter":"enter","Backspace":"back","Escape":"clear","/":"frac",".":"."}; var k=m[e.key]||(/^\d$/.test(e.key)?e.key:null);
+  var m={"Enter":"enter","Backspace":"back","Escape":"clear","/":"frac",".":".","_":"mixed"," ":"mixed"}; var k=m[e.key]||(/^\d$/.test(e.key)?e.key:null);
   if(k){e.preventDefault(); if(game&&game.items[game.i].ok!==null){ if(k==="enter")$("nextBtn").click(); return } press(k)} });
 function submit(){
   var it=game.items[game.i], p=it.p;
-  if(!input||/[\/.]$/.test(input)){ flash(); return }
-  var q=Engine.parseNum(input); if(!q){flash(); return}
+  if(!input||/[\/._]$/.test(input)||(input.indexOf("_")>=0&&input.indexOf("/")<0)){ flash(); return }
+  var mm=input.match(/^(\d+)_(\d+)\/(\d+)$/);
+  if(mm&&(+mm[2]===0||+mm[2]>=+mm[3])){ flash(); return }   // 帯分数 needs a proper fraction part
+  var given=inputText(input), q=Engine.parseNum(given); if(!q){flash(); return}
   var ok=Engine.qEq(q,p.answer);
   $("pad").hidden=true; $("answer").className="answer "+(ok?"ok":"ng");
-  judged(it,ok,input,q) }
+  judged(it,ok,given,q) }
 function judged(it,ok,given,q,late){ var p=it.p; stopTimer(); it.ok=ok; it.given=given; answeredAt=Date.now(); if(ok)sndOk(); else sndNg();
   record(p,ok); renderDots();
   $("after").hidden=false; $("flagBtn").hidden=false;
@@ -1660,8 +1668,9 @@ function judged(it,ok,given,q,late){ var p=it.p; stopTimer(); it.ok=ok; it.given
   var ex=$("explain");
   if(ok){
     $("verdict").textContent="せいかい！"; $("verdict").className="verdict ok";
-    var unred=(q&&given.indexOf("/")>0&&(function(){var a=given.split("/");return +a[1]!==q.d})());
-    $("rightAns").textContent=unred?"約分すると "+Engine.fmt(q)+" になるね。":"";
+    var unred=(q&&given.indexOf("/")>0&&(function(){var a=given.split("/");return +a[1]!==q.d})()),
+      improper=(q&&q.d>1&&/^\d+\/\d+$/.test(given)&&(function(){var a=given.split("/");return +a[0]>=+a[1]})());
+    rich($("rightAns"),unred?"約分すると "+Engine.mixed(q)+" になるね。":improper?"帯分数になおすと "+Engine.mixed(q)+" だね。":"");
     var ns="http://www.w3.org/2000/svg", svg=document.createElementNS(ns,"svg"), c=document.createElementNS(ns,"circle");
     svg.setAttribute("class","maru"); svg.setAttribute("viewBox","0 0 150 150");
     c.setAttribute("cx","75"); c.setAttribute("cy","75"); c.setAttribute("r","60"); c.setAttribute("transform","rotate(-80 75 75)");
@@ -1689,7 +1698,7 @@ function showResult(){
   var ul=$("rMiss"); ul.textContent="";
   miss.forEach(function(it){ var li=el("li"); li.appendChild(richEl("p","q",it.p.text));
     var a=el("p","a"); a.appendChild(document.createTextNode("正解：")); a.appendChild(richEl("b",null,it.p.answerText+(it.p.unit?" "+it.p.unit:"")));
-    a.appendChild(document.createTextNode("　きみの答え："+it.given)); li.appendChild(a);
+    a.appendChild(document.createTextNode("　きみの答え：")); a.appendChild(richEl("span",null,it.given)); li.appendChild(a);
     if(it.p.explain)li.appendChild(richEl("p","note",it.p.explain)); ul.appendChild(li) });
   game.missed=miss.map(function(it){return it.p}); $("retryMiss").hidden=!miss.length;
   show("result"); keepAliveOn(false); if(total&&right>=total*0.8)sndFanfare() }
