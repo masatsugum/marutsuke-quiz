@@ -150,6 +150,15 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
 .list .n{grid-row:1 / span 2; grid-column:2; text-align:right; font-family:var(--display); font-variant-numeric:tabular-nums; line-height:1.3}
 .list .n .w{display:block; font-size:1.3rem; color:var(--x)}
 .list .n .r{display:block; font-size:.85rem; color:var(--sub)}
+.split{display:grid; grid-template-columns:1fr 1fr; gap:8px}
+.split div{border-radius:12px; padding:8px 10px; display:flex; flex-direction:column; align-items:center; gap:2px; border:2px solid}
+.split b{font-family:var(--display); font-size:1.6rem; font-weight:400; line-height:1.1}
+.split span{font-size:.8rem; font-weight:700}
+.split .pend{color:var(--x); background:var(--x-bg); border-color:var(--x)}
+.split .fixed{color:var(--pen); border-color:var(--line)}
+.list .tag{grid-column:1; justify-self:start; font-size:.75rem; font-weight:900; border-radius:99px; padding:1px 9px; border:1.5px solid}
+.list .tag.pend{color:var(--x); background:var(--x-bg); border-color:var(--x)}
+.list .tag.fixed{color:var(--pen); border-color:var(--line)}
 .head{display:flex; align-items:center; gap:12px}
 .head h1{font-family:var(--display); font-weight:400; font-size:1.5rem}
 
@@ -239,6 +248,11 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
     <div><p>0回にすると、ぜんぶの問題から出します。</p>
     </div>
     <p id="weakInfo">あてはまる問題：0問</p>
+    <div class="split" id="weakSplit" hidden>
+      <div class="pend"><b id="wPend">0</b><span>まだ正解していない</span></div>
+      <div class="fixed"><b id="wDone">0</b><span>やり直して正解した</span></div>
+    </div>
+    <p id="weakOrder"></p>
     <button class="go" id="startWeak" type="button">スタート</button>
   </div>
 
@@ -634,7 +648,7 @@ function useCur(){var s=curSet();
   if(s){cur=s.id; bank={title:s.name,questions:s.questions,syncedAt:s.syncedAt}}
   else {cur=""; bank={title:"サンプル",questions:SAMPLE.questions,syncedAt:0}} }
 useCur();
-var hist=lsGet("mq.hist",{});           // key -> {w: wrong count, r: right count, t: last time}
+var hist=lsGet("mq.hist",{});           // key -> {w: wrong count, r: right count, t: last time, k: 1 if the last answer was right}
 var minWrong=lsGet("mq.min",1);
 var timeLimit=Number(lsGet("mq.time",10)); if(!(timeLimit>=0&&timeLimit<=60))timeLimit=10;   // seconds per question, 0 = no limit
 var soundMode=Number(lsGet("mq.sound2",lsGet("mq.sound",true)?1:0)); if(soundMode!==0&&soundMode!==2)soundMode=1;   // 0 off, 1 normal, 2 plain audio-file playback
@@ -747,6 +761,12 @@ function show(id){ if(id==="home"||id==="history")keepAliveOn(false);["home","qu
 function stat(q){return hist[keyOf(q.q)]||{w:0,r:0}}
 function newPool(){return bank.questions.filter(function(q){var s=stat(q); return !(s.r>0)})}
 function weakPool(){return bank.questions.filter(function(q){return stat(q).w>=minWrong})}
+function pending(s){return s.w>0&&s.k!==1}
+/* review order: questions not yet answered right since the mistake come first, the ones asked longest ago first,
+   so every missed question comes round before any repeats */
+function reviewOrder(pool){
+  return shuffle(pool).map(function(q){var s=stat(q); return {q:q,p:pending(s)?0:1,t:s.t||0}})
+    .sort(function(a,b){return a.p-b.p||a.t-b.t}).map(function(x){return x.q}) }
 
 function renderHome(){
   var qs=bank.questions, n=qs.length;
@@ -762,7 +782,10 @@ function renderHome(){
   $("minOut").textContent=minWrong;
   $("timeOut").textContent=timeLimit?timeLimit:"なし"; $("timeOut").classList.toggle("word",!timeLimit); $("timeUnit").hidden=!timeLimit;
   var wp=weakPool().length;
+  var wpend=weakPool().filter(function(q){return pending(stat(q))}).length;
   $("weakInfo").textContent=wp?("あてはまる問題："+wp+"問"+(wp<GAME_SIZE?"（"+wp+"問だけ出します）":"")):"あてはまる問題はまだありません。";
+  $("weakSplit").hidden=!wp; $("wPend").textContent=wpend; $("wDone").textContent=wp-wpend;
+  $("weakOrder").textContent=!wp?"":wpend?"「まだ正解していない」問題から先に出します。":"ぜんぶ、まちがえたあとに正解できています。";
   $("startWeak").disabled=!wp;
   var sl=$("setList"); sl.textContent=""; sl.hidden=!sets.length;
   sets.forEach(function(s){ var on=(s.id===cur), b=el("button","chip"+(on?" on":""),s.name); b.type="button"; b.setAttribute("aria-pressed",String(on));
@@ -776,7 +799,8 @@ function renderHome(){
 /* ---------- game ---------- */
 function startGame(pool,mode){
   if(!pool.length)return; unlock(); keepAliveOn(true); lastMode=mode;
-  var items=shuffle(pool).slice(0,GAME_SIZE).map(function(q){
+  var picked=mode.type==="weak"?shuffle(reviewOrder(pool).slice(0,GAME_SIZE)):shuffle(pool).slice(0,GAME_SIZE);
+  var items=picked.map(function(q){
     var order=shuffle([0,1,2,3]); return {q:q,order:order,picked:null,ok:null}});
   game={items:items,i:0,token:0}; show("quiz"); renderQuestion();
 }
@@ -889,16 +913,18 @@ function showResult(){
 }
 
 /* ---------- history ---------- */
-function record(q,ok){var k=keyOf(q.q), s=hist[k]||{w:0,r:0}; s={w:s.w+(ok?0:1),r:s.r+(ok?1:0),t:Date.now()}; hist[k]=s; lsSet("mq.hist",hist); cloudSoon()}
+function record(q,ok){var k=keyOf(q.q), s=hist[k]||{w:0,r:0}; s={w:s.w+(ok?0:1),r:s.r+(ok?1:0),t:Date.now(),k:ok?1:0}; hist[k]=s; lsSet("mq.hist",hist); cloudSoon()}
 var resetArmed=false;
 function renderHistory(){
   resetArmed=false; $("resetBtn").textContent="履歴をぜんぶ消す";
   var rows=bank.questions.map(function(q){return {q:q,s:stat(q)}}).filter(function(x){return x.s.w>0})
-    .sort(function(a,b){return b.s.w-a.s.w||(b.s.t||0)-(a.s.t||0)});
-  $("histNote").textContent=rows.length?("まちがえた問題は "+rows.length+"問。回数の多い順にならべています。"):"まちがえた問題はまだありません。ゲームをすると、ここに記録されます。";
+    .sort(function(a,b){return (pending(b.s)?1:0)-(pending(a.s)?1:0)||b.s.w-a.s.w||(b.s.t||0)-(a.s.t||0)});
+  var np=rows.filter(function(x){return pending(x.s)}).length;
+  $("histNote").textContent=rows.length?("まちがえた問題は "+rows.length+"問（まだ正解していない "+np+"問・やり直して正解した "+(rows.length-np)+"問）。まだ正解していない問題を上に、回数の多い順にならべています。"):"まちがえた問題はまだありません。ゲームをすると、ここに記録されます。";
   var ul=$("histList"); ul.textContent="";
   rows.forEach(function(x){
-    var li=el("li"); li.appendChild(el("p","q",x.q.q)); listFig(li,x.q);
+    var li=el("li"), pd=pending(x.s); li.appendChild(el("span","tag "+(pd?"pend":"fixed"),pd?"まだ正解していない":"やり直して正解した"));
+    li.appendChild(el("p","q",x.q.q)); listFig(li,x.q);
     var n=el("div","n"); n.appendChild(el("span","w","✕ "+x.s.w)); n.appendChild(el("span","r","◯ "+x.s.r)); li.appendChild(n);
     var a=el("p","a"); a.appendChild(document.createTextNode("正解：")); a.appendChild(el("b",null,x.q.c[x.q.a])); li.appendChild(a);
     if(x.q.ex)li.appendChild(el("p","ex",x.q.ex));
@@ -1001,7 +1027,7 @@ function cloudPayload(){return {v:1,hist:hist,resetAt:resetAt,setsAt:setsAt,
 function mergeHist(a,b,cut){   // per question keep the record with more attempts (then the newer one)
   var out={}; [a||{},b||{}].forEach(function(h){ Object.keys(h).forEach(function(k){
     var s=h[k]; if(!s||typeof s!=="object"||(s.t||0)<cut)return;
-    var x={w:s.w|0,r:s.r|0,t:Number(s.t)||0}, o=out[k];
+    var x={w:s.w|0,r:s.r|0,t:Number(s.t)||0}, o=out[k]; if(s.k===0||s.k===1)x.k=s.k;
     if(!o||x.w+x.r>o.w+o.r||(x.w+x.r===o.w+o.r&&x.t>o.t))out[k]=x }) });
   return out;
 }
