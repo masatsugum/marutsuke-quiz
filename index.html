@@ -611,7 +611,116 @@ function drawProfile(parts){
     var e=l.p[l.p.length-1], ex=X(e[0]), ey=Y(e[1]), far=e[0]>xm*0.4; if(l.at){out.push(txt(X(l.at[0]),Y(l.at[1]),l.n,{s:11,a:"start"}));return} out.push(txt(far?ex-4:ex+5,far?ey-11:ey-8,l.n,{s:11,a:far?"end":"start"})) });
   out.push('</svg>'); return {svg:out.join("")} }
 
-var TYPES={"地図":drawMap,"気候":drawClimate,"表":drawTable,"川の曲がり":drawBend,"層":drawLayers,"河口":drawMouth,"地層":drawStrata,"ばね":drawSpring,"川の流れ":drawRiverCourse,"川のかたむき":drawProfile};
+/* ---------- 月: moon phases (lit part yellow, unlit part dashed) ---------- */
+var PHASE={"新月":0,"三日月":3,"上弦":7.38,"上弦の月":7.38,"満月":14.77,"下弦":22.15,"下弦の月":22.15,"26日":26,"26日の月":26};
+function phaseDay(s){ s=String(s).trim(); if(PHASE.hasOwnProperty(s))return PHASE[s];
+  var m=s.match(/^(\d+(?:\.\d+)?)日(?:の月)?$/); if(m&&+m[1]>=0&&+m[1]<=29.5)return +m[1]; return null }
+function moonShape(cx,cy,r,day,sw){ sw=sw||1.6;
+  var out=['<circle cx="'+f1(cx)+'" cy="'+f1(cy)+'" r="'+r+'" fill="none" stroke="var(--sub)" stroke-width="'+sw+'" stroke-dasharray="4 3"/>'];
+  if(day<0.6||day>28.9)return out.join("");
+  var th=2*Math.PI*day/29.53, k=Math.cos(th), rx=Math.max(0.01,r*Math.abs(k)), T=f1(cx)+" "+f1(cy-r), B=f1(cx)+" "+f1(cy+r), d;
+  if(Math.abs(day-14.77)<0.6) d=null;
+  else if(day<14.77) d="M"+T+" A"+r+" "+r+" 0 0 1 "+B+" A"+f1(rx)+" "+r+" 0 0 "+(k>0?0:1)+" "+T+" Z";
+  else d="M"+T+" A"+r+" "+r+" 0 0 0 "+B+" A"+f1(rx)+" "+r+" 0 0 "+(k>0?1:0)+" "+T+" Z";
+  if(d===null)out.push('<circle cx="'+f1(cx)+'" cy="'+f1(cy)+'" r="'+r+'" fill="var(--marker)" stroke="var(--fig)" stroke-width="'+sw+'"/>');
+  else out.push('<path d="'+d+'" fill="var(--marker)" stroke="var(--fig)" stroke-width="'+sw+'" stroke-linejoin="round"/>');
+  return out.join("") }
+/* 月|三日月,上弦,満月|ア,イ,ウ  — shapes in a row; the optional second part labels them */
+function drawMoons(parts){
+  var ph=(parts[1]||"").split(/[,、，]/).map(function(s){return s.trim()}).filter(Boolean);
+  if(!ph.length||ph.length>8)return {err:"月の形は1〜8こ、カンマで区切って書いてください（例 三日月,上弦,満月）。"};
+  var days=ph.map(phaseDay), bad=ph.filter(function(p,i){return days[i]===null})[0];
+  if(bad!=null)return {err:"月の形「"+bad+"」がわかりません（新月・三日月・上弦・満月・下弦・26日 または 10日 のように日数）。"};
+  var lb=parts[2]?parts[2].split(/[,、，]/).map(function(s){return s.trim()}):[];
+  if(lb.length&&lb.length!==ph.length)return {err:"月の形とラベルの数をそろえてください。"};
+  var cw=78, r=28, W=Math.max(cw*ph.length,300), H=lb.length?112:96, out=[svgOpen(W,H,"月の形")], x0=(W-cw*ph.length)/2;
+  days.forEach(function(d,i){ var cx=x0+cw*i+cw/2, cy=r+10;
+    out.push(moonShape(cx,cy,r,d));
+    if(d<0.6||d>28.9)out.push(txt(cx,cy+r+12,"（見えない）",{s:10,c:"var(--sub)"}));
+    if(lb[i])out.push(txt(cx,H-12,lb[i],{s:15})) });
+  out.push('</svg>'); return {svg:out.join("")} }
+
+/* 空|月=南,高,上弦,18時|時こく=18時ごろ  — the southern sky seen by an observer facing south */
+var DIRX={"東":34,"南東":102,"南":170,"南西":238,"西":306}, ALT={"低":148,"地平線":160,"中":100,"高":52};
+function drawSky(parts){
+  var o=kv(parts.slice(1)), ms=o["月"]||[]; if(!ms.length||ms.length>12)return {err:"空の図には「月=方角,高さ,形」を1〜12こ書いてください（例 月=南,高,上弦）。"};
+  var W=340,H=212,G=168, out=[svgOpen(W,H,"南の空")], bad=null, marks=[];
+  ms.forEach(function(v){ var a=v.split(/[,、，]/).map(function(s){return s.trim()});
+    if(a.length<3){bad=bad||"「月="+v+"」は 方角,高さ,形 の順に書いてください。";return}
+    var x=DIRX[a[0]], y=ALT[a[1]], d=phaseDay(a[2]);
+    if(x==null){bad=bad||"方角「"+a[0]+"」は 東・南東・南・南西・西 のどれかにしてください。";return}
+    if(y==null){bad=bad||"高さ「"+a[1]+"」は 低・中・高・地平線 のどれかにしてください。";return}
+    if(d===null){bad=bad||"月の形「"+a[2]+"」がわかりません。";return}
+    marks.push({x:x,y:y,d:d,t:a[3]||""}) });
+  if(bad)return {err:bad};
+  out.push('<rect x="0" y="0" width="'+W+'" height="'+G+'" fill="var(--sea)"/>');
+  out.push('<path d="M0 '+G+' Q60 '+(G-14)+' 120 '+(G-4)+' T240 '+(G-6)+' T340 '+(G-10)+' L340 '+H+' L0 '+H+' Z" fill="var(--shade)"/>');
+  out.push('<line x1="0" y1="'+G+'" x2="'+W+'" y2="'+G+'" stroke="var(--fig)" stroke-width="1.2"/>');
+  ["東","南東","南","南西","西"].forEach(function(n){ out.push(txt(DIRX[n],G+26,n,{s:n.length>1?12:15})) });
+  marks.forEach(function(m){ out.push(moonShape(m.x,m.y,13,m.d,1.4)); if(m.t)out.push(txt(m.x,m.y-22,m.t,{s:11})) });
+  if(o["時こく"])out.push(txt(W-8,14,o["時こく"][0],{s:13,a:"end"}));
+  out.push('</svg>'); return {svg:out.join("")} }
+
+/* 公転|太陽=右|記号=③,,④,,①,,②,  — Earth and the Moon's orbit seen from above the North Pole.
+   記号 is listed from the position on the Sun's side (new moon), going counterclockwise (the orbit direction).
+   An empty entry leaves that position out; "-" draws a moon with no label. */
+function drawOrbit(parts){
+  var o=kv(parts.slice(1)), side=(o["太陽"]||["右"])[0]; if(side!=="右"&&side!=="左")return {err:"太陽は 右 か 左 にしてください。"};
+  var lb=o["記号"]?o["記号"][0].split(/[,、，]/).map(function(s){return s.trim()}):["-","-","-","-","-","-","-","-"];
+  if(lb.length>8)return {err:"記号は新月の位置から反時計回りに8こまで書いてください。"};
+  while(lb.length<8)lb.push("");
+  var W=340,H=300, cx=side==="右"?150:190, cy=140, R=96, re=20, rm=12, sx=side==="右"?1:-1, out=[svgOpen(W,H,"北極の上から見た地球と月の公転")];
+  out.push('<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="var(--fig)" stroke-width="1.4"/>');
+  // orbit direction arrows (counterclockwise on screen)
+  [135,315].forEach(function(deg){ var a=deg*Math.PI/180, px=cx+R*Math.cos(a), py=cy-R*Math.sin(a), tx=-Math.sin(a), ty=-Math.cos(a);
+    out.push('<path d="M'+f1(px-tx*9-ty*6)+' '+f1(py-ty*9+tx*6)+' L'+f1(px)+' '+f1(py)+' L'+f1(px-tx*9+ty*6)+' '+f1(py-ty*9-tx*6)+'" fill="none" stroke="var(--fig)" stroke-width="2"/>') });
+  function half(x,y,r){ var T=f1(x)+" "+f1(y-r), Bm=f1(x)+" "+f1(y+r);
+    return '<circle cx="'+f1(x)+'" cy="'+f1(y)+'" r="'+r+'" fill="var(--shade)" stroke="var(--fig)" stroke-width="1.3"/>'+
+      '<path d="M'+T+' A'+r+' '+r+' 0 0 '+(sx>0?1:0)+' '+Bm+' Z" fill="var(--marker)" stroke="var(--fig)" stroke-width="1.3"/>' }
+  out.push(half(cx,cy,re)); out.push(txt(cx,cy+re+12,"地球",{s:11}));
+  var base=side==="右"?0:180;
+  lb.forEach(function(l,i){ if(!l)return; var a=(base+45*i)*Math.PI/180, x=cx+R*Math.cos(a), y=cy-R*Math.sin(a);
+    out.push(half(x,y,rm)); if(l!=="-"){ var lx=cx+(R+26)*Math.cos(a), ly=cy-(R+24)*Math.sin(a); out.push(txt(lx,ly,l,{s:15})) } });
+  var ax=side==="右"?W-34:34;
+  for(var k=0;k<5;k++){ var y=cy-80+k*40; out.push('<path d="M'+(ax+sx*22)+' '+y+' L'+(ax-sx*10)+' '+y+' M'+(ax-sx*3)+' '+(y-5)+' L'+(ax-sx*10)+' '+y+' L'+(ax-sx*3)+' '+(y+5)+'" fill="none" stroke="var(--pen)" stroke-width="2"/>') }
+  out.push(txt(ax+sx*6,cy+122,"太陽の光",{s:12,a:"middle"}));
+  out.push(txt(cx,H-8,"北極の上から見たようす（月は反時計回りに公転）",{s:11,c:"var(--sub)"}));
+  out.push('</svg>'); return {svg:out.join("")} }
+
+/* ---------- 集め方: gas collection methods  集め方|水上,下方,上方|ア,イ,ウ ---------- */
+function gasPanel(kind,ox){
+  var S='stroke="var(--fig)" stroke-width="2" fill="none" stroke-linejoin="round"', o=[];
+  function tube(d){ o.push('<path d="'+d+'" fill="none" stroke="var(--fig)" stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/><path d="'+d+'" fill="none" stroke="var(--card)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>') }
+  function X(v){return f1(ox+v)}
+  if(kind==="水上"){
+    o.push('<rect x="'+X(8)+'" y="92" width="114" height="52" fill="var(--sea)" stroke="none"/>');
+    o.push('<path d="M'+X(6)+' 82 L'+X(6)+' 146 L'+X(124)+' 146 L'+X(124)+' 82" '+S+'/>');
+    o.push('<rect x="'+X(56)+'" y="34" width="38" height="86" fill="var(--sea)" stroke="none"/><rect x="'+X(56)+'" y="34" width="38" height="44" fill="var(--card)" stroke="none"/>');
+    o.push('<path d="M'+X(56)+' 120 L'+X(56)+' 40 Q'+X(56)+' 34 '+X(62)+' 34 L'+X(88)+' 34 Q'+X(94)+' 34 '+X(94)+' 40 L'+X(94)+' 120" '+S+'/>');
+    o.push('<line x1="'+X(8)+'" y1="92" x2="'+X(56)+'" y2="92" stroke="var(--sub)" stroke-width="1"/><line x1="'+X(94)+'" y1="92" x2="'+X(122)+'" y2="92" stroke="var(--sub)" stroke-width="1"/>');
+    tube("M"+X(2)+" 60 L"+X(30)+" 60 L"+X(30)+" 134 L"+X(70)+" 134 L"+X(70)+" 116");
+    [[72,104],[78,94],[71,86]].forEach(function(b){ o.push('<circle cx="'+X(b[0])+'" cy="'+b[1]+'" r="3" fill="var(--card)" stroke="var(--fig)" stroke-width="1.2"/>') });
+  } else if(kind==="下方"){
+    o.push('<path d="M'+X(42)+' 56 L'+X(42)+' 140 Q'+X(42)+' 146 '+X(48)+' 146 L'+X(86)+' 146 Q'+X(92)+' 146 '+X(92)+' 140 L'+X(92)+' 56" '+S+'/>');
+    o.push('<line x1="'+X(36)+'" y1="54" x2="'+X(98)+'" y2="54" stroke="var(--fig)" stroke-width="2.4"/>');
+    tube("M"+X(4)+" 34 L"+X(60)+" 34 L"+X(60)+" 138");
+  } else {
+    o.push('<path d="M'+X(42)+' 128 L'+X(42)+' 30 Q'+X(42)+' 24 '+X(48)+' 24 L'+X(86)+' 24 Q'+X(92)+' 24 '+X(92)+' 30 L'+X(92)+' 128" '+S+'/>');
+    tube("M"+X(4)+" 144 L"+X(60)+" 144 L"+X(60)+" 34");
+  }
+  return o.join("") }
+var GASK={"水上":"水上","水上置換":"水上","下方":"下方","下方置換":"下方","上方":"上方","上方置換":"上方"};
+function drawGas(parts){
+  var ks=(parts[1]||"").split(/[,、，]/).map(function(s){return s.trim()}).filter(Boolean);
+  if(!ks.length||ks.length>3)return {err:"集め方は 水上・下方・上方 を1〜3こ書いてください（例 水上,下方,上方）。"};
+  var bad=ks.filter(function(k){return !GASK[k]})[0]; if(bad)return {err:"集め方「"+bad+"」がわかりません（水上・下方・上方）。"};
+  var lb=parts[2]?parts[2].split(/[,、，]/).map(function(s){return s.trim()}):[];
+  if(lb.length&&lb.length!==ks.length)return {err:"集め方とラベルの数をそろえてください。"};
+  var pw=130, W=Math.max(pw*ks.length,260), x0=(W-pw*ks.length)/2, H=lb.length?178:156, out=[svgOpen(W,H,"気体の集め方")];
+  ks.forEach(function(k,i){ out.push(gasPanel(GASK[k],x0+pw*i)); if(lb[i])out.push(txt(x0+pw*i+65,H-12,lb[i],{s:15})) });
+  out.push('</svg>'); return {svg:out.join("")} }
+
+var TYPES={"地図":drawMap,"気候":drawClimate,"表":drawTable,"川の曲がり":drawBend,"層":drawLayers,"河口":drawMouth,"地層":drawStrata,"ばね":drawSpring,"川の流れ":drawRiverCourse,"川のかたむき":drawProfile,"月":drawMoons,"空":drawSky,"公転":drawOrbit,"集め方":drawGas};
 function build(spec){
   var parts=splitSpec(spec); if(!parts.length)return {svg:""};
   var f=TYPES[parts[0]]; if(!f)return {err:"図の種類「"+parts[0]+"」は使えません（"+Object.keys(TYPES).join("・")+"）。"};
