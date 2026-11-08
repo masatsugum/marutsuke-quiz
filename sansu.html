@@ -1383,8 +1383,273 @@ function buildChoice(row){
   return {ok:true, row:row, type:"4択", text:text, svg:"", choices:ch, correct:n-1, answerText:ch[n-1], unit:"",
     explain:String(row.explain||"").trim(), confirmed:!/^(×|x|X|未|no)$/.test(String(row.confirmed||"").trim())} }
 
+/* ---------- 柱体 / 柱体の展開図 / 紙から円柱: prisms and cylinders ----------
+   底面 is written as 名前:数,数,...  The base outline, its area and its perimeter all come from these numbers.
+   Areas are kept as  c + p×3.14  (c, p exact) so that answers like 197.82 come out exactly. */
+var PI314=Q(314,100);
+function pv(c,p){return {c:c,p:p||Q(0)}}
+function pAdd(a,b){return pv(qAdd(a.c,b.c),qAdd(a.p,b.p))}
+function pMul(a,k){return pv(qMul(a.c,k),qMul(a.p,k))}
+function pVal(a){return qAdd(a.c,qMul(a.p,PI314))}
+function pTxt(a){ var s=[]; if(a.c.n)s.push(fmt(a.c)); if(a.p.n)s.push(fmt(a.p)+"×3.14"); return s.join("＋")||"0" }
+function sq(q){return qMul(q,q)}
+function nv(q){return q.n/q.d}
+var PBASE={
+  "直角三角形":{n:3, help:"直角をはさむ2辺と、ななめの辺", make:function(v){ var a=v[0],b=v[1],c=v[2];
+      if(!qEq(qAdd(sq(a),sq(b)),sq(c)))return {err:"直角三角形の3辺（"+fmt(a)+","+fmt(b)+","+fmt(c)+"）が合いません。"};
+      return {pts:[[0,0],[nv(a),0],[0,nv(b)]], sides:[a,c,b], area:pv(qMul(qMul(a,b),Q(1,2))), right:[0],
+        areaTxt:fmt(a)+"×"+fmt(b)+"÷2"} } },
+  "三角形":{n:3, make:function(v){ var a=nv(v[0]),b=nv(v[1]),c=nv(v[2]);
+      if(!(a<b+c&&b<a+c&&c<a+b))return {err:"その3辺では三角形ができません。"};
+      var x=(a*a+c*c-b*b)/(2*a), y=Math.sqrt(Math.max(0,c*c-x*x));
+      return {pts:[[0,0],[a,0],[x,y]], sides:[v[0],v[1],v[2]], area:null, right:[]} } },
+  "台形":{n:4, make:function(v){ var t=v[0],u=v[1],h=v[2],s=v[3];   // 上底, 下底, 高さ, ななめの辺 (left side is the height)
+      if(!lt(t,u))return {err:"台形は 上底 を 下底 より短くしてください。"};
+      if(!qEq(qAdd(sq(h),sq(qSub(u,t))),sq(s)))return {err:"台形のななめの辺（"+fmt(s)+"）が、高さと上底・下底の差から計算した長さと合いません。"};
+      return {pts:[[0,0],[nv(u),0],[nv(t),nv(h)],[0,nv(h)]], sides:[u,s,t,h], area:pv(qMul(qMul(qAdd(t,u),h),Q(1,2))), right:[0,3],
+        areaTxt:"("+fmt(t)+"＋"+fmt(u)+")×"+fmt(h)+"÷2"} } },
+  "円":{n:1, make:function(v){ var r=v[0], pts=[], i; for(i=0;i<72;i++){var a=i*5*Math.PI/180; pts.push([nv(r)*Math.cos(a),nv(r)*Math.sin(a)])}
+      return {pts:pts, smooth:true, sides:null, perim:pv(Q(0),qMul(r,Q(2))), area:pv(Q(0),sq(r)), circle:r, right:[],
+        areaTxt:fmt(r)+"×"+fmt(r)+"×3.14", perimTxt:fmt(r)+"×2×3.14"} } },
+  "おうぎ形":{n:2, make:function(v){ var r=v[0], ang=v[1], A=nv(ang); if(!(A>0&&A<180))return {err:"おうぎ形の角は180°より小さくしてください。"};
+      var pts=[], k=Math.max(6,Math.round(A/5)), i; for(i=0;i<=k;i++){var a=(90-A/2+A*i/k)*Math.PI/180; pts.push([nv(r)*Math.cos(a),nv(r)*Math.sin(a)])}
+      pts.push([0,0]);
+      var f=qMul(ang,Q(1,360));
+      return {pts:pts, smooth:true, corners:[0,k,k+1], sides:null, sector:{r:r,ang:ang},
+        perim:pv(qMul(r,Q(2)),qMul(qMul(r,Q(2)),f)), area:pv(Q(0),qMul(sq(r),f)), right:[],
+        areaTxt:fmt(r)+"×"+fmt(r)+"×3.14×"+fmt(ang)+"/360", perimTxt:fmt(r)+"×2＋"+fmt(r)+"×2×3.14×"+fmt(ang)+"/360"} } },
+  "正多角形":{n:2, make:function(v){ var n=nv(v[0]), A=v[1]; if(!(n>=3&&n<=12&&n===Math.round(n)))return {err:"正多角形の辺の数は3〜12にしてください。"};
+      var pts=[], i; for(i=0;i<n;i++){var a=(-90+180/n+360*i/n)*Math.PI/180; pts.push([Math.cos(a),Math.sin(a)])}
+      return {pts:pts, sides:null, area:pv(A), areaGiven:true, right:[], regular:n} } },
+  "正多角形辺":{n:2, make:function(v){ var n=nv(v[0]), s=v[1]; if(!(n>=3&&n<=12&&n===Math.round(n)))return {err:"正多角形の辺の数は3〜12にしてください。"};
+      var R=nv(s)/(2*Math.sin(Math.PI/n)), pts=[], i, sides=[]; for(i=0;i<n;i++){var a=(-90+180/n+360*i/n)*Math.PI/180; pts.push([R*Math.cos(a),R*Math.sin(a)]); sides.push(s)}
+      return {pts:pts, sides:sides, area:null, right:[], regular:n} } },
+  "角切り長方形":{n:5, make:function(v){ var W=v[0],H=v[1],p=v[2],q=v[3],r=v[4];   // rectangle W×H, top-right corner cut by legs p (along the top), q (down the right)
+      if(!lt(p,W)||!lt(q,H))return {err:"切り取る三角形が長方形より大きくなっています。"};
+      if(!qEq(qAdd(sq(p),sq(q)),sq(r)))return {err:"切り取る直角三角形の3辺（"+fmt(p)+","+fmt(q)+","+fmt(r)+"）が合いません。"};
+      return {pts:[[0,0],[nv(W),0],[nv(W),nv(H)-nv(q)],[nv(W)-nv(p),nv(H)],[0,nv(H)]], sides:[W,qSub(H,q),r,qSub(W,p),H],
+        area:pv(qSub(qMul(W,H),qMul(qMul(p,q),Q(1,2)))), right:[0,1,4], areaTxt:fmt(W)+"×"+fmt(H)+"−"+fmt(p)+"×"+fmt(q)+"÷2",
+        cutLegs:[p,q]} } },
+  "家形":{n:4, make:function(v){ var W=v[0],H=v[1],a=v[2],b=v[3];   // rectangle W×H with a right triangle (legs a, b, hypotenuse W) on its top side
+      if(!qEq(qAdd(sq(a),sq(b)),sq(W)))return {err:"上の直角三角形の辺（"+fmt(a)+","+fmt(b)+"）と長方形の横（"+fmt(W)+"）が合いません。"};
+      var w=nv(W), x=nv(a)*nv(a)/w, y=nv(a)*nv(b)/w;
+      return {pts:[[0,0],[w,0],[w,nv(H)],[x,nv(H)+y],[0,nv(H)]], sides:[W,H,b,a,H], area:pv(qAdd(qMul(W,H),qMul(qMul(a,b),Q(1,2)))), right:[0,1,3],
+        areaTxt:fmt(W)+"×"+fmt(H)+"＋"+fmt(a)+"×"+fmt(b)+"÷2", inner:[[0,nv(H)],[w,nv(H)]]} } },
+  "正方形と四分円":{n:1, make:function(v){ var a=v[0], s=nv(a), pts=[[0,0],[2*s,0]], i;   // square a×a and a quarter circle of radius a beside it
+      for(i=1;i<=18;i++){var t=i*5*Math.PI/180; pts.push([s+s*Math.cos(t),s*Math.sin(t)])}
+      pts.push([0,s]);
+      return {pts:pts, smooth:true, corners:[0,1,19,20], sides:null, quarter:a,
+        perim:pv(qMul(a,Q(4)),qMul(a,Q(1,2))), area:pv(sq(a),qMul(sq(a),Q(1,4))), right:[0,20],
+        areaTxt:fmt(a)+"×"+fmt(a)+"＋"+fmt(a)+"×"+fmt(a)+"×3.14×1/4", perimTxt:fmt(a)+"×4＋"+fmt(a)+"×2×3.14×1/4", inner:[[s,0],[s,s]]} } },
+  "半円と三角形":{n:3, make:function(v){ var d=v[0],h=v[1],s=v[2], r=nv(d)/2;   // semicircle on diameter d, isosceles triangle (height h, sides s) on the other side
+      if(!qEq(qAdd(sq(qMul(d,Q(1,2))),sq(h)),sq(s)))return {err:"二等辺三角形の辺（"+fmt(s)+"）が、直径と高さから計算した長さと合いません。"};
+      var pts=[], i; for(i=0;i<=36;i++){var t=Math.PI+i*5*Math.PI/180; pts.push([r+r*Math.cos(t),r*Math.sin(t)])}
+      pts.push([r,nv(h)]);
+      return {pts:pts, smooth:true, corners:[0,36,37], sides:null, semi:{d:d,h:h,s:s},
+        perim:pv(qMul(s,Q(2)),qMul(d,Q(1,2))), area:pv(qMul(qMul(d,h),Q(1,2)),qMul(sq(d),Q(1,8))), right:[],
+        areaTxt:fmt(qMul(d,Q(1,2)))+"×"+fmt(qMul(d,Q(1,2)))+"×3.14÷2＋"+fmt(d)+"×"+fmt(h)+"÷2", perimTxt:fmt(d)+"×3.14÷2＋"+fmt(s)+"×2",
+        inner:[[0,0],[2*r,0]], alt:[[r,0],[r,nv(h)]]} } }
+};
+function parseBase(s){
+  var m=String(s||"").normalize("NFKC").match(/^\s*([^:：]+)[:：](.*)$/); if(!m)return {err:"底面は「名前:数,数」で書いてください（例 直角三角形:12,5,13）。"};
+  var name=m[1].trim(), B=PBASE[name]; if(!B)return {err:"底面「"+name+"」は使えません（"+Object.keys(PBASE).join("・")+"）。"};
+  var v=m[2].split(/[,、，\s]+/).filter(Boolean).map(posNum);
+  if(v.length!==B.n||v.some(function(x){return !x}))return {err:"底面「"+name+"」の数は"+B.n+"つ書いてください。"};
+  var b=B.make(v); if(b.err)return b;
+  b.name=name; b.vals=v;
+  if(!b.perim&&b.sides){ var P=Q(0); b.sides.forEach(function(x){P=qAdd(P,x)}); b.perim=pv(P); b.perimTxt=b.sides.map(fmt).join("＋") }
+  // make the outline counter-clockwise (x right, y up)
+  var A=0, p=b.pts; for(var i=0;i<p.length;i++){var j=(i+1)%p.length; A+=p[i][0]*p[j][1]-p[j][0]*p[i][1]}
+  if(A<0)return {err:"（内部）底面の向きがちがいます。"};
+  return b }
+/* fields: 底面; 高さ（数 か 体積=… か 全体=…）; 問い */
+function prismSolve(data,kind){
+  var f=String(data||"").normalize("NFKC").split(/[;；\/]/).map(function(s){return s.trim()});
+  if(f.length<3)return {err:"「底面; 高さ; 問い」を ; で区切って書いてください（例 直角三角形:12,5,13; 10; 体積）。"};
+  var b=parseBase(f[0]); if(b.err)return b;
+  var ask=f[2], opts=f.slice(3), h=null, hTxt="", gv=f[1].match(/^体積=(.+)$/), gt=f[1].match(/^全体=(.+)$/);
+  var ASKS=["体積","表面積","側面積","底面積","底面のまわり","高さ","AB"];
+  var o0={}; opts.forEach(function(x){var m=x.match(/^([^=]+)=(.*)$/); if(m)o0[m[1].trim()]=m[2].trim(); else o0[x]=true});
+  var faceAsk=ask.match(/^面積[:：](.+)$/);
+  if(faceAsk){ var names=(o0["面"]||"").split(/[,、，]/).map(function(x){return x.trim()}); var fi=names.indexOf(faceAsk[1].trim());
+    if(!b.sides||names.length!==b.sides.length||fi<0)return {err:"面積:X を聞くときは、面=… に側面の名前を底面の辺の順に書いてください。"};
+    var hh=posNum(f[1]); if(!hh)return {err:"高さを数で書いてください。"};
+    var fa=qMul(b.sides[fi],hh); return {b:b,h:hh,ask:ask,hidden:false,byTotal:false,opts:o0,answer:fa,unit:"cm²",text:"",explain:""} }
+  if(ASKS.indexOf(ask)<0)return {err:"問いは "+ASKS.join("・")+" のどれかにしてください。"};
+  if((ask==="体積"||ask==="表面積"||ask==="底面積")&&!b.area)return {err:"この底面は面積が計算できないので、"+ask+"は聞けません。"};
+  if((ask==="表面積"||ask==="側面積"||ask==="底面のまわり"||ask==="AB")&&!b.perim)return {err:"この底面はまわりの長さがわからないので、"+ask+"は聞けません。"};
+  if(gv){ var V=posNum(gv[1]); if(!V||!b.area||b.area.p.n)return {err:"体積から高さを出せるのは、面積が3.14を使わない底面のときだけです。"};
+    h=Q(V.n*b.area.c.d,V.d*b.area.c.n); hTxt=fmt(V)+"÷"+fmt(b.area.c)+"＝"+fmt(h)+"cm" }
+  else if(gt){ var T=posNum(gt[1]); if(!T||!b.area||b.area.p.n||b.perim.p.n)return {err:"展開図の面積から高さを出せるのは、3.14を使わない底面のときだけです。"};
+    var lat=qSub(T,qMul(b.area.c,Q(2))); if(!(lat.n>0))return {err:"展開図の面積が、底面2つ分より小さくなっています。"};
+    h=Q(lat.n*b.perim.c.d,lat.d*b.perim.c.n); hTxt="側面積は "+fmt(T)+"−"+fmt(b.area.c)+"×2＝"+fmt(lat)+"cm²、高さは "+fmt(lat)+"÷"+fmt(b.perim.c)+"＝"+fmt(h)+"cm" }
+  else { h=posNum(f[1]); if(!h)return {err:"高さを数で書いてください（または 体積=… / 全体=…）。"} }
+  if(ask==="高さ"&&!(gv||gt))return {err:"高さを聞くときは、2つ目に 体積=… か 全体=… を書いてください。"};
+  var lines=[], ans, unit="cm²";
+  if(b.area)lines.push("底面積は "+(b.areaGiven?fmt(b.area.c):(b.areaTxt||"")+"＝"+fmt(pVal(b.area)))+"cm²");
+  if(hTxt)lines.push(hTxt);
+  var lateral=b.perim?pMul(b.perim,h):null;
+  if(ask==="底面積")ans=pVal(b.area);
+  else if(ask==="体積"){ ans=pVal(pMul(b.area,h)); unit="cm³"; lines.push("体積は 底面積×高さ＝"+fmt(pVal(b.area))+"×"+fmt(h)+"＝"+fmt(ans)+"cm³") }
+  else if(ask==="高さ"){ ans=h; unit="cm" }
+  else if(ask==="底面のまわり"||ask==="AB"){ ans=pVal(b.perim); unit="cm"; lines.push("底面のまわりの長さは "+(b.perimTxt||"")+"＝"+fmt(ans)+"cm") }
+  else { lines.push("底面のまわりの長さは "+(b.perimTxt||"")+"＝"+fmt(pVal(b.perim))+"cm");
+    lines.push("側面積は まわりの長さ×高さ＝"+fmt(pVal(b.perim))+"×"+fmt(h)+"＝"+fmt(pVal(lateral))+"cm²");
+    if(ask==="側面積")ans=pVal(lateral);
+    else { var S=pAdd(pMul(b.area,Q(2)),lateral); ans=pVal(S);
+      lines.push("表面積は 底面積×2＋側面積＝"+fmt(pVal(b.area))+"×2＋"+fmt(pVal(lateral))+"＝"+fmt(ans)+"cm²") } }
+  var o={}; opts.forEach(function(s){var m=s.match(/^([^=]+)=(.*)$/); if(m)o[m[1].trim()]=m[2].trim(); else o[s]=true});
+  return {b:b,h:h,ask:ask,hidden:!!(gv||gt),byTotal:!!gt,opts:o,answer:ans,unit:unit,text:"",explain:o["長さなし"]?"":lines.join("\n")} }
+
+/* drawing helpers in base coordinates (x right, y up) mapped to screen */
+function fitMap(pts,W,H,pad){ var xs=pts.map(function(p){return p[0]}), ys=pts.map(function(p){return p[1]});
+  var x0=Math.min.apply(null,xs),x1=Math.max.apply(null,xs),y0=Math.min.apply(null,ys),y1=Math.max.apply(null,ys);
+  var sc=Math.min((W-2*pad)/((x1-x0)||1),(H-2*pad)/((y1-y0)||1)), ox=(W-(x1-x0)*sc)/2, oy=(H-(y1-y0)*sc)/2;
+  return function(p){return [ox+(p[0]-x0)*sc, H-oy-(p[1]-y0)*sc]} }
+function sideLabel(a,b,c,t,off){ var m=[(a[0]+b[0])/2,(a[1]+b[1])/2], dx=b[0]-a[0], dy=b[1]-a[1], L=Math.hypot(dx,dy)||1, n=[dy/L,-dx/L];
+  if((m[0]-c[0])*n[0]+(m[1]-c[1])*n[1]<0)n=[-n[0],-n[1]];
+  return text(m[0]+n[0]*(off||16),m[1]+n[1]*(off||16),t) }
+function cen(pts){var x=0,y=0; pts.forEach(function(p){x+=p[0];y+=p[1]}); return [x/pts.length,y/pts.length]}
+function baseLabels(b,S,c,out,front){   // labels on the base outline (screen points S, centre c)
+  var cm=function(q){return fmt(q)+"cm"};
+  if(b.sides&&!b.regular){ var map={"直角三角形":[0,1,2],"三角形":[0,1,2],"台形":[0,1,2,3],"角切り長方形":[0,1,2,3,4],"家形":[0,1,2,3]}[b.name]||[];
+    map.forEach(function(i){ var j=(i+1)%S.length; out.push(sideLabel(S[i],S[j],c,cm(b.sides[i]))) }) }
+  if(b.regular&&b.sides)out.push(sideLabel(S[0],S[1],c,cm(b.sides[0])));
+  if(b.areaGiven)out.push(text(c[0],c[1],fmt(b.area.c)+"cm²"));
+  if(b.circle){ var o=c, r=S[0]; out.push(dot(o,3.5)); out.push(ln(o,r,"fg-thin")); out.push(text((o[0]+r[0])/2,(o[1]+r[1])/2-14,cm(b.circle))); out.push(text(o[0]-12,o[1]+14,"O")) }
+  if(b.sector){ var O=S[S.length-1], R0=S[0]; out.push(sideLabel(O,R0,c,cm(b.sector.r))); out.push(text(O[0],O[1]-30,fmt(b.sector.ang)+"°")) }
+  if(b.quarter){ out.push(text((S[0][0]*3+S[1][0])/4,S[0][1]+16,cm(b.quarter))); out.push(text((S[0][0]+S[1][0]*3)/4,S[0][1]+16,cm(b.quarter))) }
+  if(b.semi){ out.push(text(S[0][0]*0.72+S[36][0]*0.28,S[0][1]+15,cm(b.semi.d))); out.push(sideLabel(S[36],S[37],c,cm(b.semi.s))) }
+  (b.right||[]).forEach(function(i){ var v=S[i], p=S[(i+S.length-1)%S.length], q=S[(i+1)%S.length];
+    out.push(rightMark(v,unit([p[0]-v[0],p[1]-v[1]]),unit([q[0]-v[0],q[1]-v[1]]),9)) }) }
+function isCorner(b,i){ return !b.smooth||(b.corners||[]).indexOf(i)>=0 }
+
+EXTRA["柱体"]={
+  help:"角柱・円柱の見取図です。「底面; 高さ; 問い」を ; で区切ります。底面は 名前:数,数（"+Object.keys(PBASE).join("・")+"）。高さのかわりに 体積=… と書くと高さ（□）を聞けます。問いは 体積・表面積・側面積・底面積・高さ。\n例：直角三角形:12,5,13; 10; 体積",
+  sample:"直角三角形:12,5,13; 10; 体積",
+  solve:function(data){ var s=prismSolve(data); if(s.err)return s;
+    s.text="下の図の立体の"+({"体積":"体積は何cm³","表面積":"表面積は何cm²","側面積":"側面積は何cm²","底面積":"底面積は何cm²","高さ":"□の長さは何cm","底面のまわり":"底面のまわりの長さは何cm"}[s.ask]||"")+"ですか。";
+    return s },
+  draw:function(s){ var b=s.b, h=nv(s.h), P=b.pts, n=P.length, k=0.5, D=[Math.cos(Math.PI/6)*k*h, Math.sin(Math.PI/6)*k*h];
+    var all=P.concat(P.map(function(p){return [p[0]+D[0],p[1]+D[1]]}));
+    var W=380,H=300, M=fitMap(all,W,H,40), F=P.map(M), Bk=P.map(function(p){return M([p[0]+D[0],p[1]+D[1]])}), out=[svgOpen(W,H,"角柱・円柱の見取図")];
+    var vis=[]; for(var i=0;i<n;i++){ var j=(i+1)%n, nx=P[j][1]-P[i][1], ny=-(P[j][0]-P[i][0]); vis.push(nx*D[0]+ny*D[1]>1e-9) }
+    // visible side faces first (light), then the front face (shaded base)
+    for(i=0;i<n;i++)if(vis[i]){var j2=(i+1)%n; out.push('<path fill="var(--card)" stroke="none" d="M'+P2(F[i])+' L'+P2(F[j2])+' L'+P2(Bk[j2])+' L'+P2(Bk[i])+' Z"/>')}
+    out.push(poly(F,"fg-shade"));
+    for(i=0;i<n;i++){ var j3=(i+1)%n; out.push(ln(Bk[i],Bk[j3],vis[i]?"fg-line":"fg-thin",vis[i]?"":DASH)) }
+    for(i=0;i<n;i++){ var a=vis[(i+n-1)%n], c=vis[i];
+      if(isCorner(b,i)){ out.push(ln(F[i],Bk[i],(a||c)?"fg-line":"fg-thin",(a||c)?"":DASH)) }
+      else if(a!==c)out.push(ln(F[i],Bk[i],"fg-line")) }
+    if(b.inner)out.push(ln(M(b.inner[0]),M(b.inner[1]),"fg-thin",DASH));
+    if(b.alt){ out.push(ln(M(b.alt[0]),M(b.alt[1]),"fg-thin",DASH)); out.push(text(M(b.alt[1])[0]+24,(M(b.alt[0])[1]+M(b.alt[1])[1])/2+4,fmt(b.semi.h)+"cm")) }
+    var c=cen(F); baseLabels(b,F,c,out,true);
+    // height label on the lowest-right visible connector
+    var best=-1, bv=-1e9; for(i=0;i<n;i++){ var vv=vis[(i+n-1)%n]||vis[i]; if(!vv)continue; if(!isCorner(b,i)&&vis[(i+n-1)%n]===vis[i])continue;
+      var sc2=F[i][0]+F[i][1]; if(sc2>bv){bv=sc2;best=i} }
+    if(best>=0){ var m=[(F[best][0]+Bk[best][0])/2,(F[best][1]+Bk[best][1])/2]; out.push(text(m[0]+20,m[1]+14,s.hidden?"□":fmt(s.h)+"cm",s.hidden?"fg-ask":"")) }
+    out.push('</svg>'); return out.join("") } };
+
+EXTRA["柱体の展開図"]={
+  help:"角柱・円柱の展開図です。「底面; 高さ; 問い」は 柱体 と同じ。高さのかわりに 全体=…（展開図の面積）も書けます。円柱は 4つ目に 長さ を書くと、直径のかわりに側面の横の長さを図に書きます。問いに AB を書くと側面の横の長さを聞きます。\n例：円:5; 15; 側面積",
+  sample:"円:5; 15; 側面積",
+  solve:function(data){ var s=prismSolve(data); if(s.err)return s;
+    s.text="下の図はある立体の展開図です。"+({"体積":"組み立ててできる立体の体積は何cm³","表面積":"展開図の面積は何cm²","側面積":"側面積は何cm²","底面積":"底面積は何cm²","高さ":"組み立てたときの高さは何cm","AB":"直線ABの長さは何cm","底面のまわり":"底面のまわりの長さは何cm"}[s.ask]||"")+"ですか。";
+    return s },
+  draw:function(s){ var b=s.b, h=nv(s.h), out, W=380, H=340;
+    if(b.circle){ var r=nv(b.circle), L=2*Math.PI*r, pts=[[0,0],[L,h],[L/2-r,h+2*r],[L/2+r,-2*r]], M=fitMap(pts,W,H,52), sc=(M([1,0])[0]-M([0,0])[0]);
+      out=[svgOpen(W,H,"円柱の展開図")];
+      var A=M([0,0]),Bp=M([L,h]); out.push('<rect class="fg-shade" x="'+A[0].toFixed(1)+'" y="'+Bp[1].toFixed(1)+'" width="'+(Bp[0]-A[0]).toFixed(1)+'" height="'+(A[1]-Bp[1]).toFixed(1)+'"/>');
+      var c1=M([L/2,h+r]), c2=M([L/2,-r]);
+      [c1,c2].forEach(function(cc){out.push('<circle class="fg-shade" cx="'+cc[0].toFixed(1)+'" cy="'+cc[1].toFixed(1)+'" r="'+(r*sc).toFixed(1)+'"/>')});
+      out.push(text(A[0]-26,(A[1]+Bp[1])/2,s.hidden?"□":fmt(s.h)+"cm",s.hidden?"fg-ask":""));
+      if(s.opts["長さ"])out.push(text((A[0]+Bp[0])/2,Bp[1]+16,fmt(pVal(b.perim))+"cm"));
+      else { out.push(dot(c1,3.5)); out.push(ln([c1[0]-r*sc,c1[1]],[c1[0]+r*sc,c1[1]],"fg-thin")); out.push(text(c1[0],c1[1]+14,fmt(qMul(b.circle,Q(2)))+"cm")); out.push(text(c1[0],c1[1]-12,"O")) }
+      out.push('</svg>'); return out.join("") }
+    // polygon prism: side faces in a row, the bases attached to one side
+    var sides=b.sides, n=sides.length, xs=[0], i; for(i=0;i<n;i++)xs.push(xs[i]+nv(sides[i]));
+    var k=s.opts["底面の位置"]!=null?+s.opts["底面の位置"]:(b.name==="直角三角形"?1:b.name==="台形"?2:0);
+    var P=b.pts, a0=P[k], a1=P[(k+1)%n], ang=Math.atan2(a1[1]-a0[1],a1[0]-a0[0]), cs=Math.cos(-ang), sn=Math.sin(-ang);
+    function rot(p){var x=p[0]-a0[0], y=p[1]-a0[1]; return [x*cs-y*sn, x*sn+y*cs]}
+    var top=P.map(function(p){var q=rot(p); return [xs[k]+q[0], h+q[1]]}), bot=P.map(function(p){var q=rot(p); return [xs[k]+q[0], -q[1]]});
+    var all=top.concat(bot,[[0,0],[xs[n],h]]), M2=fitMap(all,W,H,52); out=[svgOpen(W,H,"角柱の展開図")];
+    var A2=M2([0,0]), B2=M2([xs[n],h]);
+    out.push('<rect class="fg-shade" x="'+A2[0].toFixed(1)+'" y="'+B2[1].toFixed(1)+'" width="'+(B2[0]-A2[0]).toFixed(1)+'" height="'+(A2[1]-B2[1]).toFixed(1)+'"/>');
+    for(i=1;i<n;i++)out.push(ln(M2([xs[i],0]),M2([xs[i],h]),"fg-thin",DASH));
+    var T=top.map(M2), Bo=bot.map(M2); out.push(poly(T,"fg-shade")); out.push(poly(Bo,"fg-shade"));
+    out.push(ln(M2([xs[k],h]),M2([xs[k+1],h]),"fg-thin",DASH)); out.push(ln(M2([xs[k],0]),M2([xs[k+1],0]),"fg-thin",DASH));
+    if(!b.regular&&!s.opts["長さなし"])for(i=0;i<n;i++)if(i!==k)out.push(text((M2([xs[i],h])[0]+M2([xs[i+1],h])[0])/2,M2([0,h])[1]+16,fmt(sides[i])+"cm"));
+    if(b.regular){ out.push(sideLabel(T[(k+1)%n],T[(k+2)%n],cen(T),fmt(sides[0])+"cm")); out.push(text(A2[0]-12,A2[1]+16,"A")); out.push(text(B2[0]+12,A2[1]+16,"B")) }
+    (b.right||[]).forEach(function(i){ var v=T[i], p=T[(i+n-1)%n], q=T[(i+1)%n]; out.push(rightMark(v,unit([p[0]-v[0],p[1]-v[1]]),unit([q[0]-v[0],q[1]-v[1]]),8)) });
+    var nm=s.opts["面"]?s.opts["面"].split(/[,、，]/).map(function(x){return x.trim()}):null, quiet=!!s.opts["長さなし"];
+    if(nm)for(i=0;i<n;i++)out.push(text((M2([xs[i],0])[0]+M2([xs[i+1],0])[0])/2,(A2[1]+B2[1])/2,nm[i]));
+    if(s.opts["底面"])out.push(text(cen(T)[0],cen(T)[1],s.opts["底面"]));
+    if(quiet){ (b.right||[]).forEach(function(i){ var v=T[i], p=T[(i+n-1)%n], q=T[(i+1)%n]; out.push(rightMark(v,unit([p[0]-v[0],p[1]-v[1]]),unit([q[0]-v[0],q[1]-v[1]]),8)) }); out.push('</svg>'); return out.join("") }
+    if(!s.byTotal)out.push(text(A2[0]-26,(A2[1]+B2[1])/2,s.hidden?"□":fmt(s.h)+"cm",s.hidden?"fg-ask":""));
+    if(!b.regular)out.push(sideLabel(T[k],T[(k+1)%n],[(T[k][0]+T[(k+1)%n][0])/2,A2[1]+40],fmt(sides[k])+"cm"));
+    out.push('</svg>'); return out.join("") } };
+
+EXTRA["紙から円柱"]={
+  help:"長方形の紙から、かげの部分を切り取って円柱の展開図をつくる図です。「底面の直径, 円柱の高さ, 問い（直径・体積・かげ）」。紙の横＝直径×3.14、たて＝直径×2＋高さ。\n例：10, 12, 体積",
+  sample:"10, 12, 体積",
+  solve:function(data){ var t=tok(data); if(t.length!==3)return {err:"「直径, 高さ, 問い」の3つを書いてください（例 10, 12, 体積）。"};
+    var d=posNum(t[0]), h=posNum(t[1]), ask=t[2]; if(!d||!h)return {err:"直径と高さを数で書いてください。"};
+    if(["直径","体積","かげ"].indexOf(ask)<0)return {err:"問いは 直径・体積・かげ のどれかにしてください。"};
+    var Wd=qMul(d,PI314), Ht=qAdd(qMul(d,Q(2)),h), r=qMul(d,Q(1,2)), base=pv(Q(0),sq(r));
+    var lines=["紙の横の長さ"+fmt(Wd)+"cmは底面のまわりの長さなので、直径は "+fmt(Wd)+"÷3.14＝"+fmt(d)+"cm"];
+    var ans, unit="cm";
+    if(ask==="直径")ans=d;
+    else { lines.push("高さは "+fmt(Ht)+"−"+fmt(d)+"×2＝"+fmt(h)+"cm");
+      if(ask==="体積"){ ans=qMul(pVal(base),h); unit="cm³"; lines.push("体積は "+fmt(r)+"×"+fmt(r)+"×3.14×"+fmt(h)+"＝"+fmt(ans)+"cm³") }
+      else { var band=qMul(Wd,d); ans=qMul(qSub(band,pVal(base)),Q(2)); unit="cm²";
+        lines.push("上下の帯は "+fmt(Wd)+"×"+fmt(d)+"＝"+fmt(band)+"cm²ずつ。円は "+fmt(r)+"×"+fmt(r)+"×3.14＝"+fmt(pVal(base))+"cm²");
+        lines.push("かげは ("+fmt(band)+"−"+fmt(pVal(base))+")×2＝"+fmt(ans)+"cm²") } }
+    var q={"直径":"底面の直径は何cm","体積":"組み立ててできる円柱の体積は何cm³","かげ":"かげの部分の面積の和は何cm²"}[ask];
+    return {d:d,h:h,Wd:Wd,Ht:Ht,answer:ans,unit:unit,text:"たて"+fmt(Ht)+"cm、横"+fmt(Wd)+"cmの長方形の紙から、下の図のかげの部分を取りのぞいて、円柱の展開図を作りました。"+q+"ですか。",explain:lines.join("\n")} },
+  draw:function(s){ var d=nv(s.d), h=nv(s.h), L=d*Math.PI, Ht=2*d+h, W=360, H=360, M=fitMap([[0,0],[L,Ht]],W,H,52), sc=M([1,0])[0]-M([0,0])[0], out=[svgOpen(W,H,"長方形の紙と円柱の展開図")];
+    var A=M([0,0]), B=M([L,Ht]);
+    out.push('<rect class="fg-shade" x="'+A[0].toFixed(1)+'" y="'+B[1].toFixed(1)+'" width="'+(B[0]-A[0]).toFixed(1)+'" height="'+(A[1]-B[1]).toFixed(1)+'"/>');
+    var m1=M([0,d]), m2=M([L,d+h]); out.push('<rect class="fg-hole" x="'+m1[0].toFixed(1)+'" y="'+m2[1].toFixed(1)+'" width="'+(m2[0]-m1[0]).toFixed(1)+'" height="'+(m1[1]-m2[1]).toFixed(1)+'"/>');
+    [M([d/2,d+h+d/2]),M([L-d/2,d/2])].forEach(function(c){out.push('<circle class="fg-hole" cx="'+c[0].toFixed(1)+'" cy="'+c[1].toFixed(1)+'" r="'+(d/2*sc).toFixed(1)+'"/>')});
+    out.push(text((A[0]+B[0])/2,B[1]-16,fmt(s.Wd)+"cm")); out.push(text(A[0]-26,(A[1]+B[1])/2,fmt(s.Ht)+"cm"));
+    out.push('</svg>'); return out.join("") } };
+
+
+/* 段のある円柱: two half cylinders (radius r) of heights low+step and low, back to back. Net = stadium top, circle bottom, stepped side. "3, 6, 4, 体積" */
+EXTRA["段のある円柱"]={
+  help:"半径の同じ半円柱を2つ、高さをずらして組み合わせた立体の展開図です。「半径, 低い方の高さ, 段の高さ, 問い（体積・表面積）」。\n例：3, 6, 4, 体積",
+  sample:"3, 6, 4, 体積",
+  solve:function(data){ var t=tok(data); if(t.length!==4)return {err:"「半径, 低い方の高さ, 段の高さ, 問い」の4つを書いてください（例 3, 6, 4, 体積）。"};
+    var r=posNum(t[0]), lo=posNum(t[1]), st=posNum(t[2]), ask=t[3]; if(!r||!lo||!st)return {err:"長さを数で書いてください。"};
+    if(["体積","表面積"].indexOf(ask)<0)return {err:"問いは 体積 か 表面積 にしてください。"};
+    var hi=qAdd(lo,st), half=pv(Q(0),qMul(sq(r),Q(1,2))), lines=["高い方の半円柱の高さは "+fmt(lo)+"＋"+fmt(st)+"＝"+fmt(hi)+"cm（段の長方形のたても"+fmt(st)+"cm）"], ans, unit;
+    if(ask==="体積"){ var V=pMul(half,qAdd(hi,lo)); ans=pVal(V); unit="cm³";
+      lines.push("半円の面積は "+fmt(r)+"×"+fmt(r)+"×3.14÷2。体積は 半円×("+fmt(hi)+"＋"+fmt(lo)+")＝"+fmt(ans)+"cm³") }
+    else { var circ=pv(Q(0),sq(r)), stepR=pv(qMul(qMul(r,Q(2)),st)), lat=pv(Q(0),qMul(r,qAdd(hi,lo)));
+      var S=pAdd(pAdd(pMul(circ,Q(2)),stepR),lat); ans=pVal(S); unit="cm²";
+      lines.push("円1つ分（下）＋半円2つ（上）＝"+fmt(r)+"×"+fmt(r)+"×3.14×2＝"+fmt(pVal(pMul(circ,Q(2))))+"cm²");
+      lines.push("段の長方形は "+fmt(qMul(r,Q(2)))+"×"+fmt(st)+"＝"+fmt(pVal(stepR))+"cm²");
+      lines.push("側面は 半円の弧("+fmt(r)+"×3.14)×("+fmt(hi)+"＋"+fmt(lo)+")＝"+fmt(pVal(lat))+"cm²");
+      lines.push("合わせて "+fmt(ans)+"cm²") }
+    return {r:r,lo:lo,st:st,hi:hi,answer:ans,unit:unit,text:"下の図は、ある立体の展開図で、・は円や半円の中心を表しています。円周率は3.14とします。この展開図を組み立ててできる立体の"+(ask==="体積"?"体積は何cm³":"表面積は何cm²")+"ですか。",explain:lines.join("\n")} },
+  draw:function(s){ var r=nv(s.r), lo=nv(s.lo), st=nv(s.st), hi=lo+st, hw=Math.PI*r, W=360, H=400;
+    var xc=hw/2;   // stadium and circle centred over the tall half
+    var pts=[[0,0],[2*hw,hi],[xc-r,hi+2*r+st],[xc+r,-2*r]], M=fitMap(pts,W,H,40), sc=M([1,0])[0]-M([0,0])[0], out=[svgOpen(W,H,"段のある円柱の展開図")];
+    out.push(poly([[0,0],[2*hw,0],[2*hw,lo],[hw,lo],[hw,hi],[0,hi]].map(M),"fg-shade"));
+    out.push(ln(M([hw,0]),M([hw,lo]),"fg-thin",DASH));
+    // stadium: lower half disc (centre y=hi+r? no: touches the side at one point)
+    var yb=hi+r, yt=hi+r+st, c1=M([xc,yb]), c2=M([xc,yt]), R=r*sc;
+    out.push('<path class="fg-shade" d="M'+P2([c1[0]-R,c1[1]])+' A'+R.toFixed(1)+' '+R.toFixed(1)+' 0 0 0 '+P2([c1[0]+R,c1[1]])+' L'+P2([c2[0]+R,c2[1]])+' A'+R.toFixed(1)+' '+R.toFixed(1)+' 0 0 0 '+P2([c2[0]-R,c2[1]])+' Z"/>');
+    out.push(ln([c1[0]-R,c1[1]],[c1[0]+R,c1[1]],"fg-thin",DASH)); out.push(ln([c2[0]-R,c2[1]],[c2[0]+R,c2[1]],"fg-thin",DASH));
+    [c1,c2].forEach(function(c){ out.push(dot(c,3.5)); out.push(text(c[0]+R/2,c[1]+(c===c1?14:-14),fmt(s.r)+"cm")) });
+    var c3=M([xc,-r]); out.push('<circle class="fg-shade" cx="'+c3[0].toFixed(1)+'" cy="'+c3[1].toFixed(1)+'" r="'+R.toFixed(1)+'"/>');
+    out.push(dot(c3,3.5)); out.push(ln(c3,[c3[0]+R,c3[1]],"fg-thin",DASH)); out.push(text(c3[0]+R/2,c3[1]-14,fmt(s.r)+"cm"));
+    var a=M([hw,lo]), b=M([hw,hi]); out.push(text(a[0]+24,(a[1]+b[1])/2,fmt(s.st)+"cm"));
+    var e=M([2*hw,0]), g=M([2*hw,lo]); out.push(text(e[0]+24,(e[1]+g[1])/2,fmt(s.lo)+"cm"));
+    out.push('</svg>'); return out.join("") } };
+
 /* ---------- one row -> problem ---------- */
-var TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","印の角の和","半円3つ","展開図","多角形つなぎ","ひもの羊","おうぎ形重ね","木の葉","花びら","ひし形重ね","円の等分","円の9分割","犬とロープ","半円と直線","円と四角形","三角形と点","正方形と五角形","カード五角形","星の角の和","記号","文章"];
+var TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","印の角の和","半円3つ","展開図","多角形つなぎ","ひもの羊","おうぎ形重ね","木の葉","花びら","ひし形重ね","円の等分","円の9分割","犬とロープ","半円と直線","円と四角形","三角形と点","正方形と五角形","カード五角形","星の角の和","柱体","柱体の展開図","紙から円柱","段のある円柱","記号","文章"];
 function build(row){
   var type=String(row.type||"").trim(), sol, svg="";
   row=Object.assign({},row,{data:String(row.data||"").replace(/^'/,"")});
@@ -1466,7 +1731,7 @@ function parseCsv(text){
   if(cell!==""||row.length){row.push(cell); rows.push(row)}
   return rows }
 var COLS=["type","data","text","answer","unit","explain","confirmed","tangen"];
-var MATH_TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","印の角の和","半円3つ","展開図","多角形つなぎ","ひもの羊","おうぎ形重ね","木の葉","花びら","ひし形重ね","円の等分","円の9分割","犬とロープ","半円と直線","円と四角形","三角形と点","正方形と五角形","カード五角形","星の角の和","記号","文章"];
+var MATH_TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","印の角の和","半円3つ","展開図","多角形つなぎ","ひもの羊","おうぎ形重ね","木の葉","花びら","ひし形重ね","円の等分","円の9分割","犬とロープ","半円と直線","円と四角形","三角形と点","正方形と五角形","カード五角形","星の角の和","柱体","柱体の展開図","紙から円柱","段のある円柱","記号","文章"];
 function parseSheet(t){ var out=[], fmt="";
   parseCsv(t).forEach(function(r){ var c=r.map(function(x){return String(x).trim()});
     if(c.every(function(x){return !x}))return;
