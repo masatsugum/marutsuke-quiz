@@ -1648,8 +1648,43 @@ EXTRA["段のある円柱"]={
     var e=M([2*hw,0]), g=M([2*hw,lo]); out.push(text(e[0]+24,(e[1]+g[1])/2,fmt(s.lo)+"cm"));
     out.push('</svg>'); return out.join("") } };
 
+/* ---------- てんびん: balances that each stay level (消去算) ----------
+   data: 重さ; つり合い; つり合い; ...; 問い     e.g.  A30,B15,C5,D11; A=BB; AACCC=BBBBB; ABCC=DDDDD; B/C
+   The weights are only used to check that every balance really is level and to work out the answer. */
+EXTRA["てんびん"]={
+  help:"おもりをのせたてんびんの図です。「重さ; 左=右; 左=右; …; 問い」。重さは A30,B15 のように書き、つり合いは左右にのせるおもりの文字を並べます。問いは B/C（BはC何個分）か、A（Aの重さ）。\n例：A30,B15,C5,D11; A=BB; AACCC=BBBBB; ABCC=DDDDD; B/C",
+  sample:"A30,B15,C5,D11; A=BB; AACCC=BBBBB; ABCC=DDDDD; B/C",
+  solve:function(data){ var parts=String(data||"").normalize("NFKC").split(/[;；]/).map(function(s){return s.replace(/\s+/g,"")}).filter(Boolean);
+    if(parts.length<3)return {err:"「重さ; 左=右; …; 問い」の形で書いてください。"};
+    var w={}, bad=null; parts[0].split(/[,、]/).forEach(function(s){ var m=s.match(/^([A-Z])(\d+(?:\.\d+)?)$/); if(!m)bad=s; else w[m[1]]=parseNum(m[2]) });
+    if(bad!==null)return {err:"重さ「"+bad+"」が読めません（例 A30）。"};
+    var ask=parts[parts.length-1], bal=[];
+    function sum(s){ var t=Q(0); for(var i=0;i<s.length;i++){ if(!w[s[i]])return null; t=qAdd(t,w[s[i]]) } return t }
+    for(var i=1;i<parts.length-1;i++){ var lr=parts[i].split("="); if(lr.length!==2||!/^[A-Z]+$/.test(lr[0])||!/^[A-Z]+$/.test(lr[1]))return {err:"つり合い「"+parts[i]+"」が読めません（例 AACCC=BBBBB）。"};
+      var a=sum(lr[0]), b=sum(lr[1]); if(!a||!b)return {err:"つり合い「"+parts[i]+"」に重さのないおもりがあります。"};
+      if(!qEq(a,b))return {err:"つり合い「"+parts[i]+"」がつり合っていません（左"+fmt(a)+"、右"+fmt(b)+"）。"}; bal.push(lr) }
+    var m=ask.match(/^([A-Z])\/([A-Z])$/), ans, unit;
+    if(m){ if(!w[m[1]]||!w[m[2]])return {err:"問い「"+ask+"」のおもりがありません。"}; ans=Q(w[m[1]].n*w[m[2]].d,w[m[1]].d*w[m[2]].n); unit="個分" }
+    else if(/^[A-Z]$/.test(ask)&&w[ask]){ ans=w[ask]; unit="g" }
+    else return {err:"問いは B/C か A のように書いてください。"};
+    return {bal:bal, answer:ans, unit:unit, text:"下の図のように、おもりをてんびんにのせたところ、どれもつり合いました。"+(m?m[1]+"1個の重さは、"+m[2]+"何個分の重さと等しいですか。":ask+"1個の重さは何gですか。"), explain:""} },
+  draw:function(s){ var W=360, RH=112, H=RH*s.bal.length+8, out=[svgOpen(W,H,"おもりをのせた"+s.bal.length+"つのてんびん")];
+    function piece(x,y,c){ var dark=(c==="B"||c==="D"), sq=(c==="C"||c==="D"), r=11, o=[];
+      if(sq)o.push('<rect x="'+(x-r).toFixed(1)+'" y="'+(y-r).toFixed(1)+'" width="'+(2*r)+'" height="'+(2*r)+'" rx="2" fill="'+(dark?"var(--fig)":"var(--card)")+'" stroke="var(--fig)" stroke-width="2"/>');
+      else o.push('<circle cx="'+x.toFixed(1)+'" cy="'+y.toFixed(1)+'" r="'+r+'" fill="'+(dark?"var(--fig)":"var(--card)")+'" stroke="var(--fig)" stroke-width="2"/>');
+      o.push('<text x="'+x.toFixed(1)+'" y="'+(y+0.5).toFixed(1)+'" style="font-size:14px;font-weight:800;font-family:var(--body);text-anchor:middle;dominant-baseline:central" fill="'+(dark?"var(--card)":"var(--fig)")+'">'+c+'</text>'); return o.join("") }
+    function pan(cx,y,str){ var o=[], pw=136, per=5, n=str.length, rows=Math.ceil(n/per);
+      o.push('<path class="fg-line" d="M'+(cx-pw/2)+' '+(y-12)+' L'+(cx-pw/2)+' '+y+' L'+(cx+pw/2)+' '+y+' L'+(cx+pw/2)+' '+(y-12)+'"/>');
+      for(var r=0;r<rows;r++){ var k=Math.min(per,n-r*per), x0=cx-(k-1)*12;
+        for(var j=0;j<k;j++)o.push(piece(x0+j*24, y-13-r*24, str[r*per+j])) } return o.join("") }
+    s.bal.forEach(function(lr,i){ var top=i*RH, py=top+68, by=top+86, cx=W/2, L=cx-98, R=cx+98;
+      out.push(pan(L,py,lr[0])); out.push(pan(R,py,lr[1]));
+      out.push(ln([L,py],[L,by],"fg-line")); out.push(ln([R,py],[R,by],"fg-line")); out.push(ln([L,by],[R,by],"fg-line"));
+      out.push('<path d="M'+cx+' '+by+' L'+(cx-11)+' '+(by+18)+' L'+(cx+11)+' '+(by+18)+' Z" fill="var(--fig)"/>') });
+    out.push('</svg>'); return out.join("") } };
+
 /* ---------- one row -> problem ---------- */
-var TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","印の角の和","半円3つ","展開図","多角形つなぎ","ひもの羊","おうぎ形重ね","木の葉","花びら","ひし形重ね","円の等分","円の9分割","犬とロープ","半円と直線","円と四角形","三角形と点","正方形と五角形","カード五角形","星の角の和","柱体","柱体の展開図","紙から円柱","段のある円柱","記号","文章"];
+var TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","印の角の和","半円3つ","展開図","多角形つなぎ","ひもの羊","おうぎ形重ね","木の葉","花びら","ひし形重ね","円の等分","円の9分割","犬とロープ","半円と直線","円と四角形","三角形と点","正方形と五角形","カード五角形","星の角の和","柱体","柱体の展開図","紙から円柱","段のある円柱","てんびん","記号","文章"];
 function build(row){
   var type=String(row.type||"").trim(), sol, svg="";
   row=Object.assign({},row,{data:String(row.data||"").replace(/^'/,"")});
@@ -1731,7 +1766,7 @@ function parseCsv(text){
   if(cell!==""||row.length){row.push(cell); rows.push(row)}
   return rows }
 var COLS=["type","data","text","answer","unit","explain","confirmed","tangen"];
-var MATH_TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","印の角の和","半円3つ","展開図","多角形つなぎ","ひもの羊","おうぎ形重ね","木の葉","花びら","ひし形重ね","円の等分","円の9分割","犬とロープ","半円と直線","円と四角形","三角形と点","正方形と五角形","カード五角形","星の角の和","柱体","柱体の展開図","紙から円柱","段のある円柱","記号","文章"];
+var MATH_TYPES=["角度","方眼","正多角形","三角形","おうぎ形","半円重ね","正方形と円","印の角の和","半円3つ","展開図","多角形つなぎ","ひもの羊","おうぎ形重ね","木の葉","花びら","ひし形重ね","円の等分","円の9分割","犬とロープ","半円と直線","円と四角形","三角形と点","正方形と五角形","カード五角形","星の角の和","柱体","柱体の展開図","紙から円柱","段のある円柱","てんびん","記号","文章"];
 function parseSheet(t){ var out=[], fmt="";
   parseCsv(t).forEach(function(r){ var c=r.map(function(x){return String(x).trim()});
     if(c.every(function(x){return !x}))return;
