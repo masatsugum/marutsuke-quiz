@@ -1530,24 +1530,50 @@ EXTRA["柱体"]={
   solve:function(data){ var s=prismSolve(data); if(s.err)return s;
     s.text="下の図の立体の"+({"体積":"体積は何cm³","表面積":"表面積は何cm²","側面積":"側面積は何cm²","底面積":"底面積は何cm²","高さ":"□の長さは何cm","底面のまわり":"底面のまわりの長さは何cm"}[s.ask]||"")+"ですか。";
     return s },
-  draw:function(s){ var b=s.b, h=nv(s.h), P=b.pts, n=P.length, k=0.5, D=[Math.cos(Math.PI/6)*k*h, Math.sin(Math.PI/6)*k*h];
-    var all=P.concat(P.map(function(p){return [p[0]+D[0],p[1]+D[1]]}));
-    var W=380,H=300, M=fitMap(all,W,H,40), F=P.map(M), Bk=P.map(function(p){return M([p[0]+D[0],p[1]+D[1]])}), out=[svgOpen(W,H,"角柱・円柱の見取図")];
-    var vis=[]; for(var i=0;i<n;i++){ var j=(i+1)%n, nx=P[j][1]-P[i][1], ny=-(P[j][0]-P[i][0]); vis.push(nx*D[0]+ny*D[1]>1e-9) }
-    // visible side faces first (light), then the front face (shaded base)
-    for(i=0;i<n;i++)if(vis[i]){var j2=(i+1)%n; out.push('<path fill="var(--card)" stroke="none" d="M'+P2(F[i])+' L'+P2(F[j2])+' L'+P2(Bk[j2])+' L'+P2(Bk[i])+' Z"/>')}
-    out.push(poly(F,"fg-shade"));
-    for(i=0;i<n;i++){ var j3=(i+1)%n; out.push(ln(Bk[i],Bk[j3],vis[i]?"fg-line":"fg-thin",vis[i]?"":DASH)) }
-    for(i=0;i<n;i++){ var a=vis[(i+n-1)%n], c=vis[i];
-      if(isCorner(b,i)){ out.push(ln(F[i],Bk[i],(a||c)?"fg-line":"fg-thin",(a||c)?"":DASH)) }
-      else if(a!==c)out.push(ln(F[i],Bk[i],"fg-line")) }
-    if(b.inner)out.push(ln(M(b.inner[0]),M(b.inner[1]),"fg-thin",DASH));
-    if(b.alt){ out.push(ln(M(b.alt[0]),M(b.alt[1]),"fg-thin",DASH)); out.push(text(M(b.alt[1])[0]+24,(M(b.alt[0])[1]+M(b.alt[1])[1])/2+4,fmt(b.semi.h)+"cm")) }
-    var c=cen(F); baseLabels(b,F,c,out,true);
-    // height label on the lowest-right visible connector
-    var best=-1, bv=-1e9; for(i=0;i<n;i++){ var vv=vis[(i+n-1)%n]||vis[i]; if(!vv)continue; if(!isCorner(b,i)&&vis[(i+n-1)%n]===vis[i])continue;
-      var sc2=F[i][0]+F[i][1]; if(sc2>bv){bv=sc2;best=i} }
-    if(best>=0){ var m=[(F[best][0]+Bk[best][0])/2,(F[best][1]+Bk[best][1])/2]; out.push(text(m[0]+20,m[1]+14,s.hidden?"□":fmt(s.h)+"cm",s.hidden?"fg-ask":"")) }
+  /* the solid stands upright: the base lies flat (seen a little from above), the height goes straight up, like in the textbook.
+     A circle base becomes an ellipse; hidden edges are dashed. */
+  draw:function(s){ var b=s.b, h=nv(s.h), P=b.pts, n=P.length, T=(b.smooth&&!b.circle)?0.8:0.5;   // curved bases with labels inside are seen more from above
+    if(b.areaGiven&&b.regular){ var Rr=Math.sqrt(nv(b.area.c)/(b.regular/2*Math.sin(2*Math.PI/b.regular))); P=P.map(function(p){return [p[0]*Rr,p[1]*Rr]}) }   // area-only regular polygon: real size from the area
+    var c0=cen(P), R0=0; P.forEach(function(p){R0=Math.max(R0,Math.hypot(p[0]-c0[0],p[1]-c0[1]))});
+    h=Math.max(0.7*R0,Math.min(h,(b.smooth&&!b.circle?1.6:2.6)*R0));   // keep the picture readable when the solid is very flat or very tall (the numbers stay exact)
+    // turn the base so that no side face is seen edge-on (a circle needs no turn)
+    function turned(rot){ var cr=Math.cos(rot*Math.PI/180), sr=Math.sin(rot*Math.PI/180);
+      return P.map(function(p){var x=p[0]-c0[0], y=p[1]-c0[1]; return [x*cr-y*sr, x*sr+y*cr]}) }   // [X, Z] : Z = depth (away from the viewer)
+    function minNz(Q){ var m=1; for(var i=0;i<n;i++){ var j=(i+1)%n, ex=Q[j][0]-Q[i][0], ez=Q[j][1]-Q[i][1], L=Math.hypot(ex,ez); if(L<1e-9)continue;
+      if(!b.smooth||isCorner(b,i)&&isCorner(b,j))m=Math.min(m,Math.abs(ex/L)) } return m }
+    var best=0, bm=-1; if(!b.circle){ for(var r=-40;r<=40;r+=5){ var mm=minNz(turned(r)); if(mm>bm+1e-9){bm=mm;best=r} } }
+    var Bz=turned(best);
+    function proj(p,y){return [p[0], y+T*p[1]]}
+    var bot=Bz.map(function(p){return proj(p,0)}), top=Bz.map(function(p){return proj(p,h)});
+    var W=380,H=320, M=fitMap(bot.concat(top),W,H,46), Fb=bot.map(M), Ft=top.map(M), out=[svgOpen(W,H,"角柱・円柱の見取図")];
+    // a side face is seen when its outward normal points toward the viewer (−Z). The base is counter-clockwise, so the outward normal of (i→j) is (ez,−ex).
+    var vis=[]; for(var i=0;i<n;i++){ var j=(i+1)%n, ex=Bz[j][0]-Bz[i][0], ez=Bz[j][1]-Bz[i][1]; vis.push(-ex<-1e-9) }
+    for(i=0;i<n;i++)if(vis[i]){ var j1=(i+1)%n; out.push('<path fill="var(--card)" stroke="none" d="M'+P2(Fb[i])+' L'+P2(Fb[j1])+' L'+P2(Ft[j1])+' L'+P2(Ft[i])+' Z"/>') }
+    // hidden bottom edges and hidden vertical edges (dashed) first
+    for(i=0;i<n;i++){ var j2=(i+1)%n; if(!vis[i])out.push(ln(Fb[i],Fb[j2],"fg-thin",DASH)) }
+    for(i=0;i<n;i++){ var a=vis[(i+n-1)%n], c=vis[i]; if(isCorner(b,i)&&!a&&!c)out.push(ln(Fb[i],Ft[i],"fg-thin",DASH)) }
+    for(i=0;i<n;i++){ var j3=(i+1)%n; if(vis[i])out.push(ln(Fb[i],Fb[j3],"fg-line")) }
+    var edges=[];
+    for(i=0;i<n;i++){ var a2=vis[(i+n-1)%n], c2=vis[i];
+      if((isCorner(b,i)&&(a2||c2))||(a2!==c2)){ out.push(ln(Fb[i],Ft[i],"fg-line")); edges.push(i) } }
+    out.push('<path class="fg-line" style="fill:var(--card)" d="M'+Ft.map(P2).join(" L")+' Z"/>');   // the top base (white, like the textbook)
+    function mapBase(p){ var cr=Math.cos(best*Math.PI/180), sr=Math.sin(best*Math.PI/180), x=p[0]-c0[0], y=p[1]-c0[1]; return M(proj([x*cr-y*sr, x*sr+y*cr],h)) }
+    if(b.inner)out.push(ln(mapBase(b.inner[0]),mapBase(b.inner[1]),"fg-thin",DASH));
+    if(b.alt){ var A1=mapBase(b.alt[0]), A2=mapBase(b.alt[1]); out.push(ln(A1,A2,"fg-thin",DASH)); out.push(text(Math.min(A1[0],A2[0])-26,(A1[1]+A2[1])/2+4,fmt(b.semi.h)+"cm")) }
+    // side lengths: on the front bottom edge when that side is seen, otherwise on the top edge
+    var cb=cen(Fb), ct=cen(Ft), cm=function(q){return fmt(q)+"cm"};
+    if(b.sides){ var idx=b.regular?[vis.indexOf(true)>=0?vis.indexOf(true):0]:({"直角三角形":[0,1,2],"三角形":[0,1,2],"台形":[0,1,2,3],"角切り長方形":[0,1,2,3,4],"家形":[0,1,2,3]}[b.name]||[]);
+      idx.forEach(function(i){ var j=(i+1)%n; out.push(vis[i]?sideLabel(Fb[i],Fb[j],cb,cm(b.sides[i]),18):sideLabel(Ft[i],Ft[j],ct,cm(b.sides[i]),16)) }) }
+    var b2={}; for(var key in b)b2[key]=b[key]; b2.sides=null; b2.circle=null;
+    baseLabels(b2,Ft,ct,out,true);
+    if(b.circle){ var o=ct, rr=Ft[0]; out.push(dot(o,3.5)); out.push(ln(o,rr,"fg-thin",DASH)); out.push(text((o[0]+rr[0])/2,o[1]-12,cm(b.circle))); out.push(text(o[0]-16,o[1]+5,"O")) }
+    // height label beside the right-most visible upright edge
+    // height: a curved bracket beside the left-most upright edge, like the textbook
+    var bi=-1, bx=1e9; edges.forEach(function(k){ if(Fb[k][0]<bx){bx=Fb[k][0];bi=k} });
+    if(bi>=0){ var t0=Ft[bi], b0=Fb[bi], my=(t0[1]+b0[1])/2, bulge=Math.max(14,Math.min(26,(b0[1]-t0[1])*0.12));
+      out.push('<path class="fg-thin" fill="none" d="M'+P2([t0[0]-3,t0[1]])+' Q'+P2([t0[0]-3-2*bulge,my])+' '+P2([b0[0]-3,b0[1]])+'"/>');
+      var lab=s.hidden?"□":fmt(s.h)+"cm", lw=lab.length*9+6; out.push('<rect x="'+(t0[0]-3-bulge-lw/2-2).toFixed(1)+'" y="'+(my-11).toFixed(1)+'" width="'+(lw+4)+'" height="22" fill="var(--card)"/>');
+      out.push(text(t0[0]-3-bulge,my+5,lab,s.hidden?"fg-ask":"")) }
     out.push('</svg>'); return out.join("") } };
 
 EXTRA["柱体の展開図"]={
