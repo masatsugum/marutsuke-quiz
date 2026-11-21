@@ -255,7 +255,7 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
     <p id="weakInfo">あてはまる問題：0問</p>
     <div class="split" id="weakSplit" hidden>
       <div class="pend"><b id="wPend">0</b><span>まだ復習していない</span></div>
-      <div class="pre"><b id="wPre">0</b><span>復習前・ゲームで正解</span></div>
+      <div class="pre"><b id="wPre">0</b><span>復習前に正解</span></div>
       <div class="again"><b id="wAgain">0</b><span>復習でまちがえた</span></div>
       <div class="fixed"><b id="wDone">0</b><span>復習して正解した</span></div>
     </div>
@@ -1012,8 +1012,8 @@ function pending(s){return s.w>0&&s.k!==1}
 /* where a missed question stands in the review (「まちがえた回数でえらんで10問」):
    v = when it was last answered in a review game, vk = whether that answer was right, lw = when it was last missed.
    A miss after the last review puts it back to "not reviewed yet".
-   0 まだ復習していない / 1 復習前・ゲームで正解 / 2 復習でまちがえた / 3 復習して正解した */
-var RV=[{c:"pend",t:"まだ復習していない"},{c:"pre",t:"復習前・ゲームで正解"},{c:"again",t:"復習でまちがえた"},{c:"fixed",t:"復習して正解した"}];
+   0 まだ復習していない / 1 復習前に正解 / 2 復習でまちがえた / 3 復習して正解した */
+var RV=[{c:"pend",t:"まだ復習していない"},{c:"pre",t:"復習前に正解"},{c:"again",t:"復習でまちがえた"},{c:"fixed",t:"復習して正解した"}];
 function rvState(s){ if(!(s.w>0))return -1;
   var reviewed=s.v&&s.v>=(s.lw||0);
   if(!reviewed)return s.k===1?1:0;
@@ -1180,7 +1180,7 @@ function renderHistory(){
   var rows=bank.questions.map(function(q){return {q:q,s:stat(q)}}).filter(function(x){return x.s.w>0})
     .sort(function(a,b){return rvState(a.s)-rvState(b.s)||b.s.w-a.s.w||(b.s.t||0)-(a.s.t||0)});
   var hc=[0,0,0,0]; rows.forEach(function(x){hc[rvState(x.s)]++});
-  $("histNote").textContent=rows.length?("まちがえた問題は "+rows.length+"問（"+RV.map(function(r,i){return r.t+" "+hc[i]+"問"}).join("・")+"）。まだ復習していない問題を上に、回数の多い順にならべています。"):"まちがえた問題はまだありません。ゲームをすると、ここに記録されます。";
+  $("histNote").textContent=rows.length?("まちがえた問題は "+rows.length+"問（"+RV.map(function(r,i){return r.t+" "+hc[i]+"問"}).join("・")+"）。まだ復習していない問題を上に、回数の多い順にならべています。"):"まちがえた問題はまだありません。問題をとくと、ここに記録されます。";
   var ul=$("histList"); ul.textContent="";
   rows.forEach(function(x){
     var li=el("li"), rv=RV[rvState(x.s)]; li.appendChild(el("span","tag "+rv.c,rv.t));
@@ -1288,6 +1288,7 @@ function mergeHist(a,b,cut){   // per question keep the record with more attempt
   var out={}; [a||{},b||{}].forEach(function(h){ Object.keys(h).forEach(function(k){
     var s=h[k]; if(!s||typeof s!=="object"||(s.t||0)<cut)return;
     var x={w:s.w|0,r:s.r|0,t:Number(s.t)||0}, o=out[k]; if(s.k===0||s.k===1)x.k=s.k;
+    if(Number(s.lw)>0)x.lw=Number(s.lw); if(Number(s.v)>0){x.v=Number(s.v); if(s.vk===0||s.vk===1)x.vk=s.vk}   // review marks must survive syncing
     if(!o||x.w+x.r>o.w+o.r||(x.w+x.r===o.w+o.r&&x.t>o.t))out[k]=x }) });
   return out;
 }
