@@ -156,9 +156,14 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
 .split span{font-size:.8rem; font-weight:700}
 .split .pend{color:var(--x); background:var(--x-bg); border-color:var(--x)}
 .split .fixed{color:var(--pen); border-color:var(--line)}
+.split .pre{color:var(--sub); border-color:var(--line); border-style:dashed}
+.split .again{color:var(--x); border-color:var(--x)}
+.split span{text-align:center}
 .list .tag{grid-column:1; justify-self:start; font-size:.75rem; font-weight:900; border-radius:99px; padding:1px 9px; border:1.5px solid}
 .list .tag.pend{color:var(--x); background:var(--x-bg); border-color:var(--x)}
 .list .tag.fixed{color:var(--pen); border-color:var(--line)}
+.list .tag.pre{color:var(--sub); border-color:var(--line); border-style:dashed}
+.list .tag.again{color:var(--x); border-color:var(--x)}
 .head{display:flex; align-items:center; gap:12px}
 .head h1{font-family:var(--display); font-weight:400; font-size:1.5rem}
 
@@ -249,8 +254,10 @@ h2.sec span{font-size:.8rem; color:var(--sub); font-weight:500}
     </div>
     <p id="weakInfo">あてはまる問題：0問</p>
     <div class="split" id="weakSplit" hidden>
-      <div class="pend"><b id="wPend">0</b><span>まだ正解していない</span></div>
-      <div class="fixed"><b id="wDone">0</b><span>やり直して正解した</span></div>
+      <div class="pend"><b id="wPend">0</b><span>まだ復習していない</span></div>
+      <div class="pre"><b id="wPre">0</b><span>復習前・ゲームで正解</span></div>
+      <div class="again"><b id="wAgain">0</b><span>復習でまちがえた</span></div>
+      <div class="fixed"><b id="wDone">0</b><span>復習して正解した</span></div>
     </div>
     <p id="weakOrder"></p>
     <button class="go" id="startWeak" type="button">スタート</button>
@@ -1002,10 +1009,19 @@ function stat(q){return hist[keyOf(q.q)]||{w:0,r:0}}
 function newPool(){return bank.questions.filter(function(q){var s=stat(q); return !(s.r>0)})}
 function weakPool(){return bank.questions.filter(function(q){return stat(q).w>=minWrong})}
 function pending(s){return s.w>0&&s.k!==1}
-/* review order: questions not yet answered right since the mistake come first, the ones asked longest ago first,
-   so every missed question comes round before any repeats */
+/* where a missed question stands in the review (「まちがえた回数でえらんで10問」):
+   v = when it was last answered in a review game, vk = whether that answer was right, lw = when it was last missed.
+   A miss after the last review puts it back to "not reviewed yet".
+   0 まだ復習していない / 1 復習前・ゲームで正解 / 2 復習でまちがえた / 3 復習して正解した */
+var RV=[{c:"pend",t:"まだ復習していない"},{c:"pre",t:"復習前・ゲームで正解"},{c:"again",t:"復習でまちがえた"},{c:"fixed",t:"復習して正解した"}];
+function rvState(s){ if(!(s.w>0))return -1;
+  var reviewed=s.v&&s.v>=(s.lw||0);
+  if(!reviewed)return s.k===1?1:0;
+  return s.vk===1?3:2 }
+/* review order: not reviewed yet first (still wrong, then right in a normal game), then the ones missed again in review,
+   then the ones already put right in review; inside each group the one asked longest ago comes first */
 function reviewOrder(pool){
-  return shuffle(pool).map(function(q){var s=stat(q); return {q:q,p:pending(s)?0:1,t:s.t||0}})
+  return shuffle(pool).map(function(q){var s=stat(q); return {q:q,p:rvState(s),t:s.t||0}})
     .sort(function(a,b){return a.p-b.p||a.t-b.t}).map(function(x){return x.q}) }
 
 function renderHome(){
@@ -1022,10 +1038,11 @@ function renderHome(){
   $("minOut").textContent=minWrong;
   $("timeOut").textContent=timeLimit?timeLimit:"なし"; $("timeOut").classList.toggle("word",!timeLimit); $("timeUnit").hidden=!timeLimit;
   var wp=weakPool().length;
-  var wpend=weakPool().filter(function(q){return pending(stat(q))}).length;
+  var wc=[0,0,0,0]; weakPool().forEach(function(q){var st=rvState(stat(q)); if(st>=0)wc[st]++});
   $("weakInfo").textContent=wp?("あてはまる問題："+wp+"問"+(wp<GAME_SIZE?"（"+wp+"問だけ出します）":"")):"あてはまる問題はまだありません。";
-  $("weakSplit").hidden=!wp; $("wPend").textContent=wpend; $("wDone").textContent=wp-wpend;
-  $("weakOrder").textContent=!wp?"":wpend?"「まだ正解していない」問題から先に出します。":"ぜんぶ、まちがえたあとに正解できています。";
+  $("weakSplit").hidden=!(wc[0]+wc[1]+wc[2]+wc[3]); $("wPend").textContent=wc[0]; $("wPre").textContent=wc[1]; $("wAgain").textContent=wc[2]; $("wDone").textContent=wc[3];
+  var first=[0,1,2,3].filter(function(i){return wc[i]})[0];
+  $("weakOrder").textContent=!wp?"":first===undefined?"":first===3?"まちがえた問題は、ぜんぶ復習で正解できています。":"「"+RV[first].t+"」問題から先に出します。";
   $("startWeak").disabled=!wp;
   var sl=$("setList"); sl.textContent=""; sl.hidden=!sets.length;
   sets.forEach(function(s){ var on=(s.id===cur), b=el("button","chip"+(on?" on":""),s.name); b.type="button"; b.setAttribute("aria-pressed",String(on));
@@ -1106,7 +1123,7 @@ function answer(ci){   // ci = chosen choice, or -1 when time ran out
     else if(c===ci){b.classList.add("ng"); b.firstChild.textContent="✕"}
     else b.classList.add("dim");
   });
-  record(q,ok); renderDots();
+  record(q,ok,lastMode.type==="weak"||!!lastMode.review); renderDots();
   var last=(game.i===game.items.length-1);
   if(ok){
     sndOk(); $("verdict").textContent="せいかい！"; $("verdict").className="verdict ok";
@@ -1153,17 +1170,20 @@ function showResult(){
 }
 
 /* ---------- history ---------- */
-function record(q,ok){var k=keyOf(q.q), s=hist[k]||{w:0,r:0}; s={w:s.w+(ok?0:1),r:s.r+(ok?1:0),t:Date.now(),k:ok?1:0}; hist[k]=s; lsSet("mq.hist",hist); cloudSoon()}
+function record(q,ok,review){var k=keyOf(q.q), o=hist[k]||{w:0,r:0}, now=Date.now(), s={w:o.w+(ok?0:1),r:o.r+(ok?1:0),t:now,k:ok?1:0};
+  s.lw=ok?o.lw:now; if(s.lw===undefined)delete s.lw;
+  if(review){s.v=now; s.vk=ok?1:0} else if(o.v){s.v=o.v; s.vk=o.vk}
+  hist[k]=s; lsSet("mq.hist",hist); cloudSoon()}
 var resetArmed=false;
 function renderHistory(){
   resetArmed=false; $("resetBtn").textContent="履歴をぜんぶ消す";
   var rows=bank.questions.map(function(q){return {q:q,s:stat(q)}}).filter(function(x){return x.s.w>0})
-    .sort(function(a,b){return (pending(b.s)?1:0)-(pending(a.s)?1:0)||b.s.w-a.s.w||(b.s.t||0)-(a.s.t||0)});
-  var np=rows.filter(function(x){return pending(x.s)}).length;
-  $("histNote").textContent=rows.length?("まちがえた問題は "+rows.length+"問（まだ正解していない "+np+"問・やり直して正解した "+(rows.length-np)+"問）。まだ正解していない問題を上に、回数の多い順にならべています。"):"まちがえた問題はまだありません。ゲームをすると、ここに記録されます。";
+    .sort(function(a,b){return rvState(a.s)-rvState(b.s)||b.s.w-a.s.w||(b.s.t||0)-(a.s.t||0)});
+  var hc=[0,0,0,0]; rows.forEach(function(x){hc[rvState(x.s)]++});
+  $("histNote").textContent=rows.length?("まちがえた問題は "+rows.length+"問（"+RV.map(function(r,i){return r.t+" "+hc[i]+"問"}).join("・")+"）。まだ復習していない問題を上に、回数の多い順にならべています。"):"まちがえた問題はまだありません。ゲームをすると、ここに記録されます。";
   var ul=$("histList"); ul.textContent="";
   rows.forEach(function(x){
-    var li=el("li"), pd=pending(x.s); li.appendChild(el("span","tag "+(pd?"pend":"fixed"),pd?"まだ正解していない":"やり直して正解した"));
+    var li=el("li"), rv=RV[rvState(x.s)]; li.appendChild(el("span","tag "+rv.c,rv.t));
     li.appendChild(el("p","q",x.q.q)); listFig(li,x.q);
     var n=el("div","n"); n.appendChild(el("span","w","✕ "+x.s.w)); n.appendChild(el("span","r","◯ "+x.s.r)); li.appendChild(n);
     var a=el("p","a"); a.appendChild(document.createTextNode("正解：")); a.appendChild(el("b",null,x.q.c[x.q.a])); li.appendChild(a);
@@ -1250,7 +1270,7 @@ $("homeBtn").addEventListener("click",function(){game=null; useCur(); renderHome
 $("againBtn").addEventListener("click",function(){
   var pool=lastMode.type==="weak"?weakPool():lastMode.type==="new"?newPool():lastMode.type==="list"?lastMode.list:bank.questions;
   if(!pool.length){pool=bank.questions; lastMode={type:"random"}} startGame(pool,lastMode)});
-$("retryMiss").addEventListener("click",function(){var l=game.missed; startGame(l,{type:"list",list:l})});
+$("retryMiss").addEventListener("click",function(){var l=game.missed; startGame(l,{type:"list",list:l,review:lastMode.type==="weak"||!!lastMode.review})});
 
 
 /* ---------- cloud sync (Google Apps Script web app + 合言葉) ----------
