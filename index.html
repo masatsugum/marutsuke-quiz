@@ -419,6 +419,14 @@ function drawMap(parts){
     marks.push('<circle cx="'+f1(X(p.lon))+'" cy="'+f1(Y(p.lat))+'" r="6" fill="var(--pen)" stroke="var(--card)" stroke-width="2"/>') });
   (o["円"]||[]).forEach(function(v){ var p=latlon(v); if(!p||!inView(p)){bad=bad||"円「"+v+"」の位置が地図の外か、書き方がちがいます。";return}
     marks.push('<circle cx="'+f1(X(p.lon))+'" cy="'+f1(Y(p.lat))+'" r="16" fill="none" stroke="var(--pen)" stroke-width="3"/>') });
+  (o["記号"]||[]).forEach(function(v){ v.split(/[,、，]/).forEach(function(it){ if(!it.trim())return;
+    var m=it.match(/^(.+?)[:：]([^@＠]{1,2})(?:[@＠](上|下|左|右))?$/), p=m&&prefName(m[1]); if(!p){bad=bad||"記号「"+it.trim()+"」は 都道府県:記号 の形にしてください（例 北海道:ア、ずらすときは 宮崎県:イ@右）。";return}
+    var best=null, ba=-1; P[p].forEach(function(r){ var pts=ring(r), a=0, cx=0, cy=0;   // the biggest island of the prefecture, its centre of area
+      for(var i=0;i<pts.length-1;i++){ var x0=X(pts[i][0]),y0=Y(pts[i][1]),x1=X(pts[i+1][0]),y1=Y(pts[i+1][1]),c=x0*y1-x1*y0; a+=c; cx+=(x0+x1)*c; cy+=(y0+y1)*c }
+      if(Math.abs(a)>ba){ba=Math.abs(a); best=a?[cx/(3*a),cy/(3*a)]:[X(pts[0][0]),Y(pts[0][1])]} });
+    var d={上:[0,-30],下:[0,30],左:[-30,0],右:[30,0]}[m[3]]||[0,0], lx=best[0]+d[0], ly=best[1]+d[1];   // @右 etc. moves the mark out with a line, for small or neighbouring prefectures
+    if(m[3])marks.push('<circle cx="'+f1(best[0])+'" cy="'+f1(best[1])+'" r="2.6" fill="var(--pen)"/><line x1="'+f1(best[0])+'" y1="'+f1(best[1])+'" x2="'+f1(lx)+'" y2="'+f1(ly)+'" stroke="var(--pen)" stroke-width="1.6"/>');
+    marks.push('<circle cx="'+f1(lx)+'" cy="'+f1(ly)+'" r="11" fill="var(--card)" stroke="var(--pen)" stroke-width="2.2"/>'+txt(lx,ly+0.5,m[2].trim(),{s:14,c:"var(--pen)"})) }) });
   if(bad)return {err:bad};
   out=out.concat(marks);
   out.push(txt(W-4,H-8,"国土地理院「地球地図日本」をもとに作成",{s:8,a:"end",c:"var(--sub)"}));
@@ -465,6 +473,33 @@ function drawTable(parts){
   for(var i=0;i<=rows.length;i++)out.push('<line x1="0" y1="'+(i*rh)+'" x2="'+W+'" y2="'+(i*rh)+'" stroke="var(--fig)" stroke-width="'+(i===0||i===rows.length?1.6:1)+'"/>');
   out.push('<line x1="0" y1="0" x2="0" y2="'+H+'" stroke="var(--fig)" stroke-width="1.6"/>');
   for(var j=0;j<n;j++){ var x=c0+cw*j; out.push('<line x1="'+x+'" y1="0" x2="'+x+'" y2="'+H+'" stroke="var(--fig)" stroke-width="'+(j===n-1?1.6:1)+'"/>') }
+  out.push('</svg>'); return {svg:out.join("")} }
+
+/* ---------- 帯グラフ: 100% band graphs, one bar per line ----------
+   帯グラフ|ぶた=ア:12.9,イ:9.1,ウ:8.5,群馬:6.6,エ:6.6,その他:56.3|採卵鶏=…   (each bar should add up to about 100) */
+function drawBand(parts){
+  var bars=[], err="";
+  parts.slice(1).forEach(function(p){ var m=p.match(/^([^=]+)=(.+)$/); if(!m){err=err||"帯グラフは「名前=項目:数,項目:数,…」の形で書いてください。";return}
+    var segs=m[2].split(/[,、，]/).map(function(t){ var q=t.trim().match(/^(.*?)[:：]\s*([\d.]+)$/); return q?{t:q[1].trim(),v:+q[2],s:q[2]}:null });
+    if(segs.some(function(x){return !x||!(x.v>=0)})){err=err||"帯グラフ「"+m[1]+"」の項目は 名前:数 の形にしてください。";return}
+    var sum=segs.reduce(function(a,x){return a+x.v},0); if(Math.abs(sum-100)>1){err=err||"帯グラフ「"+m[1]+"」の合計が"+Math.round(sum*10)/10+"です（100になるようにしてください）。";return}
+    bars.push({name:m[1].trim(),segs:segs,sum:sum}) });
+  if(err)return {err:err}; if(!bars.length)return {err:"帯グラフの帯を1本以上書いてください。"};
+  var W=360, L=6, BW=W-12, BH=32, out=[];
+  function tw(t){ var w=0; for(var i=0;i<t.length;i++)w+=/[\x20-\x7e]/.test(t[i])?7.8:13.5; return w }
+  var y=22, body=[];
+  bars.forEach(function(b){ var x=L, cells=b.segs.map(function(sg){ var w=sg.v/b.sum*BW, c={sg:sg,x:x,w:w,narrow:Math.max(tw(sg.t),tw(sg.s))+4>w}; x+=w; return c });
+    // small parts get their label under the bar; the further left, the lower, so no line crosses a label
+    var narrow=cells.filter(function(c){return c.narrow}), depth=0;
+    narrow.forEach(function(c,k){ c.d=narrow.length-1-k }); depth=narrow.length;
+    body.push(txt(L,y-11,b.name,{s:14,a:"start"}));
+    cells.forEach(function(c,j){ body.push('<rect x="'+f1(c.x)+'" y="'+y+'" width="'+f1(c.w)+'" height="'+BH+'" fill="'+(j%2?"var(--shade)":"var(--card)")+'" stroke="var(--fig)" stroke-width="1.2"/>');
+      var cx=c.x+c.w/2;
+      if(!c.narrow){ body.push(txt(cx,y+10,c.sg.t,{s:13})); body.push(txt(cx,y+23,c.sg.s,{s:12})) }
+      else{ var ly=y+BH+10+c.d*14; body.push('<polyline points="'+f1(cx)+','+(y+BH)+' '+f1(cx)+','+ly+' '+f1(cx+3)+','+ly+'" fill="none" stroke="var(--fig)" stroke-width="1"/>');
+        body.push(txt(cx+5,ly,c.sg.t+" "+c.sg.s,{s:13,a:"start"})) } });
+    y+=BH+(depth?depth*14+8:0)+30 });
+  var H=y-16; out.push(svgOpen(W,H,"帯グラフ")); out=out.concat(body);
   out.push('</svg>'); return {svg:out.join("")} }
 
 /* ---------- 川の曲がり: bend of a river seen from above ---------- */
@@ -858,7 +893,7 @@ function drawBurn(parts){
     if(it.l)out.push(txt(34,y,it.l,{s:18})) });
   out.push('</svg>'); return {svg:out.join("")} }
 
-var TYPES={"地図":drawMap,"気候":drawClimate,"表":drawTable,"川の曲がり":drawBend,"層":drawLayers,"河口":drawMouth,"地層":drawStrata,"ばね":drawSpring,"川の流れ":drawRiverCourse,"川のかたむき":drawProfile,"月":drawMoons,"空":drawSky,"公転":drawOrbit,"集め方":drawGas,"炎":drawFlame,"つつ":drawTubes,"集気びん":drawJars,"ペットボトル":drawBottle,"気体のつぶ":drawParticles,"こげ方":drawBurn};
+var TYPES={"地図":drawMap,"帯グラフ":drawBand,"気候":drawClimate,"表":drawTable,"川の曲がり":drawBend,"層":drawLayers,"河口":drawMouth,"地層":drawStrata,"ばね":drawSpring,"川の流れ":drawRiverCourse,"川のかたむき":drawProfile,"月":drawMoons,"空":drawSky,"公転":drawOrbit,"集め方":drawGas,"炎":drawFlame,"つつ":drawTubes,"集気びん":drawJars,"ペットボトル":drawBottle,"気体のつぶ":drawParticles,"こげ方":drawBurn};
 function build(spec){
   var parts=splitSpec(spec); if(!parts.length)return {svg:""};
   var f=TYPES[parts[0]]; if(!f)return {err:"図の種類「"+parts[0]+"」は使えません（"+Object.keys(TYPES).join("・")+"）。"};
@@ -876,6 +911,10 @@ var $=function(id){return document.getElementById(id)};
 function el(tag,cls,text){var e=document.createElement(tag); if(cls)e.className=cls; if(text!=null)e.textContent=text; return e}
 function lsGet(k,d){try{var v=localStorage.getItem(k); return v==null?d:JSON.parse(v)}catch(e){return d}}
 function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
+/* choices that are the marks of a figure (ア,イ,ウ,エ / A,B,C,D / 1,2,3,4 …) keep their order, so they read like the test */
+function symbolChoices(c){ var S=["アイウエオカ","ABCDEF","abcdef","1234","あいうえ","①②③④"];
+  var first=String(c[0]||"").normalize("NFKC").trim().charAt(0);
+  return S.some(function(seq){ return c.slice(0,3).every(function(t,i){ return String(t).normalize("NFKC").trim().charAt(0)===String(seq).normalize("NFKC").charAt(i) && /^.(?:$|[\s　・：:（(])/.test(String(t).normalize("NFKC").trim()) }) }) }
 function shuffle(a){a=a.slice(); for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t} return a}
 function keyOf(q){var h=5381; for(var i=0;i<q.length;i++){h=((h<<5)+h+q.charCodeAt(i))|0} return "q"+(h>>>0).toString(36)}
 
@@ -1058,7 +1097,7 @@ function startGame(pool,mode){
   if(!pool.length)return; unlock(); keepAliveOn(true); lastMode=mode;
   var picked=mode.type==="weak"?shuffle(reviewOrder(pool).slice(0,GAME_SIZE)):shuffle(pool).slice(0,GAME_SIZE);
   var items=picked.map(function(q){
-    var order=shuffle([0,1,2,3]); return {q:q,order:order,picked:null,ok:null}});
+    var order=symbolChoices(q.c)?[0,1,2,3]:shuffle([0,1,2,3]); return {q:q,order:order,picked:null,ok:null}});
   game={items:items,i:0,token:0}; show("quiz"); renderQuestion();
 }
 function renderDots(){var d=$("dots"); d.textContent=""; game.items.forEach(function(it,i){var c=el("i"); if(it.ok===true)c.className="ok"; else if(it.ok===false)c.className="ng"; else if(i===game.i)c.className="now"; d.appendChild(c)})}
