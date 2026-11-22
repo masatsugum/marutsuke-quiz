@@ -893,7 +893,80 @@ function drawBurn(parts){
     if(it.l)out.push(txt(34,y,it.l,{s:18})) });
   out.push('</svg>'); return {svg:out.join("")} }
 
-var TYPES={"地図":drawMap,"帯グラフ":drawBand,"気候":drawClimate,"表":drawTable,"川の曲がり":drawBend,"層":drawLayers,"河口":drawMouth,"地層":drawStrata,"ばね":drawSpring,"川の流れ":drawRiverCourse,"川のかたむき":drawProfile,"月":drawMoons,"空":drawSky,"公転":drawOrbit,"集め方":drawGas,"炎":drawFlame,"つつ":drawTubes,"集気びん":drawJars,"ペットボトル":drawBottle,"気体のつぶ":drawParticles,"こげ方":drawBurn};
+/* 水の量|形=コップ|A:8|B:3   (形=コップ・試験管・びん、数は水の高さ 0〜10) */
+function drawWater(parts){
+  var o=kv(parts.slice(1).filter(function(p){return p.indexOf("=")>=0})), shape=o["形"]?o["形"][0]:"コップ";
+  if(["コップ","試験管","びん"].indexOf(shape)<0)return {err:"水の量の 形= は コップ・試験管・びん のどれかにしてください。"};
+  var items=itemsOf(parts); if(items.length<1||items.length>4)return {err:"水の量は1〜4つ書いてください（例 水の量|形=コップ|A:8|B:3）。"};
+  for(var i=0;i<items.length;i++){ var v=Number(items[i].a[0]); if(items[i].a.length!==1||isNaN(v)||v<0||v>10)return {err:"水の量は 0〜10 の数で書いてください（例 A:8）。"}; items[i].v=v }
+  var cw=shape==="試験管"?90:110, W=cw*items.length+20, H=shape==="試験管"?250:230, by=H-40, out=[svgOpen(W,H,shape+"に入れた水")];
+  items.forEach(function(it,i){ var cx=10+cw*i+cw/2, lv=it.v/10;
+    if(shape==="コップ"){ var h=130, tw=36, bw=30, top=by-h, wy=by-4-(h-14)*lv;
+      var ww=bw+(tw-bw)*((by-wy)/h)-1.5; if(lv>0)out.push('<path d="M'+f1(cx-ww)+' '+f1(wy)+' L'+f1(cx+ww)+' '+f1(wy)+' L'+f1(cx+bw-1.5)+' '+(by-1.5)+' L'+f1(cx-bw+1.5)+' '+(by-1.5)+' Z" fill="var(--sea)" stroke="none"/>');
+      out.push(FL('M'+(cx-tw)+' '+top+' L'+(cx-bw)+' '+by+' L'+(cx+bw)+' '+by+' L'+(cx+tw)+' '+top,"none",2.4));
+      if(lv>0)out.push(LN(cx-bw-(tw-bw)*((by-wy)/h)+2,wy,cx+bw+(tw-bw)*((by-wy)/h)-2,wy,1.4)) }
+    if(shape==="試験管"){ var h2=180, r=14, top2=by-h2, wy2=by-(h2-16)*lv;
+      if(lv>0)out.push('<path d="M'+(cx-r+1.5)+' '+f1(wy2)+' L'+(cx+r-1.5)+' '+f1(wy2)+' L'+(cx+r-1.5)+' '+(by-r)+' A'+(r-1.5)+' '+(r-1.5)+' 0 0 1 '+(cx-r+1.5)+' '+(by-r)+' Z" fill="var(--sea)" stroke="none"/>'+LN(cx-r+1,wy2,cx+r-1,wy2,1.4));
+      out.push(FL('M'+(cx-r-3)+' '+top2+' L'+(cx-r)+' '+(top2+3)+' L'+(cx-r)+' '+(by-r)+' A'+r+' '+r+' 0 0 0 '+(cx+r)+' '+(by-r)+' L'+(cx+r)+' '+(top2+3)+' L'+(cx+r+3)+' '+top2,"none",2.2)) }
+    if(shape==="びん"){ var bw2=30, bh=100, nk=11, nh=46, top3=by-bh-nh, sh=by-bh, wy3=by-4-(bh-10)*lv;
+      if(lv>0)out.push('<rect x="'+(cx-bw2+2)+'" y="'+f1(wy3)+'" width="'+(bw2*2-4)+'" height="'+f1(by-2-wy3)+'" fill="var(--sea)"/>'+LN(cx-bw2+1,wy3,cx+bw2-1,wy3,1.4));
+      out.push(FL('M'+(cx-nk)+' '+top3+' L'+(cx-nk)+' '+(sh-16)+' Q'+(cx-bw2)+' '+(sh-6)+' '+(cx-bw2)+' '+(sh+12)+' L'+(cx-bw2)+' '+(by-6)+' Q'+(cx-bw2)+' '+by+' '+(cx-bw2+6)+' '+by+' L'+(cx+bw2-6)+' '+by+' Q'+(cx+bw2)+' '+by+' '+(cx+bw2)+' '+(by-6)+' L'+(cx+bw2)+' '+(sh+12)+' Q'+(cx+bw2)+' '+(sh-6)+' '+(cx+nk)+' '+(sh-16)+' L'+(cx+nk)+' '+top3,"none",2.2)) }
+    if(it.l)out.push(txt(cx,by+22,it.l,{s:18})) });
+  out.push('</svg>'); return {svg:out.join("")} }
+
+/* 糸電話|左=A 話し手|右=B 聞き手|点=C|枝=D:かべ|糸=たるみ|交差=C,D
+   枝=D:コップ / 枝=D:かべ … C点から別の糸。交差=C,D … CとDの糸電話がまん中でからむ */
+function phoneCup(x,y,ang){ return '<g transform="translate('+f1(x)+' '+f1(y)+') rotate('+f1(ang)+')"><path d="M0 -9 L30 -17 L30 17 L0 9 Z" fill="var(--card)" stroke="var(--fig)" stroke-width="2" stroke-linejoin="round"/></g>' }
+function drawPhone(parts){
+  var o=kv(parts.slice(1)); if(o._)return {err:"糸電話の図の「"+o._[0]+"」は使えません（左=・右=・点=・枝=・糸=・交差=）。"};
+  function L(k,d){return o[k]?o[k][0]:d}
+  var slack=L("糸","ぴん"); if(["ぴん","たるみ"].indexOf(slack)<0)return {err:"糸= は ぴん か たるみ にしてください。"};
+  var br=L("枝",null), brL=null, brK=null; if(br){ var m=br.match(/^(.+?)[:：](コップ|かべ)$/); if(!m)return {err:"枝= は「D:かべ」か「D:コップ」の形で書いてください。"}; brL=m[1]; brK=m[2] }
+  var cr=L("交差",null), crL=cr?cr.split(/[,、，]/).map(function(s){return s.trim()}):null; if(crL&&crL.length!==2)return {err:"交差= は2つ書いてください（例 交差=C,D）。"};
+  if(cr&&(br||slack==="たるみ"))return {err:"交差= は 枝=・糸=たるみ といっしょには使えません。"};
+  var W=cr?420:380,H=cr?300:(br?250:150), y=cr?150:(br?170:70), xa=70, xb=W-70, out=[svgOpen(W,H,"糸電話")];
+  function cap(x,yy,s,anchor){ var a=s.split(/\s+/); out.push(txt(x,yy,a[0],{s:18,a:anchor||"middle"})); if(a[1])out.push(txt(x,yy+22,a[1],{s:13,c:"var(--sub)",a:anchor||"middle"})) }
+  out.push(phoneCup(xa,y,180)); out.push(phoneCup(xb,y,0));
+  if(slack==="たるみ")out.push(FL('M'+xa+' '+y+' Q'+(W/2)+' '+(y+70)+' '+xb+' '+y,"none",1.8)); else out.push(LN(xa,y,xb,y,1.8));
+  cap(xa-15,y+34,L("左","A")); cap(xb+15,y+34,L("右","B"));
+  var cx=W/2;
+  if(br){ var dx=cx+110, dy=y-125;
+    out.push(LN(cx,y,dx,dy,1.8));
+    if(brK==="かべ"){ out.push(LN(dx-40,dy,dx+40,dy,3)); for(var k=-36;k<=36;k+=9)out.push(LN(dx+k,dy,dx+k+7,dy-8,1.2)); out.push(txt(dx+52,dy+10,brL,{s:18})) }
+    else { var ang=Math.atan2(dy-y,dx-cx)*180/Math.PI; out.push(phoneCup(dx,dy,ang)); out.push(txt(dx-22,dy-6,brL,{s:brL.length>1?15:18,a:"end"})) } }
+  if(cr){ var r=165, a=-26*Math.PI/180, ex=Math.cos(a)*r, ey=Math.sin(a)*r;
+    out.push(LN(cx-ex,y-ey,cx+ex,y+ey,1.8)); out.push(phoneCup(cx+ex,y+ey,-26)); out.push(phoneCup(cx-ex,y-ey,154));
+    cap(cx-ex+44,y-ey+12,crL[0],"start"); cap(cx+ex-46,y+ey-12,crL[1],"end");
+    out.push('<circle cx="'+cx+'" cy="'+y+'" r="4" fill="var(--fig)"/>') }
+  var pt=L("点",null); if(pt){ out.push('<circle cx="'+cx+'" cy="'+(slack==="たるみ"?y+35:y)+'" r="4" fill="var(--fig)"/>'); out.push(txt(cx-(br?16:0),(slack==="たるみ"?y+35:y)-18,pt,{s:17})) }
+  out.push('</svg>'); return {svg:out.join("")} }
+
+/* モノコード|図1:おもり1,太|図2:おもり2,太|図3:おもり2,細|図4:おもり2,細,短
+   1つだけのときは ことじ・はじく などの名前も書く（モノコード|:おもり1,名前） */
+function drawMono(parts){
+  var items=itemsOf(parts); if(items.length<1||items.length>4)return {err:"モノコードは1〜4つ書いてください（例 モノコード|ア:おもり1,太|イ:おもり2,太）。"};
+  var err=null; items.forEach(function(it){ it.n=1; it.a.forEach(function(a){ var m=a.match(/^おもり(\d)$/); if(m){it.n=+m[1]; if(it.n<1||it.n>4)err="おもりは1〜4個にしてください。"} else if(["太","細","短","長","名前"].indexOf(a)<0)err="モノコードの「"+a+"」は使えません（おもり1〜4・太・細・短・名前）。" }) });
+  if(err)return {err:err};
+  var named=items.length===1&&has(items[0],"名前"), cols=items.length===4?2:items.length, cw=named?380:230, ch=named?250:150, W=cw*cols, H=ch*Math.ceil(items.length/cols), out=[svgOpen(W,H,"モノコード")];
+  items.forEach(function(it,i){ var ox=cw*(i%cols), oy=ch*Math.floor(i/cols), s=named?1.7:1.35;
+    function X(v){return ox+(named?40:12)+v*s} function Y(v){return oy+(named?40:8)+v*s}
+    var bx0=0,bx1=140,top=40,bot=80, sw=has(it,"細")?1.3:4.6, b1=14, b2=has(it,"短")?70:(named?95:124), py=top-8;
+    out.push('<rect x="'+f1(X(bx0))+'" y="'+f1(Y(top))+'" width="'+f1(140*s)+'" height="'+f1((bot-top)*s)+'" fill="var(--land)" stroke="var(--fig)" stroke-width="2"/>');
+    [b1,b2].forEach(function(b){ out.push('<path d="M'+f1(X(b-7))+' '+f1(Y(top))+' L'+f1(X(b))+' '+f1(Y(py))+' L'+f1(X(b+7))+' '+f1(Y(top))+' Z" fill="var(--shade)" stroke="var(--fig)" stroke-width="1.5"/>') });
+    var pr=7*s, pcx=X(148), pcy=Y(py)+pr;
+    out.push('<circle cx="'+f1(pcx)+'" cy="'+f1(pcy)+'" r="'+f1(pr)+'" fill="var(--card)" stroke="var(--fig)" stroke-width="1.6"/>');
+    out.push('<path d="M'+f1(X(4))+' '+f1(Y(py))+' L'+f1(pcx)+' '+f1(pcy-pr)+'" stroke="var(--fig)" stroke-width="'+sw+'" stroke-linecap="round"/>');
+    out.push(LN(X(4),Y(py),X(4),Y(top),1.6));
+    var hx=pcx+pr, wy=pcy; out.push(LN(hx,wy,hx,wy+12*s,sw>2?2.6:1.4)); wy+=12*s;
+    for(var k=0;k<it.n;k++){ var hh=13*s; out.push('<rect x="'+f1(hx-6*s)+'" y="'+f1(wy)+'" width="'+f1(12*s)+'" height="'+f1(hh)+'" rx="2" fill="var(--shade)" stroke="var(--fig)" stroke-width="1.4"/>'); wy+=hh; if(k<it.n-1){ out.push(LN(hx,wy,hx,wy+3*s,1.2)); wy+=3*s } }
+    if(named){ out.push(txt(X((b1+b2)/2),Y(py)-36,"はじく",{s:14})); out.push('<path d="M'+f1(X((b1+b2)/2))+' '+f1(Y(py)-26)+' L'+f1(X((b1+b2)/2))+' '+f1(Y(py)-6)+'" stroke="var(--fig)" stroke-width="1.6" marker-end="url(#ar)"/>');
+      out.push(txt(X(b2),Y(bot)+22,"ことじ",{s:14})); out.push(LN(X(b2),Y(bot)+10,X(b2),Y(top)+2,1.4));
+      out.push(txt(pcx,pcy-24,"かっ車",{s:13})); out.push(txt(hx+30,wy-8,"おもり",{s:13})); out.push(txt(X(100),Y(py)-14,"弦",{s:13}));
+      out.push('<defs><marker id="ar" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10 Z" fill="var(--fig)"/></marker></defs>') }
+    if(it.l)out.push(txt(ox+cw/2-10,oy+ch-12,it.l,{s:17})) });
+  out.push('</svg>'); return {svg:out.join("")} }
+
+var TYPES={"地図":drawMap,"帯グラフ":drawBand,"気候":drawClimate,"表":drawTable,"川の曲がり":drawBend,"層":drawLayers,"河口":drawMouth,"地層":drawStrata,"ばね":drawSpring,"川の流れ":drawRiverCourse,"川のかたむき":drawProfile,"月":drawMoons,"空":drawSky,"公転":drawOrbit,"集め方":drawGas,"炎":drawFlame,"つつ":drawTubes,"集気びん":drawJars,"ペットボトル":drawBottle,"気体のつぶ":drawParticles,"こげ方":drawBurn,"水の量":drawWater,"糸電話":drawPhone,"モノコード":drawMono};
 function build(spec){
   var parts=splitSpec(spec); if(!parts.length)return {svg:""};
   var f=TYPES[parts[0]]; if(!f)return {err:"図の種類「"+parts[0]+"」は使えません（"+Object.keys(TYPES).join("・")+"）。"};
@@ -914,7 +987,7 @@ function lsSet(k,v){try{localStorage.setItem(k,JSON.stringify(v))}catch(e){}}
 /* choices that are the marks of a figure (ア,イ,ウ,エ / A,B,C,D / 1,2,3,4 …) keep their order, so they read like the test */
 function symbolChoices(c){ var S=["アイウエオカ","ABCDEF","abcdef","1234","あいうえ","①②③④"];
   var first=String(c[0]||"").normalize("NFKC").trim().charAt(0);
-  return S.some(function(seq){ return c.slice(0,3).every(function(t,i){ return String(t).normalize("NFKC").trim().charAt(0)===String(seq).normalize("NFKC").charAt(i) && /^.(?:$|[\s　・：:（(])/.test(String(t).normalize("NFKC").trim()) }) }) }
+  return S.some(function(seq){ return c.slice(0,2).every(function(t,i){ return String(t).normalize("NFKC").trim().charAt(0)===String(seq).normalize("NFKC").charAt(i) && /^.(?:$|[\s　・：:（(])/.test(String(t).normalize("NFKC").trim()) }) }) }
 function shuffle(a){a=a.slice(); for(var i=a.length-1;i>0;i--){var j=Math.floor(Math.random()*(i+1)); var t=a[i];a[i]=a[j];a[j]=t} return a}
 function keyOf(q){var h=5381; for(var i=0;i<q.length;i++){h=((h<<5)+h+q.charCodeAt(i))|0} return "q"+(h>>>0).toString(36)}
 
