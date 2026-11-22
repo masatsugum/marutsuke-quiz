@@ -112,6 +112,10 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 .answer .val{font-family:var(--display); font-size:2.6rem; line-height:1; min-width:1ch; text-align:right; display:flex; align-items:center; gap:6px}
 .answer .val.empty{color:var(--line)}
 .answer .unit{font-size:1.4rem; font-weight:700}
+.answer .val .pt{display:inline-block; min-width:1.6em; padding:0 .2em; border-bottom:3px solid var(--line); text-align:center; color:var(--sub)}
+.answer .val .pt.cur{border-bottom-color:var(--pen); color:inherit}
+.answer .val .pt.on{color:inherit}
+.answer .val .pu{font-size:1.1rem; font-weight:700; margin:0 .25em 0 .15em}
 .answer.ok{border-color:var(--pen); background:var(--pen-bg)} .answer.ng{border-color:var(--x); background:var(--x-bg)}
 .qf{display:inline-flex; flex-direction:column; align-items:center; vertical-align:middle; font-size:.82em; line-height:1.12; margin:0 .12em; font-variant-numeric:tabular-nums}
 .qf i{font-style:normal; padding:0 .15em; text-align:center}
@@ -1369,9 +1373,83 @@ function buildSymbol(row){
   return {ok:true, row:row, type:"4択", sym:true, text:text, svg:"", choices:ch, correct:ch.indexOf(a), answerText:a, unit:"",
     explain:String(row.explain||"").trim(), confirmed:/^(○|◯|o|O|ok|OK|済|1|true)$/.test(String(row.confirmed||"").trim())} }
 
+/* ---------- 道: road / line diagram for 文章 problems (線分図・道のりの図) ----------
+   data:  道|点:駅@0;駐輪場@20;家@100|下:駅-家=2.1km
+          道|点:家@0,0/左;A@0,30/左;B@150,30/下|線:家-A-B|直角:A|左:家-A=240m|上:A-B=2km
+   点  name@x[,y][/上下左右]  (y goes up; positions are only for the picture, not to scale)
+   線  polylines between points ("-"), several separated by ";"  (none: one line through all points in order)
+   上/下/左/右  name-name=label   a curved dimension on that side of the segment
+   直角  points that get a right-angle mark.  */
+function drawRoad(data){
+  var parts=String(data).normalize("NFKC").split("|").map(function(t){return t.trim()}).filter(Boolean);
+  if(parts[0]!=="道")return {err:"文章問題の図は「道|点:…」の形で書いてください。"};
+  var P={}, order=[], lines=[], dims=[], rights=[], err="";
+  parts.slice(1).forEach(function(tok){
+    var m=tok.match(/^(点|線|上|下|左|右|直角)\s*[:：]\s*(.*)$/); if(!m){err=err||"「"+tok+"」が読めません。"; return}
+    var items=m[2].split(/[;；]/).map(function(t){return t.trim()}).filter(Boolean);
+    if(m[1]==="点")items.forEach(function(it){ var q=it.match(/^(.+?)@(-?[\d.]+)(?:,(-?[\d.]+))?(?:\/(左上|右上|左下|右下|上|下|左|右))?$/);
+      if(!q){err=err||"点「"+it+"」は 名前@x,y の形にしてください。"; return}
+      P[q[1]]={x:+q[2],y:q[3]===undefined?0:+q[3],side:q[4]||""}; order.push(q[1]) });
+    else if(m[1]==="線")items.forEach(function(it){ lines.push(it.split("-").map(function(t){return t.trim()})) });
+    else if(m[1]==="直角")items.forEach(function(it){ rights.push(it) });
+    else items.forEach(function(it){ var q=it.match(/^(.+?)-(.+?)=(.+)$/); if(!q){err=err||m[1]+"「"+it+"」は 点-点=ことば の形にしてください。"; return}
+      dims.push({a:q[1].trim(),b:q[2].trim(),t:q[3].trim(),side:m[1]}) }) });
+  if(err)return {err:err};
+  if(order.length<2)return {err:"点を2つ以上書いてください。"};
+  if(!lines.length)lines=[order.slice()];
+  var bad=[].concat.apply([],lines).concat(rights).concat([].concat.apply([],dims.map(function(d){return [d.a,d.b]}))).filter(function(n){return !P[n]});
+  if(bad.length)return {err:"点「"+bad[0]+"」が「点:」にありません。"};
+  // fit into the picture
+  var xs=order.map(function(n){return P[n].x}), ys=order.map(function(n){return P[n].y});
+  var x0=Math.min.apply(0,xs), x1=Math.max.apply(0,xs), y0=Math.min.apply(0,ys), y1=Math.max.apply(0,ys);
+  var flat=y1-y0<1e-9, sx=420/Math.max(x1-x0,1e-9), sy=flat?0:240/Math.max(y1-y0,1e-9), k=Math.min(sx, flat?sx:sy);
+  if(x1-x0<1e-9)k=sy;
+  function S(n){var p=P[n]; return [(p.x-x0)*k, -(p.y-y0)*k]}
+  var segs=[]; lines.forEach(function(L){ for(var i=0;i<L.length-1;i++)segs.push([L[i],L[i+1]]) });
+  function nb(n){ var o=[]; segs.forEach(function(s){ if(s[0]===n)o.push(s[1]); else if(s[1]===n)o.push(s[0]) }); return o }
+  var body=[], labels=[];
+  // lines
+  lines.forEach(function(L){ body.push('<polyline class="fg-line" points="'+L.map(function(n){var p=S(n); return p[0].toFixed(1)+","+p[1].toFixed(1)}).join(" ")+'"/>') });
+  // right angles
+  rights.forEach(function(n){ var o=nb(n); if(o.length<2)return; var p=S(n), a=unit([S(o[0])[0]-p[0],S(o[0])[1]-p[1]]), b=unit([S(o[1])[0]-p[0],S(o[1])[1]-p[1]]), r=10;
+    body.push('<polyline class="fg-thin" points="'+[[p[0]+a[0]*r,p[1]+a[1]*r],[p[0]+a[0]*r+b[0]*r,p[1]+a[1]*r+b[1]*r],[p[0]+b[0]*r,p[1]+b[1]*r]].map(function(q){return q[0].toFixed(1)+","+q[1].toFixed(1)}).join(" ")+'"/>') });
+  // points and their names
+  var CH=19;
+  order.forEach(function(n){ var p=S(n), side=P[n].side, o=nb(n);
+    if(!side){ var v=[0,0]; o.forEach(function(q){var s=S(q); var u=unit([s[0]-p[0],s[1]-p[1]]); v[0]+=u[0]; v[1]+=u[1]});
+      var away=[-v[0],-v[1]]; side=flat||Math.abs(away[1])>=Math.abs(away[0])-1e-6?(away[1]>0?"下":"上"):(away[0]>0?"右":"左"); if(flat)side="上" }
+    body.push('<circle class="fg-dot" cx="'+p[0].toFixed(1)+'" cy="'+p[1].toFixed(1)+'" r="4.5"/>');
+    var ch=Array.from(n), vert=(side==="上"||side==="下")&&ch.length>2, g=10;
+    if(vert){ ch.forEach(function(c,i){ var y=side==="上"?p[1]-g-CH/2-(ch.length-1-i)*CH:p[1]+g+CH/2+i*CH; labels.push({x:p[0],y:y,t:c,w:CH,h:CH}) }) }
+    else{ var w=ch.length*CH, x=p[0], y=p[1];
+      if(/上/.test(side))y-=(side.length>1?g*0.6:g)+CH/2; if(/下/.test(side))y+=(side.length>1?g*0.6:g)+CH/2;
+      if(/左/.test(side))x-=(side.length>1?g*0.6:g)+w/2; if(/右/.test(side))x+=(side.length>1?g*0.6:g)+w/2;
+      labels.push({x:x,y:y,t:n,w:w,h:CH}) } });
+  // dimensions: a curve that bows outward on the given side, with its label in the middle
+  dims.forEach(function(d){ var A=S(d.a), B=S(d.b), L=Math.hypot(B[0]-A[0],B[1]-A[1]);
+    var nrm={上:[0,-1],下:[0,1],左:[-1,0],右:[1,0]}[d.side], bow=Math.min(26,Math.max(12,L*0.12)), off=6;
+    var a=[A[0]+nrm[0]*off,A[1]+nrm[1]*off], b=[B[0]+nrm[0]*off,B[1]+nrm[1]*off], c=[(a[0]+b[0])/2+nrm[0]*bow*2,(a[1]+b[1])/2+nrm[1]*bow*2];
+    body.push('<path class="fg-thin" d="M'+a[0].toFixed(1)+' '+a[1].toFixed(1)+' Q'+c[0].toFixed(1)+' '+c[1].toFixed(1)+' '+b[0].toFixed(1)+' '+b[1].toFixed(1)+'"/>');
+    var mid=[(a[0]+b[0])/4+c[0]/2,(a[1]+b[1])/4+c[1]/2], w=Array.from(d.t).reduce(function(s,c){return s+(/[\x20-\x7e]/.test(c)?10.5:CH)},0)+8;
+    labels.push({x:mid[0],y:mid[1],t:d.t,w:w,h:CH+4,bg:true}) });
+  // bounding box over everything
+  var bx0=0,bx1=0,by0=0,by1=0; order.forEach(function(n){var p=S(n); bx0=Math.min(bx0,p[0]); bx1=Math.max(bx1,p[0]); by0=Math.min(by0,p[1]); by1=Math.max(by1,p[1])});
+  labels.forEach(function(l){ bx0=Math.min(bx0,l.x-l.w/2); bx1=Math.max(bx1,l.x+l.w/2); by0=Math.min(by0,l.y-l.h/2); by1=Math.max(by1,l.y+l.h/2) });
+  var M=10, W=bx1-bx0+2*M, H=by1-by0+2*M, out=[svgOpen(W.toFixed(0),H.toFixed(0),"道のりの図"), '<g transform="translate('+(M-bx0).toFixed(1)+','+(M-by0).toFixed(1)+')">'];
+  out=out.concat(body);
+  labels.forEach(function(l){ if(l.bg)out.push('<rect x="'+(l.x-l.w/2).toFixed(1)+'" y="'+(l.y-l.h/2).toFixed(1)+'" width="'+l.w.toFixed(1)+'" height="'+l.h.toFixed(1)+'" style="fill:var(--card)"/>'); out.push(text(l.x,l.y,l.t)) });
+  out.push('</g></svg>');
+  return {svg:out.join("")} }
+
 /* ---------- 文章: word problems with a typed answer ---------- */
+var PART_RE=/^(\d+)\s*(時間|時|分|秒)\s*(\d+)\s*(分|秒)$/;   // 答え "1時間30分" "2時15分" "2分30秒": answered in two boxes
 function solveText(row){
   if(!row.text)return {err:"文章問題は「問題文」が必要です。"};
+  var raw=String(row.answer||"").normalize("NFKC").replace(/\s+/g,""), tm=raw.match(/^(\d+):(\d\d)(?::00)?$/), tx=String(row.text||"");
+  if(tm){ var u=/何時間何分/.test(tx)?["時間","分"]:/何分何秒/.test(tx)?["分","秒"]:/何時何分/.test(tx)?["時","分"]:null; if(u)raw=(+tm[1])+u[0]+(+tm[2])+u[1] }   // the sheet turned 2時15分 into 2:15
+  var pm=raw.match(PART_RE);
+  if(pm){ if(+pm[3]>=60)return {err:"答え「"+row.answer+"」の"+pm[4]+"は 0〜59 にしてください。"};
+    return {answer:Q(+pm[1],1), parts:[{n:+pm[1],u:pm[2]},{n:+pm[3],u:pm[4]}], answerText:pm[1]+pm[2]+pm[3]+pm[4], unit:"", text:row.text, explain:""} }
   var a=parseNum(row.answer); if(!a)return {err:"答え「"+(row.answer||"")+"」を数として読めません（例 12、2.5、3/4、2と1/3）。"};
   return {answer:a, unit:row.unit||"", text:row.text, explain:""} }
 
@@ -1728,7 +1806,7 @@ function build(row){
   else if(type==="ひもの羊"){ sol=solveSheep(row.data); if(!sol.err)svg=drawSheep(sol) }
   else if(EXTRA[type]){ sol=EXTRA[type].solve(row.data); if(!sol.err)svg=EXTRA[type].draw(sol) }
   else if(type==="記号"){ return buildSymbol(row) }
-  else if(type==="文章"){ sol=solveText(row) }
+  else if(type==="文章"){ sol=solveText(row); if(!sol.err&&row.data.trim()){ var rf=drawRoad(row.data); if(rf.err)sol={err:rf.err}; else svg=rf.svg } }
   else if(type==="4択"){ return buildChoice(row) }
   else sol={err:"種類「"+type+"」は使えません（"+TYPES.join("・")+"）。"};
   if(sol.err)return {ok:false, err:sol.err, row:row, partial:sol};
@@ -1737,7 +1815,8 @@ function build(row){
     if(!given||!qEq(given,sol.answer))return {ok:false, row:row, err:"答えの列（"+row.answer+"）と、図から計算した答え（"+fmt(sol.answer)+(sol.unit||"")+"）が合いません。"} }
   var exp=[sol.explain,row.explain].filter(function(s){return s&&String(s).trim()}).join("\n");
   var at=fmt(sol.answer); if(/\//.test(String(row.answer||""))||/\//.test(at))at=mixed(sol.answer);   // fractions are written as mixed numbers (帯分数), like in the test
-  return {ok:true, row:row, type:type, text:String(row.text||"").trim()||sol.text, svg:svg, answer:sol.answer, answerText:at, unit:sol.unit,
+  if(sol.parts)at=sol.answerText;
+  return {ok:true, row:row, type:type, text:String(row.text||"").trim()||sol.text, svg:svg, answer:sol.answer, answerText:at, unit:sol.unit, parts:sol.parts||null,
     explain:exp, confirmed:/^(○|◯|o|O|ok|OK|済|1|true)$/.test(String(row.confirmed||"").trim())} }
 
 return {EXTRA:EXTRA, build:build, parseNum:parseNum, fmt:fmt, mixed:mixed, qEq:qEq, Q:Q, parseGrid:parseGrid, drawGrid:drawGrid, solveGrid:solveGrid, TYPES:TYPES};
@@ -2010,6 +2089,8 @@ function renderQuestion(){
   $("aunit").textContent=p.unit||""; $("answer").className="answer";
   var isC=(p.type==="4択"); $("answer").hidden=isC; $("pad").hidden=isC; $("choices").hidden=!isC; if(isC)renderChoices(it);
   $("after").hidden=true; $("flagBtn").hidden=false; $("flagBtn").textContent="この問題、へんかも？（おうちの人に知らせる）"; flagArmed=false;
+  var P=p.parts, kf=document.querySelector('#pad .key[data-k="frac"]'), km=document.querySelector('#pad .key[data-k="mixed"]'), kd=document.querySelector('#pad .key[data-k="."]');
+  kf.textContent=P?"":"分数"; kf.disabled=!!P; kd.disabled=!!P; km.textContent=P?"→ "+P[1].u+"へ":"帯分数";
   paintInput(); fitQ(); startTimer() }
 var KANA=["ア","イ","ウ","エ","オ","カ"];
 function renderChoices(it){ var box=$("choices"), p=it.p; box.textContent="";
@@ -2027,8 +2108,13 @@ function fitQ(){   // make the question text smaller until the card shows everyt
   while(c.scrollHeight>c.clientHeight+1&&s>13){ s-=1; t.style.fontSize=s+"px" } }
 var fitT=null; window.addEventListener("resize",function(){clearTimeout(fitT); fitT=setTimeout(fitQ,120)});
 if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fitQ);
+function curParts(){ var it=game&&game.items[game.i]; return it&&it.p.parts }
 function paintInput(){
-  var v=$("aval"); v.textContent=""; v.className="val"+(input?"":" empty");
+  var v=$("aval"), P=curParts();
+  if(P){ v.textContent=""; v.className="val"; var a=input.split("|"), at=a.length-1;
+    P.forEach(function(pt,i){ var box=el("span","pt"+(i===at?" cur":"")+(a[i]?" on":""),a[i]||"？"); v.appendChild(box); v.appendChild(el("span","pu",pt.u)) });
+    return }
+  v.textContent=""; v.className="val"+(input?"":" empty");
   if(!input){v.textContent="？"; return}
   var u=input.indexOf("_"), whole=u<0?"":input.slice(0,u), rest=u<0?input:input.slice(u+1), k=rest.indexOf("/");
   if(u<0&&k<0){v.textContent=input; return}
@@ -2039,6 +2125,12 @@ function inputText(s){ return String(s).replace("_","と") }   // "2_1/3" -> "2�
 function press(k){
   if(!game||game.items[game.i].ok!==null)return;
   if(k==="enter"){ submit(); return }
+  if(curParts()){   // two boxes: digits go into the current box, 「→」 moves to the next one
+    if(k==="back"){input=input.slice(0,-1)}
+    else if(k==="clear"){input=""}
+    else if(k==="mixed"||k==="frac"){ if(/^\d+$/.test(input))input+="|" }
+    else if(/^\d$/.test(k)){ var cur=input.split("|").pop(); if(cur.length<4)input+=k }
+    paintInput(); return }
   if(k==="back"){input=input.slice(0,-1)}
   else if(k==="clear"){input=""}
   else if(k==="frac"){ if(input&&!/[\/._]/.test(input))input+="/"; else if(/_\d+$/.test(input))input+="/" }
@@ -2055,6 +2147,13 @@ document.addEventListener("keydown",function(e){ if($("quiz").hidden)return;
   if(k){e.preventDefault(); if(game&&game.items[game.i].ok!==null){ if(k==="enter")$("nextBtn").click(); return } press(k)} });
 function submit(){
   var it=game.items[game.i], p=it.p;
+  if(p.parts){
+    if(/^\d+$/.test(input)){ input+="|"; paintInput(); return }   // こたえる after the first box just moves on
+    var m=input.match(/^(\d+)\|(\d+)$/); if(!m){ flash(); return }
+    var a=+m[1], b=+m[2], ok=(a===p.parts[0].n&&b===p.parts[1].n), given=a+p.parts[0].u+b+p.parts[1].u;
+    it.carry=!ok&&a*60+b===p.parts[0].n*60+p.parts[1].n;   // e.g. 0時間90分: right amount, not carried over
+    $("pad").hidden=true; $("answer").className="answer "+(ok?"ok":"ng");
+    judged(it,ok,given,null); return }
   if(!input||/[\/._]$/.test(input)||(input.indexOf("_")>=0&&input.indexOf("/")<0)){ flash(); return }
   var mm=input.match(/^(\d+)_(\d+)\/(\d+)$/);
   if(mm&&(+mm[2]===0||+mm[2]>=+mm[3])){ flash(); return }   // 帯分数 needs a proper fraction part
@@ -2078,7 +2177,7 @@ function judged(it,ok,given,q,late){ var p=it.p; stopTimer(); it.ok=ok; it.given
     svg.appendChild(c); $("qcard").appendChild(svg); ex.hidden=true;
   }else{
     $("verdict").textContent=late?"時間切れ！":"ざんねん…"; $("verdict").className="verdict ng";
-    rich($("rightAns"),p.type==="4択"?"正しい答えは「"+p.answerText+"」":"正しい答えは "+p.answerText+(p.unit?" "+p.unit:""));
+    rich($("rightAns"),p.type==="4択"?"正しい答えは「"+p.answerText+"」":"正しい答えは "+p.answerText+(p.unit?" "+p.unit:"")+(it.carry?"（60"+p.parts[1].u+"で1"+(p.parts[0].u==="時"?"時間":p.parts[0].u)+"にくり上げよう）":""));
     if(p.explain){ ex.textContent=""; ex.appendChild(el("b",null,"かいせつ")); ex.appendChild(richEl("span",null,p.explain)); ex.hidden=false } else ex.hidden=true;
   } }
 function flash(){ var a=$("answer"); a.animate&&a.animate([{transform:"translateX(0)"},{transform:"translateX(-8px)"},{transform:"translateX(8px)"},{transform:"translateX(0)"}],{duration:220}) }
@@ -2147,7 +2246,7 @@ var HELP={
   "多角形つなぎ":"平行な直線L、Mの間に、辺の長さが等しい正多角形を3つつなげた図です。「正多角形1, 正多角形2, 正多角形3, 聞く角（ア・イ・ウ）」を書きます（正多角形は 3・4・5・6・8・9・10・12）。聞く角だけを書くと 正六角形・正五角形・正方形 になります。\n例：ウ　／　8, 6, 4, ウ",
   "ひもの羊":"建物の角に羊をひもでつないだ図です。「ひもの長さ, 低い部分の高さ, P か 合計」を書きます。\n例：6, 2, 合計",
   "記号":"A〜Eなどの記号を選んで答える問題です。データに選ぶ記号をカンマで区切って書き、答えの列に正しい記号を書きます。\n例：A,B,C,D,E",
-  "文章":"データは空でかまいません。問題文と答え（12、2.5、3/4 など）を入れてください。"};
+  "文章":"データは空でかまいません。問題文と答え（12、2.5、3/4 など）を入れてください。道のりの図をつけるときは データに 道|点:駅@0;駐輪場@20;家@100|下:駅-家=2.1km のように書きます。"};
 var SAMPLE_DATA={"角度":"50, 直角, ア, 115","方眼":"6x4: ","正多角形":"12, 20, 三角形","三角形":"8, 10, 30","おうぎ形":"半径6, 300, まわり","半円重ね":"8, 4, まわり","正方形と円":"4, 半円","印の角の和":"38","半円3つ":"8, まわり","展開図":"6, 4, 7, ア","多角形つなぎ":"ウ","ひもの羊":"6, 2, 合計","記号":"A,B,C,D,E","文章":""};
 Object.keys(Engine.EXTRA).forEach(function(k){ HELP[k]=Engine.EXTRA[k].help; SAMPLE_DATA[k]=Engine.EXTRA[k].sample });
 function mRow(){return {type:$("mType").value, data:$("mData").value.trim(), text:$("mText").value.trim(), answer:$("mAns").value.trim(),
