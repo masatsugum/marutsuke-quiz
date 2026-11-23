@@ -491,13 +491,16 @@ function drawBand(parts){
   bars.forEach(function(b){ var x=L, cells=b.segs.map(function(sg){ var w=sg.v/b.sum*BW, c={sg:sg,x:x,w:w,narrow:Math.max(tw(sg.t),tw(sg.s))+4>w}; x+=w; return c });
     // small parts get their label under the bar; the further left, the lower, so no line crosses a label
     var narrow=cells.filter(function(c){return c.narrow}), depth=0;
-    narrow.forEach(function(c,k){ c.d=narrow.length-1-k }); depth=narrow.length;
+    narrow.forEach(function(c){ c.left=c.x+c.w/2+5+tw(c.sg.t+" "+c.sg.s)>W-2 });   // labels that would run off the right edge are written to the left
+    var rt=narrow.filter(function(c){return !c.left}), lt=narrow.filter(function(c){return c.left});
+    rt.forEach(function(c,k){ c.d=rt.length-1-k }); lt.forEach(function(c,k){ c.d=rt.length+k }); depth=narrow.length;   // left-written labels go below the others, the rightmost lowest, so no line crosses a label
     body.push(txt(L,y-11,b.name,{s:14,a:"start"}));
     cells.forEach(function(c,j){ body.push('<rect x="'+f1(c.x)+'" y="'+y+'" width="'+f1(c.w)+'" height="'+BH+'" fill="'+(j%2?"var(--shade)":"var(--card)")+'" stroke="var(--fig)" stroke-width="1.2"/>');
       var cx=c.x+c.w/2;
       if(!c.narrow){ body.push(txt(cx,y+10,c.sg.t,{s:13})); body.push(txt(cx,y+23,c.sg.s,{s:12})) }
-      else{ var ly=y+BH+10+c.d*14; body.push('<polyline points="'+f1(cx)+','+(y+BH)+' '+f1(cx)+','+ly+' '+f1(cx+3)+','+ly+'" fill="none" stroke="var(--fig)" stroke-width="1"/>');
-        body.push(txt(cx+5,ly,c.sg.t+" "+c.sg.s,{s:13,a:"start"})) } });
+      else{ var ly=y+BH+10+c.d*14, lab=c.sg.t+" "+c.sg.s, left=c.left;   // near the right edge the label goes to the left, so it is not cut off
+        body.push('<polyline points="'+f1(cx)+','+(y+BH)+' '+f1(cx)+','+ly+' '+f1(left?cx-3:cx+3)+','+ly+'" fill="none" stroke="var(--fig)" stroke-width="1"/>');
+        body.push(txt(left?cx-5:cx+5,ly,lab,{s:13,a:left?"end":"start"})) } });
     y+=BH+(depth?depth*14+8:0)+30 });
   var H=y-16; out.push(svgOpen(W,H,"帯グラフ")); out=out.concat(body);
   out.push('</svg>'); return {svg:out.join("")} }
