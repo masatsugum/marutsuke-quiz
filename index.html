@@ -383,7 +383,7 @@ function f1(v){return (Math.round(v*10)/10).toFixed(1)}
 function txt(x,y,t,o){o=o||{}; return '<text x="'+f1(x)+'" y="'+f1(y)+'" font-size="'+(o.s||15)+'" font-weight="700" fill="'+(o.c||"var(--fig)")+'" text-anchor="'+(o.a||"middle")+'" dominant-baseline="central"'+(o.extra||"")+'>'+esc(t)+'</text>'}
 function svgOpen(w,h,label){return '<svg viewBox="0 0 '+w+' '+h+'" role="img" aria-label="'+esc(label)+'" style="font-family:var(--body)">'}
 function nums(s){ var a=String(s).split(/[,、，\s]+/).filter(Boolean).map(Number); return a.some(isNaN)?null:a }
-function splitSpec(spec){ return String(spec).normalize("NFKC").split("|").map(function(s){return s.trim()}).filter(function(s){return s!==""}) }
+function splitSpec(spec){ return String(spec).replace(/[\u2460-\u2473]/g,function(c){return String.fromCharCode(c.charCodeAt(0)+0xBBA0)}).normalize("NFKC").replace(/[\uE000-\uE013]/g,function(c){return String.fromCharCode(c.charCodeAt(0)-0xBBA0)}).split("|").map(function(s){return s.trim()}).filter(function(s){return s!==""}) }
 function kv(parts){ var o={}; parts.forEach(function(p){ var m=p.match(/^([^=]+)=(.*)$/); if(m)(o[m[1].trim()]=o[m[1].trim()]||[]).push(m[2].trim()); else (o._=o._||[]).push(p) }); return o }
 
 /* ---------- 地図: prefecture map ---------- */
@@ -716,8 +716,8 @@ function drawOrbit(parts){
   while(lb.length<8)lb.push("");
   var W=340,H=300, cx=side==="右"?150:190, cy=140, R=96, re=20, rm=12, sx=side==="右"?1:-1, out=[svgOpen(W,H,"北極の上から見た地球と月の公転")];
   out.push('<circle cx="'+cx+'" cy="'+cy+'" r="'+R+'" fill="none" stroke="var(--fig)" stroke-width="1.4"/>');
-  // orbit direction arrows (counterclockwise on screen)
-  [135,315].forEach(function(deg){ var a=deg*Math.PI/180, px=cx+R*Math.cos(a), py=cy-R*Math.sin(a), tx=-Math.sin(a), ty=-Math.cos(a);
+  // orbit direction arrows (counterclockwise on screen); 矢印=なし leaves them out
+  if((o["矢印"]||[""])[0]!=="なし")[135,315].forEach(function(deg){ var a=deg*Math.PI/180, px=cx+R*Math.cos(a), py=cy-R*Math.sin(a), tx=-Math.sin(a), ty=-Math.cos(a);
     out.push('<path d="M'+f1(px-tx*9-ty*6)+' '+f1(py-ty*9+tx*6)+' L'+f1(px)+' '+f1(py)+' L'+f1(px-tx*9+ty*6)+' '+f1(py-ty*9-tx*6)+'" fill="none" stroke="var(--fig)" stroke-width="2"/>') });
   function half(x,y,r){ var T=f1(x)+" "+f1(y-r), Bm=f1(x)+" "+f1(y+r);
     return '<circle cx="'+f1(x)+'" cy="'+f1(y)+'" r="'+r+'" fill="var(--shade)" stroke="var(--fig)" stroke-width="1.3"/>'+
@@ -729,7 +729,7 @@ function drawOrbit(parts){
   var ax=side==="右"?W-34:34;
   for(var k=0;k<5;k++){ var y=cy-80+k*40; out.push('<path d="M'+(ax+sx*22)+' '+y+' L'+(ax-sx*10)+' '+y+' M'+(ax-sx*3)+' '+(y-5)+' L'+(ax-sx*10)+' '+y+' L'+(ax-sx*3)+' '+(y+5)+'" fill="none" stroke="var(--pen)" stroke-width="2"/>') }
   out.push(txt(ax+sx*6,cy+122,"太陽の光",{s:12,a:"middle"}));
-  out.push(txt(cx,H-8,"北極の上から見たようす（月は反時計回りに公転）",{s:11,c:"var(--sub)"}));
+  out.push(txt(cx,H-8,(o["矢印"]||[""])[0]==="なし"?"北極の上から見たようす":"北極の上から見たようす（月は反時計回りに公転）",{s:11,c:"var(--sub)"}));   // with 矢印=なし the direction is the question, so the caption does not tell it
   out.push('</svg>'); return {svg:out.join("")} }
 
 /* ---------- 集め方: gas collection methods  集め方|水上,下方,上方|ア,イ,ウ ---------- */
@@ -863,8 +863,8 @@ function drawBottle(parts){
 function drawParticles(parts){
   var o=kv(parts.slice(1)), shape=o["形"]?o["形"][0]:"マス"; if(["マス","びん"].indexOf(shape)<0)return {err:"形= は マス か びん にしてください。"};
   var items=itemsOf(parts); if(items.length<1||items.length>6)return {err:"気体のつぶは1〜6つ書いてください（例 気体のつぶ|ア:○20,□4,■1）。"};
-  var SY=["○","●","◎","□","■","?"], err=null;
-  items.forEach(function(it){ it.cells=[]; it.a.forEach(function(a){ var m=a.match(/^(.)(\d+)$/); if(!m||SY.indexOf(m[1])<0||+m[2]>30){err="気体のつぶは「記号と数」で書いてください（○●◎□■？ と30までの数。例 ○20,□5）。"; return} for(var k=0;k<+m[2];k++)it.cells.push(m[1]) }); if(!it.cells.length||it.cells.length>30)err=err||"つぶの数は1〜30個にしてください。" });
+  var SY=["○","●","◎","□","■","?","▲","⊗"], err=null;
+  items.forEach(function(it){ it.cells=[]; it.a.forEach(function(a){ var m=a.match(/^(.)(\d+)$/); if(!m||SY.indexOf(m[1])<0||+m[2]>30){err="気体のつぶは「記号と数」で書いてください（○●◎□■▲⊗？ と30までの数。例 ○20,□5）。"; return} for(var k=0;k<+m[2];k++)it.cells.push(m[1]) }); if(!it.cells.length||it.cells.length>30)err=err||"つぶの数は1〜30個にしてください。" });
   if(err)return {err:err};
   var cols=5, s=22, maxn=Math.max.apply(null,items.map(function(it){return it.cells.length})), rows=Math.ceil(maxn/cols);
   var per=items.length===4?2:Math.min(items.length,3), cw=cols*s+44, ch=rows*s+(shape==="びん"?74:40), W=cw*per, H=ch*Math.ceil(items.length/per), out=[svgOpen(W,H,"気体のつぶの図")];
@@ -880,6 +880,8 @@ function drawParticles(parts){
       if(c==="◎")out.push('<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="var(--card)" stroke="var(--fig)" stroke-width="1.6"/><circle cx="'+x+'" cy="'+y+'" r="3.4" fill="none" stroke="var(--fig)" stroke-width="1.6"/>');
       if(c==="□")out.push('<rect x="'+(x-7.5)+'" y="'+(y-7.5)+'" width="15" height="15" fill="var(--card)" stroke="var(--fig)" stroke-width="1.6"/>');
       if(c==="■")out.push('<rect x="'+(x-7.5)+'" y="'+(y-7.5)+'" width="15" height="15" fill="var(--fig)"/>');
+      if(c==="▲")out.push('<path d="M'+x+' '+(y-8)+' L'+(x+8)+' '+(y+6)+' L'+(x-8)+' '+(y+6)+' Z" fill="var(--sub)" stroke="var(--fig)" stroke-width="1.2"/>');
+      if(c==="⊗")out.push('<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="var(--card)" stroke="var(--fig)" stroke-width="1.6"/><path d="M'+(x-5)+' '+(y-5)+' L'+(x+5)+' '+(y+5)+' M'+(x+5)+' '+(y-5)+' L'+(x-5)+' '+(y+5)+'" stroke="var(--fig)" stroke-width="1.6"/>');
       if(c==="?")out.push('<rect x="'+(x-8.5)+'" y="'+(y-8.5)+'" width="17" height="17" fill="var(--card)" stroke="var(--fig)" stroke-width="1.6"/>'+txt(x,y,"？",{s:12})) });
     if(it.l)out.push(txt(ox+cols*s/2,shape==="びん"?oy-44:oy-17,it.l,{s:shape==="びん"?15:17})) });
   out.push('</svg>'); return {svg:out.join("")} }
@@ -887,8 +889,8 @@ function drawParticles(parts){
 /* こげ方|ア:中|イ:両はし|ウ:3     (黒くなった場所： 中・中小・両はし・3・なし) */
 function drawBurn(parts){
   var items=itemsOf(parts); if(items.length<1||items.length>4)return {err:"こげ方は1〜4本書いてください（例 こげ方|ア:中|イ:両はし|ウ:3）。"};
-  var P={"中":[[0.4,0.6]],"中小":[[0.46,0.54]],"両はし":[[0.3,0.4],[0.6,0.7]],"3":[[0.24,0.32],[0.46,0.54],[0.68,0.76]],"なし":[]};
-  var bad=items.filter(function(it){return it.a.length!==1||!P[it.a[0]]})[0]; if(bad)return {err:"こげ方は 中・中小・両はし・3・なし のどれかで書いてください。"};
+  var P={"中":[[0.4,0.6]],"中小":[[0.46,0.54]],"両はし":[[0.3,0.4],[0.6,0.7]],"3":[[0.24,0.32],[0.46,0.54],[0.68,0.76]],"内2":[[0.40,0.44],[0.56,0.60]],"外2":[[0.30,0.33],[0.67,0.70]],"なし":[]};
+  var bad=items.filter(function(it){return it.a.length!==1||!P[it.a[0]]})[0]; if(bad)return {err:"こげ方は 中・中小・両はし・3・内2・外2・なし のどれかで書いてください。"};
   var W=280,rh=44,H=rh*items.length+10,x0=64,w=190,out=[svgOpen(W,H,"黒くなった場所")];
   items.forEach(function(it,i){ var y=rh*i+rh/2+5;
     out.push('<rect x="'+x0+'" y="'+(y-8)+'" width="'+w+'" height="16" fill="var(--card)" stroke="var(--fig)" stroke-width="1.8"/>');
@@ -969,7 +971,144 @@ function drawMono(parts){
     if(it.l)out.push(txt(ox+cw/2-10,oy+ch-12,it.l,{s:17})) });
   out.push('</svg>'); return {svg:out.join("")} }
 
-var TYPES={"地図":drawMap,"帯グラフ":drawBand,"気候":drawClimate,"表":drawTable,"川の曲がり":drawBend,"層":drawLayers,"河口":drawMouth,"地層":drawStrata,"ばね":drawSpring,"川の流れ":drawRiverCourse,"川のかたむき":drawProfile,"月":drawMoons,"空":drawSky,"公転":drawOrbit,"集め方":drawGas,"炎":drawFlame,"つつ":drawTubes,"集気びん":drawJars,"ペットボトル":drawBottle,"気体のつぶ":drawParticles,"こげ方":drawBurn,"水の量":drawWater,"糸電話":drawPhone,"モノコード":drawMono};
+/* ---------- 積み上げ棒 / 折れ線: graphs with an axis ----------
+   積み上げ棒|題=東京に出荷されるキャベツの産地（2023年）|単位=万トン|最大=2|目盛=1|X=1,2,3,…,12月|①=0,0,…|②=…|③=…|その他=…
+     (series are stacked from the bottom in the order written; each series needs one number per X)
+   折れ線|題=出荷された肉の量|単位=万トン|最小=0|最大=200|目盛=50|X=1975,80,…,21年|①@80=72,111,…|②@95=…|③@95=…
+     (「名前@X」 writes the name beside the line at that X; a series named - has no label) */
+function axisSpec(parts,kind){
+  var o=kv(parts.slice(1)), series=[], err="";
+  var X=(o["X"]||[""])[0].split(/[,、，]/).map(function(s){return s.trim()}).filter(Boolean);
+  if(X.length<2)return {err:kind+"は X=横の目もり,… を2つ以上書いてください。"};
+  var mx=+((o["最大"]||[""])[0]), mn=o["最小"]?+o["最小"][0]:0, st=+((o["目盛"]||[""])[0]);
+  if(!(mx>mn)||!(st>0)||(mx-mn)/st>12)return {err:kind+"は 最大= と 目盛= を数で書いてください（最小= も書けます。目もりは12本まで）。"};
+  Object.keys(o).forEach(function(k){ if(["X","最大","最小","目盛","単位","題","_"].indexOf(k)>=0)return;
+    var m=k.match(/^(.*?)(?:@(.+))?$/), v=nums(o[k][0]);
+    if(!v||v.length!==X.length){err=err||kind+"「"+m[1]+"」の数が"+(v?v.length:0)+"個です（X と同じ"+X.length+"個にしてください）。";return}
+    var at=m[2]!=null?X.indexOf(m[2].trim()):-1; if(m[2]!=null&&at<0){err=err||kind+"「"+m[1]+"」の @"+m[2]+" が X にありません。";return}
+    series.push({name:m[1].trim(),v:v,at:at}) });
+  if(err)return {err:err}; if(!series.length||series.length>5)return {err:kind+"は 名前=数,… の線（帯）を1〜5本書いてください。"};
+  return {X:X,mx:mx,mn:mn,st:st,unit:(o["単位"]||[""])[0],title:(o["題"]||[""])[0],series:series} }
+function axisFrame(a,W,H,L,T,R,B){
+  var out=[], pw=W-L-R, ph=H-T-B;
+  function Y(v){return T+ph*(1-(v-a.mn)/(a.mx-a.mn))}
+  for(var v=a.mn;v<=a.mx+1e-9;v+=a.st){ var y=Y(v), lab=String(Math.round(v*1000)/1000);
+    out.push('<line x1="'+L+'" y1="'+f1(y)+'" x2="'+(W-R)+'" y2="'+f1(y)+'" stroke="var(--line)" stroke-width="1"/>');
+    out.push(txt(L-5,y,lab,{s:12,a:"end"})) }
+  out.push('<line x1="'+L+'" y1="'+T+'" x2="'+L+'" y2="'+(H-B)+'" stroke="var(--fig)" stroke-width="1.4"/>');
+  out.push('<line x1="'+L+'" y1="'+(H-B)+'" x2="'+(W-R)+'" y2="'+(H-B)+'" stroke="var(--fig)" stroke-width="1.4"/>');
+  if(a.unit)out.push(txt(L-4,T-14,"（"+a.unit+"）",{s:12,a:"start"}));
+  return {out:out,Y:Y,pw:pw,ph:ph} }
+var FILLS=[["var(--card)",""],["var(--shade)",""],["var(--card)","h"],["var(--shade)","d"],["var(--fig)",""]];
+function fillDefs(){ return '<defs><pattern id="pH" width="6" height="6" patternUnits="userSpaceOnUse"><rect width="6" height="6" fill="var(--card)"/><path d="M0 6 L6 0" stroke="var(--fig)" stroke-width="1.1"/></pattern>'+
+  '<pattern id="pD" width="5" height="5" patternUnits="userSpaceOnUse"><rect width="5" height="5" fill="var(--shade)"/><circle cx="2.5" cy="2.5" r="1" fill="var(--fig)"/></pattern></defs>' }
+function fillOf(i){ var f=FILLS[i%FILLS.length]; return f[1]==="h"?"url(#pH)":f[1]==="d"?"url(#pD)":f[0] }
+function drawStack(parts){
+  var a=axisSpec(parts,"積み上げ棒"); if(a.err)return a;
+  for(var j=0;j<a.X.length;j++){ var s=a.series.reduce(function(t,se){return t+se.v[j]},0); if(s>a.mx+1e-9)return {err:"積み上げ棒の「"+a.X[j]+"」の合計が最大=をこえています。"} }
+  var legW=96, W=360, H=250, L=40, T=a.title?40:26, R=legW, B=26, f=axisFrame(a,W,H,L,T,R,B), out=[svgOpen(W,H,a.title||"積み上げ棒グラフ"),fillDefs()].concat(f.out);
+  if(a.title)out.push(txt((W-legW+L)/2,12,a.title,{s:13}));
+  var cw=f.pw/a.X.length, bw=Math.min(28,cw*0.66);
+  a.X.forEach(function(x,j){ var base=a.mn, cx=L+cw*(j+0.5);
+    a.series.forEach(function(se,i){ var y0=f.Y(base), y1=f.Y(base+se.v[j]); base+=se.v[j];
+      if(se.v[j]>0)out.push('<rect x="'+f1(cx-bw/2)+'" y="'+f1(y1)+'" width="'+f1(bw)+'" height="'+f1(y0-y1)+'" fill="'+fillOf(i)+'" stroke="var(--fig)" stroke-width="1"/>') });
+    out.push(txt(cx,H-B+12,x,{s:11})) });
+  a.series.slice().reverse().forEach(function(se,k){ var i=a.series.length-1-k, y=T+20+k*24, x=W-legW+14;
+    out.push('<rect x="'+x+'" y="'+(y-8)+'" width="16" height="16" fill="'+fillOf(i)+'" stroke="var(--fig)" stroke-width="1"/>'); out.push(txt(x+22,y,se.name,{s:13,a:"start"})) });
+  out.push('</svg>'); return {svg:out.join("")} }
+function drawLine(parts){
+  var a=axisSpec(parts,"折れ線"); if(a.err)return a;
+  for(var i=0;i<a.series.length;i++)if(a.series[i].v.some(function(v){return v<a.mn-1e-9||v>a.mx+1e-9}))return {err:"折れ線「"+a.series[i].name+"」に 最小〜最大 の外の数があります。"};
+  var W=360, H=260, L=44, T=a.title?40:26, R=14, B=28, f=axisFrame(a,W,H,L,T,R,B), out=[svgOpen(W,H,a.title||"折れ線グラフ")].concat(f.out);
+  if(a.title)out.push(txt(W/2,12,a.title,{s:13}));
+  var cw=f.pw/(a.X.length-1); function X(j){return L+cw*j}
+  var step=Math.ceil(a.X.length/12);
+  var last=a.X.length-1; a.X.forEach(function(x,j){ if(j===last||(j%step===0&&last-j>=step))out.push(txt(X(j),H-B+13,x,{s:11})) });
+  var DASH=["","6 4","2 3","9 3 2 3",""], MK=["c","s","t","c","s"];
+  a.series.forEach(function(se,i){ var pts=se.v.map(function(v,j){return f1(X(j))+","+f1(f.Y(v))}).join(" ");
+    out.push('<polyline points="'+pts+'" fill="none" stroke="var(--fig)" stroke-width="2"'+(DASH[i]?' stroke-dasharray="'+DASH[i]+'"':'')+'/>');
+    se.v.forEach(function(v,j){ var x=X(j), y=f.Y(v), m=MK[i];
+      out.push(m==="c"?'<circle cx="'+f1(x)+'" cy="'+f1(y)+'" r="3.2" fill="var(--fig)"/>':m==="s"?'<rect x="'+f1(x-3)+'" y="'+f1(y-3)+'" width="6" height="6" fill="var(--card)" stroke="var(--fig)" stroke-width="1.4"/>':'<path d="M'+f1(x)+' '+f1(y-4)+' L'+f1(x+3.6)+' '+f1(y+2.6)+' L'+f1(x-3.6)+' '+f1(y+2.6)+' Z" fill="var(--fig)"/>') }) });
+  // names: beside the line at @X, on the side away from the other lines
+  a.series.forEach(function(se,i){ if(se.name==="-"||se.name==="")return; var j=se.at>=0?se.at:a.X.length-1, x=X(j), y=f.Y(se.v[j]);
+    var others=a.series.filter(function(o,k){return k!==i}).map(function(o){return f.Y(o.v[j])});
+    var up=others.every(function(oy){return oy>y})?true:others.every(function(oy){return oy<y})?false:(y-T>H-B-y?true:false);
+    if(others.length&&!others.every(function(oy){return oy>y})&&!others.every(function(oy){return oy<y})){ var above=others.filter(function(oy){return oy<y}), below=others.filter(function(oy){return oy>y}); up=(y-Math.max.apply(null,above))>(Math.min.apply(null,below)-y) }
+    var ly=up?y-26:y+26, lx=x-16; if(lx<L+14)lx=x+16;
+    out.push('<line x1="'+f1(x)+'" y1="'+f1(y)+'" x2="'+f1(lx)+'" y2="'+f1(ly+(up?9:-9))+'" stroke="var(--fig)" stroke-width="1"/>');
+    out.push('<rect x="'+f1(lx-12-(se.name.length-1)*6)+'" y="'+f1(ly-10)+'" width="'+f1(24+(se.name.length-1)*12)+'" height="20" rx="3" fill="var(--card)" stroke="var(--fig)" stroke-width="1.2"/>');
+    out.push(txt(lx,ly,se.name,{s:14})) });
+  out.push('</svg>'); return {svg:out.join("")} }
+
+/* ---------- 地図記号: map symbols for land use, only the mark is shown (the name would give the answer away) ----------
+   地図記号|ア=畑|イ=茶畑|ウ=果樹園|エ=田        (田 畑 果樹園 茶畑 桑畑 広葉樹林 針葉樹林 荒地) */
+function drawSymbols(parts){
+  var o=kv(parts.slice(1)), keys=Object.keys(o).filter(function(k){return k!=="_"}), err="";
+  if(keys.length<1||keys.length>6)return {err:"地図記号は ア=田 のように1〜6こ書いてください。"};
+  function one(name,x,y){ var s='stroke="var(--fig)" stroke-width="2.4" fill="none" stroke-linecap="round"';
+    switch(name){
+      case "田": return '<line x1="'+(x-4)+'" y1="'+(y-6)+'" x2="'+(x-4)+'" y2="'+(y+6)+'" '+s+'/><line x1="'+(x+4)+'" y1="'+(y-6)+'" x2="'+(x+4)+'" y2="'+(y+6)+'" '+s+'/>';
+      case "畑": return '<path d="M'+(x-7)+' '+(y-5)+' L'+x+' '+(y+5)+' L'+(x+7)+' '+(y-5)+'" '+s+'/>';
+      case "果樹園": return '<circle cx="'+x+'" cy="'+(y+3)+'" r="6" '+s+'/><line x1="'+x+'" y1="'+(y-3)+'" x2="'+x+'" y2="'+(y-11)+'" '+s+'/>';
+      case "茶畑": return '<circle cx="'+x+'" cy="'+(y-6)+'" r="2.4" fill="var(--fig)"/><circle cx="'+(x-6)+'" cy="'+(y+4)+'" r="2.4" fill="var(--fig)"/><circle cx="'+(x+6)+'" cy="'+(y+4)+'" r="2.4" fill="var(--fig)"/>';
+      case "桑畑": return '<path d="M'+(x-7)+' '+(y-6)+' Q'+x+' '+(y+2)+' '+(x+7)+' '+(y-6)+'" '+s+'/><line x1="'+x+'" y1="'+(y-2)+'" x2="'+x+'" y2="'+(y+8)+'" '+s+'/>';
+      case "広葉樹林": return '<path d="M'+(x-7)+' '+(y+1)+' A7 7 0 0 1 '+(x+7)+' '+(y+1)+'" '+s+'/><line x1="'+x+'" y1="'+(y-6)+'" x2="'+x+'" y2="'+(y+9)+'" '+s+'/>';
+      case "針葉樹林": return '<path d="M'+(x-7)+' '+(y+1)+' L'+x+' '+(y-8)+' L'+(x+7)+' '+(y+1)+'" '+s+'/><line x1="'+x+'" y1="'+(y-8)+'" x2="'+x+'" y2="'+(y+9)+'" '+s+'/>';
+      case "荒地": return '<line x1="'+(x-6)+'" y1="'+(y+6)+'" x2="'+(x+6)+'" y2="'+(y+6)+'" '+s+'/><line x1="'+x+'" y1="'+(y+6)+'" x2="'+x+'" y2="'+(y-7)+'" '+s+'/><line x1="'+(x-5)+'" y1="'+(y+6)+'" x2="'+(x-8)+'" y2="'+(y-3)+'" '+s+'/>';
+    } return null }
+  var cw=84, W=cw*keys.length, H=110, out=[svgOpen(W,H,"地図記号")];
+  keys.forEach(function(k,i){ var nm=o[k][0], cx=cw*i+cw/2;
+    if(one(nm,0,0)===null){err=err||"地図記号「"+nm+"」は使えません（田・畑・果樹園・茶畑・桑畑・広葉樹林・針葉樹林・荒地）。";return}
+    out.push(txt(cx,14,k,{s:16}));
+    [[0,-16],[-16,14],[16,14]].forEach(function(d){ out.push(one(nm,cx+d[0],62+d[1])) }) });
+  if(err)return {err:err};
+  out.push('</svg>'); return {svg:out.join("")} }
+
+/* ---------- 農業機械: simple side views (drawings, not photos) ----------
+   農業機械|ア=コンバイン|イ=トラクター        (コンバイン トラクター 田植え機) */
+function drawMachines(parts){
+  var o=kv(parts.slice(1)), keys=Object.keys(o).filter(function(k){return k!=="_"}), err="";
+  if(keys.length<1||keys.length>3)return {err:"農業機械は ア=コンバイン のように1〜3こ書いてください。"};
+  var S='stroke="var(--fig)" stroke-width="2" stroke-linejoin="round"';
+  function wheel(x,y,r){ return '<circle cx="'+x+'" cy="'+y+'" r="'+r+'" fill="var(--shade)" '+S+'/><circle cx="'+x+'" cy="'+y+'" r="'+(r*0.4)+'" fill="var(--card)" '+S+'/>' }
+  function cab(x,y,w,h){ return '<rect x="'+x+'" y="'+y+'" width="'+w+'" height="'+h+'" fill="none" '+S+'/><line x1="'+x+'" y1="'+y+'" x2="'+(x+w)+'" y2="'+y+'" '+S+'/>' }
+  function draw(nm,ox){ var g=[], b=130;   // b = ground line
+    if(nm==="コンバイン"){
+      g.push('<g transform="translate(22,0)">');
+      g.push('<rect x="'+(ox+40)+'" y="'+(b-22)+'" width="110" height="22" rx="11" fill="var(--shade)" '+S+'/>');               // crawler track
+      for(var i=0;i<5;i++)g.push('<circle cx="'+(ox+52+i*21.5)+'" cy="'+(b-11)+'" r="6" fill="var(--card)" '+S+'/>');
+      g.push('<rect x="'+(ox+60)+'" y="'+(b-70)+'" width="92" height="48" fill="var(--card)" '+S+'/>');                         // body / grain tank
+      g.push(cab(ox+44,b-96,34,30));                                                                                         // cab
+      g.push('<path d="M'+(ox+44)+' '+(b-66)+' L'+(ox+60)+' '+(b-66)+'" '+S+'/>');
+      for(var r=0;r<4;r++){ var sx=ox-20+r*6; g.push('<path d="M'+sx+' '+b+' L'+sx+' '+(b-30)+' M'+sx+' '+(b-30)+' q4 2 5 8" fill="none" stroke="var(--sub)" stroke-width="1.6"/>') }
+      g.push('<path d="M'+(ox+46)+' '+(b-40)+' L'+(ox+8)+' '+(b-14)+' L'+(ox+4)+' '+(b-4)+' L'+(ox+30)+' '+(b-4)+' L'+(ox+50)+' '+(b-26)+' Z" fill="var(--shade)" '+S+'/>'); // reaper at the front
+      for(var k=0;k<4;k++)g.push('<line x1="'+(ox+8+k*6)+'" y1="'+(b-4)+'" x2="'+(ox+2+k*6)+'" y2="'+(b+2)+'" '+S+'/>');
+      g.push('<path d="M'+(ox+150)+' '+(b-66)+' L'+(ox+168)+' '+(b-80)+'" '+S+' fill="none"/>');                                  // unloading auger
+      g.push('</g>');
+    } else if(nm==="トラクター"){
+      g.push(wheel(ox+128,b-30,30)); g.push(wheel(ox+50,b-16,16));
+      g.push('<path d="M'+(ox+36)+' '+(b-34)+' L'+(ox+36)+' '+(b-52)+' L'+(ox+100)+' '+(b-56)+' L'+(ox+104)+' '+(b-40)+' Z" fill="var(--card)" '+S+'/>'); // bonnet
+      g.push(cab(ox+100,b-104,46,44));
+      g.push('<line x1="'+(ox+100)+'" y1="'+(b-60)+'" x2="'+(ox+150)+'" y2="'+(b-60)+'" '+S+'/>');
+      g.push('<rect x="'+(ox+160)+'" y="'+(b-30)+'" width="24" height="24" rx="3" fill="var(--shade)" '+S+'/>');               // rotary tiller behind
+      g.push('<line x1="'+(ox+154)+'" y1="'+(b-34)+'" x2="'+(ox+164)+'" y2="'+(b-26)+'" '+S+'/>');
+      g.push('<line x1="'+(ox+60)+'" y1="'+(b-52)+'" x2="'+(ox+60)+'" y2="'+(b-66)+'" '+S+'/>');                                 // exhaust pipe
+    } else if(nm==="田植え機"){
+      g.push(wheel(ox+60,b-18,18)); g.push(wheel(ox+120,b-18,18));
+      g.push('<rect x="'+(ox+40)+'" y="'+(b-52)+'" width="96" height="20" fill="var(--card)" '+S+'/>');
+      g.push('<path d="M'+(ox+136)+' '+(b-60)+' L'+(ox+178)+' '+(b-86)+' L'+(ox+186)+' '+(b-74)+' L'+(ox+144)+' '+(b-46)+' Z" fill="var(--shade)" '+S+'/>'); // seedling racks
+      for(var m=0;m<4;m++)g.push('<line x1="'+(ox+150+m*8)+'" y1="'+(b-56+m*-5)+'" x2="'+(ox+150+m*8)+'" y2="'+(b-2)+'" '+S+'/>');
+      g.push('<line x1="'+(ox+80)+'" y1="'+(b-52)+'" x2="'+(ox+74)+'" y2="'+(b-80)+'" '+S+'/><line x1="'+(ox+64)+'" y1="'+(b-80)+'" x2="'+(ox+86)+'" y2="'+(b-80)+'" '+S+'/>');
+    } else return null;
+    g.push('<line x1="'+ox+'" y1="'+b+'" x2="'+(ox+190)+'" y2="'+b+'" stroke="var(--sub)" stroke-width="1.4"/>');
+    return g.join("") }
+  var cw=196, W=cw*keys.length, H=176, out=[svgOpen(W,H,"農業機械の絵")];
+  keys.forEach(function(k,i){ var d=draw(o[k][0],cw*i+3); if(d===null){err=err||"農業機械「"+o[k][0]+"」は使えません（コンバイン・トラクター・田植え機）。";return}
+    out.push(txt(cw*i+16,16,k,{s:16})); out.push('<g transform="translate(0,22)">'+d+'</g>') });
+  if(err)return {err:err};
+  out.push('</svg>'); return {svg:out.join("")} }
+
+var TYPES={"地図":drawMap,"帯グラフ":drawBand,"気候":drawClimate,"表":drawTable,"川の曲がり":drawBend,"層":drawLayers,"河口":drawMouth,"地層":drawStrata,"ばね":drawSpring,"川の流れ":drawRiverCourse,"川のかたむき":drawProfile,"月":drawMoons,"空":drawSky,"公転":drawOrbit,"集め方":drawGas,"炎":drawFlame,"つつ":drawTubes,"集気びん":drawJars,"ペットボトル":drawBottle,"気体のつぶ":drawParticles,"こげ方":drawBurn,"水の量":drawWater,"糸電話":drawPhone,"モノコード":drawMono,"積み上げ棒":drawStack,"折れ線":drawLine,"地図記号":drawSymbols,"農業機械":drawMachines};
 function build(spec){
   var parts=splitSpec(spec); if(!parts.length)return {svg:""};
   var f=TYPES[parts[0]]; if(!f)return {err:"図の種類「"+parts[0]+"」は使えません（"+Object.keys(TYPES).join("・")+"）。"};
