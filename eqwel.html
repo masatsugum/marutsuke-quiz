@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#1f3a6b">
 <title>Eqwelクイズ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
 /* VOICE: やさしく元気、1年生が一人で迷わず遊べる
    IDEA: 教室の「れきじんカード」をめくる遊び
@@ -140,10 +140,10 @@ summary{font-weight:700;padding-block:12px;cursor:pointer;font-size:16px}
   .quiz .bar{grid-area:bar}
   .quiz .card{grid-area:card;width:auto;height:100%;max-width:100%;aspect-ratio:320/352;margin:0;justify-self:center}
   .quiz .q{grid-area:q;text-align:left;justify-content:flex-start;margin:0 0 14px}
-  .quiz .choices{grid-area:ch;grid-template-columns:1fr;grid-auto-rows:minmax(0,1fr);gap:2.2vh;min-height:0}
-  .quiz .choice{min-height:0;display:flex;flex-direction:column;justify-content:center}
-  .quiz .choice .k{font-size:clamp(26px,3.4vh + 6px,38px)}
-  .quiz .choice .n{font-size:clamp(17px,2vh + 4px,22px)}
+  .quiz .choices{grid-area:ch;grid-template-columns:1fr;grid-auto-rows:minmax(84px,1fr);gap:14px;min-height:0;align-content:start}
+  .quiz .choice{min-height:84px;display:flex;flex-direction:column;justify-content:center;padding:10px 22px}
+  .quiz .choice .k{font-size:30px}
+  .quiz .choice .n{font-size:19px}
   .quiz #after{grid-area:after;display:flex;align-items:center;gap:20px;min-height:88px}
   .quiz #after .msg{margin:0;flex:none;font-size:34px}
   .quiz #after .big{margin:0;flex:1}
@@ -191,6 +191,16 @@ path.okpref{fill:#ffd84a;stroke:#e0452b;stroke-width:2.6}
   .quiz .steps{grid-area:steps}
   .numq .choices{grid-template-columns:1fr 1fr}
 }
+
+/* ---------- 子どもが 読みやすい 文字（教科書体） ---------- */
+body{font-family:"UD Digi Kyokasho N-R","UD Digi Kyokasho NP-R","Klee One","Zen Maru Gothic","Hiragino Maru Gothic ProN",sans-serif;font-weight:600;letter-spacing:.02em}
+button{font-weight:600}
+h2,.q,.msg,.choice .k,.mini .k,.unit,.region,.tab,.big,.sub,.steps,.count,.score .num,.rc,.chip,.region small,.unit small{font-weight:600}
+header h1,.hbtn{font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN",sans-serif}
+.choice .k{line-height:1.35;letter-spacing:.06em}
+.choice .n{line-height:1.35;margin-top:2px;color:light-dark(#3d4757,#c9d2e0);font-weight:400}
+.mini .n{color:light-dark(#3d4757,#c9d2e0)}
+.q{color:var(--ink)}
 [hidden]{display:none!important}
 </style>
 </head>
