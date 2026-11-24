@@ -7,7 +7,7 @@
 <meta name="theme-color" content="#1f3a6b">
 <title>Eqwelクイズ</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Klee+One:wght@400;600&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Kiwi+Maru:wght@400;500&family=Zen+Maru+Gothic:wght@500;700;900&display=swap" rel="stylesheet">
 <style>
 /* VOICE: やさしく元気、1年生が一人で迷わず遊べる
    IDEA: 教室の「れきじんカード」をめくる遊び
@@ -192,15 +192,32 @@ path.okpref{fill:#ffd84a;stroke:#e0452b;stroke-width:2.6}
   .numq .choices{grid-template-columns:1fr 1fr}
 }
 
-/* ---------- 子どもが 読みやすい 文字（教科書体） ---------- */
-body{font-family:"UD Digi Kyokasho N-R","UD Digi Kyokasho NP-R","Klee One","Zen Maru Gothic","Hiragino Maru Gothic ProN",sans-serif;font-weight:600;letter-spacing:.02em}
-button{font-weight:600}
-h2,.q,.msg,.choice .k,.mini .k,.unit,.region,.tab,.big,.sub,.steps,.count,.score .num,.rc,.chip,.region small,.unit small{font-weight:600}
+/* ---------- 子どもが 読みやすい カジュアルな 文字（キウイ丸） ---------- */
+body{font-family:"Kiwi Maru","Zen Maru Gothic","Hiragino Maru Gothic ProN",sans-serif;font-weight:500;letter-spacing:.03em}
+button{font-weight:500}
+h2,.q,.msg,.choice .k,.mini .k,.unit,.region,.tab,.big,.sub,.steps,.count,.score .num,.rc,.chip,.region small,.unit small{font-weight:500}
 header h1,.hbtn{font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN",sans-serif}
 .choice .k{line-height:1.35;letter-spacing:.06em}
 .choice .n{line-height:1.35;margin-top:2px;color:light-dark(#3d4757,#c9d2e0);font-weight:400}
 .mini .n{color:light-dark(#3d4757,#c9d2e0)}
 .q{color:var(--ink)}
+/* ---------- じかん ---------- */
+.timer{display:flex;align-items:center;gap:12px;margin:-2px 0 10px}
+.timer .track{flex:1;height:12px;border-radius:6px;background:var(--line);overflow:hidden}
+.timer .track i{display:block;height:100%;width:100%;background:var(--ai);border-radius:6px;transition:width .1s linear}
+.timer .tnum{flex:none;font-size:26px;line-height:1;min-width:2ch;text-align:right;font-variant-numeric:tabular-nums}
+.timer.hurry .track i{background:var(--shu)}.timer.hurry .tnum{color:var(--shu)}
+.settings{margin-top:18px;background:var(--paper);border:2px solid var(--line);border-radius:16px;padding:12px 16px;display:grid;gap:10px}
+.setrow{display:grid;grid-template-columns:minmax(0,1fr) auto auto auto;align-items:center;gap:10px;font-size:17px}
+.setrow:has(#soundBtn){grid-template-columns:minmax(0,1fr) auto}
+.step{width:48px;height:48px;min-height:48px;border-radius:50%;border:2px solid var(--ink);background:var(--bg);font-size:24px;line-height:1;padding:0}
+.setrow output{font-size:22px;min-width:3.6em;text-align:center;color:var(--shu);white-space:nowrap}
+.setrow .sub{min-width:7em;min-height:48px}
+@media (min-width:700px){.timer .track{height:16px;border-radius:8px}.timer .tnum{font-size:34px}.setrow{font-size:20px}.setrow output{font-size:26px}}
+@media (min-width:900px) and (orientation:landscape){
+  .quiz{grid-template-rows:auto auto auto auto minmax(0,1fr) auto;grid-template-areas:"bar bar" "steps steps" "timer timer" "card q" "card ch" "card after"}
+  .quiz .timer{grid-area:timer}
+}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -549,6 +566,96 @@ document.addEventListener('visibilitychange',()=>{
   if(document.visibilityState==='visible'&&!quiz&&cloudReady()&&Date.now()-cloud.at>60000)cloudSync(true)});
 try{if(navigator.storage&&navigator.storage.persist)navigator.storage.persist()}catch(e){}
 
+/* ---------- おと（まるつけクイズと おなじ しくみ） ---------- */
+let soundMode=Number(lsGet('rq.sound',1)); if(soundMode!==0&&soundMode!==2)soundMode=1;   // 0 オフ, 1 オン, 2 オン２（音のファイルとして鳴らす）
+let soundOn=soundMode>0;
+/* ---------- sound ---------- */
+let actx=null, master=null, keepAlive=null, noiseBuf=null;
+function silentWav(){ let n=2000,b=new Uint8Array(44+n),v=new DataView(b.buffer),s="",i;
+  function w(o,t){for(let k=0;k<t.length;k++)b[o+k]=t.charCodeAt(k)}
+  w(0,"RIFF"); v.setUint32(4,36+n,true); w(8,"WAVEfmt "); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,8000,true); v.setUint32(28,8000,true); v.setUint16(32,1,true); v.setUint16(34,8,true); w(36,"data"); v.setUint32(40,n,true);
+  for(i=44;i<b.length;i++)b[i]=128; for(i=0;i<b.length;i++)s+=String.fromCharCode(b[i]); return "data:audio/wav;base64,"+btoa(s) }
+function unlock(){   // runs inside every tap: phones only start audio from a touch
+  if(!soundOn)return;
+  try{ if(navigator.audioSession)navigator.audioSession.type="playback" }catch(e){}   // iPhone: play even with the silent switch on
+  try{
+    if(!actx){let C=window.AudioContext||window.webkitAudioContext; if(!C)return; actx=new C(); master=actx.createGain(); master.gain.value=1; master.connect(actx.destination)}
+    if(actx.state!=="running")actx.resume();
+    let b=actx.createBuffer(1,1,22050), s=actx.createBufferSource(); s.buffer=b; s.connect(actx.destination); s.start(0);
+  }catch(e){}
+}
+function keepAliveOn(on){   // a silent loop keeps older iPhones from muting the game sounds
+  try{
+    if(on&&soundMode===1){ if(!keepAlive){keepAlive=new Audio(silentWav()); keepAlive.loop=true; keepAlive.setAttribute("playsinline","")}
+      if(keepAlive.paused){let p=keepAlive.play(); if(p&&p.catch)p.catch(function(){})} }
+    else if(keepAlive&&!keepAlive.paused)keepAlive.pause();
+  }catch(e){}
+}
+["pointerdown","touchend","click"].forEach(function(ev){document.addEventListener(ev,unlock,true)});
+/* second way to play: each sound drawn as a small audio file and played like ordinary web audio */
+let RATE=22050, clips={};
+function render(name){
+  let len={tick:0.05,tickHi:0.05,ok:0.62,ng:0.58,fan:1.9}[name], n=Math.floor(RATE*len), d=new Float32Array(n), i, t;
+  function add(f,at,dur,type,vol){ let s=Math.floor(at*RATE), e=Math.min(n,Math.floor((at+dur)*RATE));
+    for(let k=s;k<e;k++){ let x=(k-s)/RATE, p=(x*f)%1, w=type==="square"?(p<0.5?1:-1):type==="saw"?2*p-1:type==="tri"?1-4*Math.abs(p-0.5):Math.sin(2*Math.PI*p);
+      d[k]+=w*vol*Math.min(1,x/0.008)*Math.pow(0.001,x/dur) } }
+  if(name==="tick"||name==="tickHi"){ let hi=name==="tickHi", prev=0;
+    for(i=0;i<Math.floor(RATE*0.035);i++){ let r=Math.random()*2-1; d[i]+=(r-prev)*(hi?0.6:0.45)*Math.pow(1-i/(RATE*0.035),3); prev=r }
+    add(hi?2400:1800,0,0.03,"square",hi?0.25:0.18) }
+  else if(name==="ok"){ add(1046.5,0,0.1,"square",0.22); add(1568,0.1,0.42,"square",0.22); add(1568,0.1,0.5,"sine",0.28) }
+  else if(name==="ng"){ for(i=0;i<n;i++){ t=i/RATE; let env=Math.min(1,t/0.015,(len-t)/0.05);
+      d[i]=((t*140%1)*2-1 + (t*141.7%1)*2-1 + ((t*282.8%1)<0.5?1:-1)*0.6)*0.14*Math.max(0,env) } }
+  else { [523.25,523.25,523.25,659.25,783.99,659.25,783.99,1046.5].forEach(function(f,j){add(f,[0,.13,.26,.39,.58,.77,.9,1.03][j],j===7?0.7:0.2,"tri",0.4)}); [1318.5,1568,2093].forEach(function(f){add(f,1.03,0.8,"sine",0.12)}) }
+  let b=new Uint8Array(44+n*2), v=new DataView(b.buffer), s="";
+  function w(o,x){for(let k=0;k<x.length;k++)b[o+k]=x.charCodeAt(k)}
+  w(0,"RIFF"); v.setUint32(4,36+n*2,true); w(8,"WAVEfmt "); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,RATE,true); v.setUint32(28,RATE*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,"data"); v.setUint32(40,n*2,true);
+  for(i=0;i<n;i++)v.setInt16(44+i*2,Math.max(-1,Math.min(1,d[i]))*32000,true);
+  for(i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));
+  return "data:audio/wav;base64,"+btoa(s);
+}
+function alt(name){   // true when the second way handled the sound
+  if(soundMode!==2)return false;
+  try{ let c=clips[name]; if(!c){c=clips[name]=new Audio(render(name)); c.preload="auto"; c.setAttribute("playsinline","")}
+    c.currentTime=0; let p=c.play(); if(p&&p.catch)p.catch(function(){}) }catch(e){}
+  return true;
+}
+function audio(){ if(soundMode!==1||!actx)return null; if(actx.state!=="running"){try{actx.resume()}catch(e){}} return actx }
+function tone(f,at,dur,type,vol){let a=actx,o=a.createOscillator(),g=a.createGain(),t=a.currentTime+at;
+  o.type=type; o.frequency.setValueAtTime(f,t); g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+0.012); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+0.03)}
+function buzz(f,dur,vol){let a=actx,g=a.createGain(),t=a.currentTime;
+  g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(vol,t+0.015); g.gain.setValueAtTime(vol,t+dur-0.05); g.gain.linearRampToValueAtTime(0.0001,t+dur);
+  [f,f*1.012,f*2.02].forEach(function(x,i){let o=a.createOscillator(); o.type=i<2?"sawtooth":"square"; o.frequency.setValueAtTime(x,t); o.connect(g); o.start(t); o.stop(t+dur+0.03)});
+  g.connect(master)}
+function click(hi){let a=actx,t=a.currentTime,i;
+  if(!noiseBuf){noiseBuf=a.createBuffer(1,Math.floor(a.sampleRate*0.035),a.sampleRate); let d=noiseBuf.getChannelData(0); for(i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3)}
+  let s=a.createBufferSource(),f=a.createBiquadFilter(),g=a.createGain(); s.buffer=noiseBuf; f.type="bandpass"; f.frequency.value=hi?3800:2700; f.Q.value=1.1; g.gain.value=hi?1:0.75;
+  s.connect(f); f.connect(g); g.connect(master); s.start(t); tone(hi?2400:1800,0,0.03,"square",hi?0.09:0.06)}
+function sndTick(s){ if(alt(s<=3?"tickHi":"tick")||!audio())return; click(s<=3) }                                                   // チッ
+function sndOk(){ if(alt("ok")||!audio())return; tone(1046.5,0,0.1,"square",0.13); tone(1568,0.1,0.42,"square",0.13); tone(1568,0.1,0.55,"sine",0.16) }   // ピコン
+function sndNg(){ if(alt("ng")||!audio())return; buzz(140,0.55,0.16) }                                                // ブー
+function sndFanfare(){ if(alt("fan")||!audio())return; [523.25,523.25,523.25,659.25,783.99,659.25,783.99,1046.5].forEach(function(f,i){tone(f,[0,.13,.26,.39,.58,.77,.9,1.03][i],i===7?0.7:0.2,"triangle",0.22)}); [1318.5,1568,2093].forEach(function(f){tone(f,1.03,0.8,"sine",0.07)}) }
+
+/* ---------- じかんせいげん ---------- */
+let timeLimit=Number(lsGet('rq.time',15)); if(!(timeLimit>=0&&timeLimit<=60))timeLimit=15;   // 1もんの びょう。0 = せいげん なし
+let timer=null;
+function stopTimer(){if(timer){clearInterval(timer);timer=null}}
+function paintTimer(sec,frac){const n=$('timeNum'),b=$('timeBar'),w=$('timer');if(!n)return;n.textContent=sec;b.style.width=(Math.max(0,frac)*100).toFixed(1)+'%';w.classList.toggle('hurry',sec<=3)}
+function startTimer(it){
+  stopTimer();if(!timeLimit)return;
+  const limit=timeLimit,end=Date.now()+limit*1000,c=cur;let last=limit;paintTimer(limit,1);
+  timer=setInterval(()=>{
+    if(cur!==c||c.done){stopTimer();return}
+    const left=(end-Date.now())/1000;
+    if(left<=0){stopTimer();paintTimer(0,0);answer(it,-1);return}
+    const s=Math.ceil(left);if(s!==last){last=s;sndTick(s)}   // チッ チッ（のこり3びょうからは 高い音）
+    paintTimer(s,left/limit);
+  },100);
+}
+
 /* ---------- もんだいの つくりかた ----------
    item = {key, build()} → {fig, prompt, choices:[{id,k,n}], ans, numbered, after(right)} */
 function rekijinItem(p){return {key:String(p.no),build(){
@@ -581,7 +688,7 @@ const weakRek=u=>people().filter(p=>unitOf(p.no)===u&&isWeak(String(p.no))).sort
 
 /* ---------- がめん ---------- */
 const app=$('app'),homeBtn=$('homeBtn');
-homeBtn.onclick=()=>{quiz=null;home();cloudSync(true)};
+homeBtn.onclick=()=>{stopTimer();quiz=null;keepAliveOn(false);home();cloudSync(true)};
 function tabs(){return `<div class="tabs" role="tablist">${[['rekijin','れきじん'],['todo','とどうふけん']].map(([m,l])=>`<button role="tab" class="tab" data-m="${m}" aria-selected="${st.mode===m}">${l}</button>`).join('')}</div>`}
 function bindTabs(cb){app.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{st.mode=b.dataset.m;lsSet('rq.mode',st.mode);cb()})}
 function unitButtons(){
@@ -596,6 +703,17 @@ function regionButtons(){
   return `<div class="regions">${all.map(([i,n,c])=>{const w=weakTodo(i).length;return `<button class="region${i<0?' all':''}" data-r="${i}" aria-pressed="${i===st.region}">${n}<small>${w?`<span class="weak">にがて ${w}</span>`:c+'けん'}</small></button>`}).join('')}</div>`}
 function bindTodo(cb){
   app.querySelectorAll('.region').forEach(b=>b.onclick=()=>{st.region=+b.dataset.r;lsSet('rq.region',st.region);cb()});
+}
+const SOUND_LABEL=['オフ','オン','オン２'];
+function settingsBox(){return `<div class="settings">
+  <div class="setrow"><span>1もんの じかん</span><button class="step" id="timeDown" aria-label="じかんを みじかく">−</button><output id="timeOut">${timeLimit?timeLimit+'びょう':'なし'}</output><button class="step" id="timeUp" aria-label="じかんを ながく">＋</button></div>
+  <div class="setrow"><span>おと</span><button class="sub" id="soundBtn" aria-pressed="${soundOn}">${SOUND_LABEL[soundMode]}</button></div>
+  <p class="note">じかんは 5びょうずつ かえられます。5びょうより へらすと「なし」に なります。おとが でないときは「オン２」を ためしてください。</p></div>`}
+function bindSettings(){
+  $('timeDown').onclick=()=>{timeLimit=timeLimit<=5?0:timeLimit-5;lsSet('rq.time',timeLimit);$('timeOut').textContent=timeLimit?timeLimit+'びょう':'なし'};
+  $('timeUp').onclick=()=>{timeLimit=Math.min(60,timeLimit+5);lsSet('rq.time',timeLimit);$('timeOut').textContent=timeLimit+'びょう'};
+  $('soundBtn').onclick=()=>{soundMode=[1,2,0][soundMode];soundOn=soundMode>0;lsSet('rq.sound',soundMode);keepAliveOn(false);
+    const b=$('soundBtn');b.textContent=SOUND_LABEL[soundMode];b.setAttribute('aria-pressed',String(soundOn));if(soundOn){unlock();sndOk()}};
 }
 function syncBox(){return `<details id="cloudBox"><summary id="cloudSum"></summary>
    <div class="sync">
@@ -630,7 +748,7 @@ function home(){
     app.innerHTML=`${tabs()}<h2>どの たんげんに する？</h2>${unitButtons()}
     <button class="big" id="startBtn">はじめる（20もん）</button>
     ${w.length?`<button class="big blue" id="weakBtn">にがてを ふくしゅう（${w.length}もん）</button>`:`<p class="note center">この たんげんの にがては ないよ</p>`}
-    <button class="sub wide" id="logBtn">まちがい りれき</button>${syncBox()}`;
+    <button class="sub wide" id="logBtn">まちがい りれき</button>${settingsBox()}${syncBox()}`;
     bindUnits(home);
     $('startBtn').onclick=()=>start(people().filter(p=>unitOf(p.no)===st.unit).map(rekijinItem));
     if(w.length)$('weakBtn').onclick=()=>start(w.map(rekijinItem),true);
@@ -640,12 +758,12 @@ function home(){
     <p class="note flow">1つの けんに つき 4もん：${STEPS.map(s=>NUM[s.id-1]+s.title).join('　')}</p>
     <button class="big" id="startBtn">はじめる（${n}けん・${n*4}もん）</button>
     ${w.length?`<button class="big blue" id="weakBtn">にがてを ふくしゅう（${w.length}けん）</button>`:`<p class="note center">ここの にがては ないよ</p>`}
-    <button class="sub wide" id="logBtn">まちがい りれき</button>${syncBox()}`;
+    <button class="sub wide" id="logBtn">まちがい りれき</button>${settingsBox()}${syncBox()}`;
     bindTodo(home);
     $('startBtn').onclick=()=>start(todoItems(todoStartList()));
     if(w.length)$('weakBtn').onclick=()=>start(todoItems(shuffle(w)),true);
   }
-  bindTabs(home);$('logBtn').onclick=logView;bindSync();
+  bindTabs(home);$('logBtn').onclick=logView;bindSettings();bindSync();
 }
 let resetArmed=false;
 function miniRek(p,withRec){
@@ -687,11 +805,12 @@ function start(items,review){
   const todo=items.length&&items[0].step;
   if(todo){let n=0,last=null;items.forEach(it=>{if(it.code!==last){n++;last=it.code}it.set=n});}
   quiz={items:todo?items:shuffle(items),i:0,miss:[],ok:0,review:!!review,mode:st.mode,sets:todo?items[items.length-1].set:0};
-  homeBtn.hidden=false;show();
+  homeBtn.hidden=false;unlock();keepAliveOn(true);show();
 }
 function barHTML(){const n=quiz.items.length,it=quiz.items[quiz.i];
   const steps=it.step?`<div class="steps"><span>${it.set}けんめ / ${quiz.sets}けん</span>${STEPS.map(s=>`<i class="${s.id<it.step?'done':s.id===it.step?'now':''}">${NUM[s.id-1]}</i>`).join('')}</div>`:'';
-  return `<div class="bar"><div class="prog"><i style="width:${quiz.i/n*100}%"></i></div><span class="count">${quiz.i+1} / ${n}</span></div>${steps}`}
+  const tm=timeLimit?`<div class="timer" id="timer" role="timer" aria-label="のこり じかん"><div class="track"><i id="timeBar"></i></div><span class="tnum" id="timeNum">${timeLimit}</span></div>`:'';
+  return `<div class="bar"><div class="prog"><i style="width:${quiz.i/n*100}%"></i></div><span class="count">${quiz.i+1} / ${n}</span></div>${steps}${tm}`}
 let shownAt=0,cur=null;
 function show(){
   window.scrollTo(0,0);
@@ -702,10 +821,12 @@ function show(){
   <div class="choices">${cur.choices.map(c=>`<button class="choice${cur.numbered?' num':''}" data-id="${c.id}"><span class="k">${esc(c.k)}</span>${c.n?`<span class="n">${esc(c.n)}</span>`:''}</button>`).join('')}</div><div id="after"></div></div>`;
   app.querySelectorAll('.choice').forEach(b=>b.onclick=()=>answer(it,+b.dataset.id));
   app.querySelectorAll('#fig .pt').forEach(g=>g.onclick=()=>answer(it,+g.dataset.i));
+  startTimer(it);
 }
 function answer(it,id){
-  if(Date.now()-shownAt<300||cur.done)return;   // つづけて タップしたときの まちがい おしを ふせぐ
-  cur.done=true;const right=id===cur.ans;
+  if(cur.done||(id>=0&&Date.now()-shownAt<300))return;   // つづけて タップしたときの まちがい おしを ふせぐ（id=-1 は じかんぎれ）
+  cur.done=true;stopTimer();const right=id===cur.ans;
+  if(right)sndOk();else sndNg();
   app.querySelectorAll('.choice').forEach(b=>{b.disabled=true;const n=+b.dataset.id;if(n===cur.ans)b.classList.add('right');else if(n===id)b.classList.add('wrong')});
   app.querySelectorAll('#fig .pt').forEach(g=>{const i=+g.dataset.i;g.classList.add(i===cur.ans?'ok':i===id?'ng':'dim')});
   const fig=$('fig'),alt=cur.after&&cur.after(right);if(cur.mark)cur.mark(fig);
@@ -714,7 +835,7 @@ function answer(it,id){
   if(right)quiz.ok++;else quiz.miss.push(it);
   record(it.key,right);
   const last=quiz.i===quiz.items.length-1,nextSet=!last&&it.step===4;
-  $('after').innerHTML=`<p class="msg" style="color:${right?'var(--ok)':'var(--shu)'}">${right?'せいかい！':'おしい！'}</p><button class="big" id="next">${last?'けっかを みる':nextSet?'つぎの けんへ':'つぎへ'}</button>`;
+  $('after').innerHTML=`<p class="msg" style="color:${right?'var(--ok)':'var(--shu)'}">${right?'せいかい！':id<0?'じかんぎれ！':'おしい！'}</p><button class="big" id="next">${last?'けっかを みる':nextSet?'つぎの けんへ':'つぎへ'}</button>`;
   const nx=$('next');nx.onclick=()=>{quiz.i++;show()};nx.focus({preventScroll:true});
 }
 function miniOf(it){
@@ -722,7 +843,7 @@ function miniOf(it){
   return miniTodo(pref(it.code),false,it.only);
 }
 function result(){
-  st.view='result';window.scrollTo(0,0);
+  st.view='result';window.scrollTo(0,0);stopTimer();keepAliveOn(false);
   const n=quiz.items.length,miss=quiz.miss;
   const todo=quiz.mode==='todo';
   const wl=todo?todoItems(shuffle(weakTodo(st.region))):weakRek(st.unit).map(rekijinItem);
@@ -738,6 +859,7 @@ function result(){
   if(miss.length)$('retryMiss').onclick=()=>start(todo?todoItems(missCodes):miss,rv);
   if(wl.length)$('weakBtn').onclick=()=>start(wl,true);
   $('toHome').onclick=home;
+  if(quiz===null&&n&&(n-miss.length)/n>=0.8)sndFanfare();
   cloudSync(true);
 }
 home();
