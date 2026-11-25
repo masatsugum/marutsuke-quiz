@@ -218,6 +218,15 @@ header h1,.hbtn{font-family:"Zen Maru Gothic","Hiragino Maru Gothic ProN",sans-s
   .quiz{grid-template-rows:auto auto auto auto minmax(0,1fr) auto;grid-template-areas:"bar bar" "steps steps" "timer timer" "card q" "card ch" "card after"}
   .quiz .timer{grid-area:timer}
 }
+
+/* ---------- iPad よこ：ホームを 2れつに ---------- */
+@media (min-width:900px) and (orientation:landscape){
+  main:has(.hgrid){max-width:1200px;padding:20px 40px 40px}
+  .hgrid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:36px;align-items:start}
+  .hside{padding-top:62px}.hside>.wide:first-child{margin-top:0}
+  .hgrid .units{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .hgrid .unit{min-height:110px}
+}
 [hidden]{display:none!important}
 </style>
 </head>
@@ -349,6 +358,27 @@ summary{padding-block:12px;cursor:pointer}
 .tab{min-height:52px;border-radius:14px;font-size:clamp(14px,4.3vw,19px);letter-spacing:0;white-space:nowrap;background:transparent;color:var(--sub)}
 .tab[aria-selected=true]{background:var(--paper);color:var(--shu);box-shadow:0 2px 0 rgba(0,0,0,.08)}
 @media (min-width:700px){.tab{font-size:24px;min-height:64px}}
+
+/* ---------- iPad よこ ---------- */
+@media (min-width:900px) and (orientation:landscape){
+  main:has(.hgrid),main:has(.lgrid){max-width:1200px;padding:20px 40px 40px}
+  .hgrid{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr);gap:36px;align-items:start}
+  .hside{padding-top:0}.hside>.wide:first-child{margin-top:0}
+  .hgrid .unit{min-height:110px}
+  .lgrid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px;align-items:stretch}
+  .lgrid .lcard{margin-top:0}.lgrid .lbody{grid-template-columns:1fr;justify-items:start}.lgrid .lemo{font-size:72px}
+  .lgrid .lhead{font-size:21px}.lgrid .lbody{font-size:17px}
+  .lgrid~.units{grid-template-columns:repeat(4,minmax(0,1fr))}
+  .tips{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:0 24px}.tips h3{grid-column:1/-1}
+  .quiz .card{height:calc(100dvh - 190px);min-height:440px;padding:18px 20px 36px}
+  .quiz .card.answered{justify-content:flex-start;gap:4px;overflow:auto}
+  .card.answered .emo{font-size:70px}.card.answered .word{font-size:38px}.card.answered .sent{font-size:28px}.card.answered .formbig{font-size:22px}
+  .card .exp{width:100%;text-align:left;border:0;border-top:2px dashed var(--line);border-radius:0;background:transparent;padding:6px 4px 0;margin-top:6px}
+  .card .exp .msg{font-size:30px}.card .exp .ex{font-size:19px}.card .exp .diag{font-size:23px}
+  .quiz .choice{min-height:76px}
+  .quiz #after .big{margin-top:16px}
+  .quiz:has(.timer) .card{height:calc(100dvh - 226px)}
+}
 
 </style></template>
 <script>
@@ -870,23 +900,24 @@ function bindSync(){
 const GAME_TODO=5;   // ぜんこくは 5けん（20もん）
 function todoStartList(){const c=shuffle(regionCodes(st.region));return st.region<0?c.slice(0,GAME_TODO):c}
 function home(){
+  {const t=Number(lsGet('rq.time',15));timeLimit=(t>=0&&t<=60)?t:15;const m=Number(lsGet('rq.sound',1));soundMode=(m===0||m===2)?m:1;soundOn=soundMode>0;}
   st.view='home';homeBtn.hidden=true;homeBtn.onclick=goHome;app.hidden=false;document.getElementById('khost').hidden=true;window.scrollTo(0,0);
   if(st.mode==='rekijin'){
     const w=weakRek(st.unit);
-    app.innerHTML=`${tabs()}<h2>どの たんげんに する？</h2>${unitButtons()}
+    app.innerHTML=`${tabs()}<div class="hgrid"><div><h2>どの たんげんに する？</h2>${unitButtons()}
     <button class="big" id="startBtn">はじめる（20もん）</button>
     ${w.length?`<button class="big blue" id="weakBtn">にがてを ふくしゅう（${w.length}もん）</button>`:`<p class="note center">この たんげんの にがては ないよ</p>`}
-    <button class="sub wide" id="logBtn">まちがい りれき</button>${settingsBox()}${syncBox()}`;
+    </div><div class="hside"><button class="sub wide" id="logBtn">まちがい りれき</button>${settingsBox()}${syncBox()}</div></div>`;
     bindUnits(home);
     $('startBtn').onclick=()=>start(people().filter(p=>unitOf(p.no)===st.unit).map(rekijinItem));
     if(w.length)$('weakBtn').onclick=()=>start(w.map(rekijinItem),true);
   }else{
     const w=weakTodo(st.region),n=st.region<0?GAME_TODO:regionCodes(st.region).length;
-    app.innerHTML=`${tabs()}<h2>どの ちほうに する？</h2>${regionButtons()}
+    app.innerHTML=`${tabs()}<div class="hgrid"><div><h2>どの ちほうに する？</h2>${regionButtons()}
     <p class="note flow">1つの けんに つき 4もん：${STEPS.map(s=>NUM[s.id-1]+s.title).join('　')}</p>
     <button class="big" id="startBtn">はじめる（${n}けん・${n*4}もん）</button>
     ${w.length?`<button class="big blue" id="weakBtn">にがてを ふくしゅう（${w.length}けん）</button>`:`<p class="note center">ここの にがては ないよ</p>`}
-    <button class="sub wide" id="logBtn">まちがい りれき</button>${settingsBox()}${syncBox()}`;
+    </div><div class="hside"><button class="sub wide" id="logBtn">まちがい りれき</button>${settingsBox()}${syncBox()}</div></div>`;
     bindTodo(home);
     $('startBtn').onclick=()=>start(todoItems(todoStartList()));
     if(w.length)$('weakBtn').onclick=()=>start(todoItems(shuffle(w)),true);
@@ -1214,7 +1245,7 @@ function sndFanfare(){ if(alt("fan")||!audio())return; [523.25,523.25,523.25,659
 
 
 /* ---------- じかんせいげん（さいしょは なし） ---------- */
-let timeLimit=Number(lsGet('rq.time',0)); if(!(timeLimit>=0&&timeLimit<=60))timeLimit=0;
+let timeLimit=Number(lsGet('rq.time',15)); if(!(timeLimit>=0&&timeLimit<=60))timeLimit=15;
 let timer=null,cur=null,shownAt=0;
 function stopTimer(){if(timer){clearInterval(timer);timer=null}}
 function paintTimer(sec,frac){const n=$('timeNum'),b=$('timeBar'),w=$('timer');if(!n)return;n.textContent=sec;b.style.width=(Math.max(0,frac)*100).toFixed(1)+'%';w.classList.toggle('hurry',sec<=3)}
@@ -1271,18 +1302,19 @@ function qAns(q){
 const app=$('app'),homeBtn=document.getElementById('homeBtn');
 const goHome=()=>{stopTimer();quiz=null;keepAliveOn(false);home();cloudSync(true)};
 function home(){
+  {const t=Number(lsGet('rq.time',15));timeLimit=(t>=0&&t<=60)?t:15;const m=Number(lsGet('rq.sound',1));soundMode=(m===0||m===2)?m:1;soundOn=soundMode>0;}
   st.view='home';homeBtn.hidden=true;homeBtn.onclick=goHome;KHOST.hidden=false;document.getElementById('app').hidden=true;window.scrollTo(0,0);
   const w=weakQ();
   app.innerHTML=`<div class="tabs" role="tablist">${[['rekijin','れきじん'],['todo','とどうふけん'],['kotoba','ことば']].map(([m,l])=>`<button role="tab" class="tab" data-m="${m}" aria-selected="${m==='kotoba'}">${l}</button>`).join('')}</div>
-  <button class="learn" id="learnBtn"><span class="lt">まなぼう</span><span class="ls">{文|ぶん}の 3つの かたちと、ことばの なかま</span>
+  <div class="hgrid"><div><button class="learn" id="learnBtn"><span class="lt">まなぼう</span><span class="ls">{文|ぶん}の 3つの かたちと、ことばの なかま</span>
     <span class="chips3">${ORDER.map(t=>`<i class="t-${t}">${TY[t].q}</i>`).join('')}</span></button>
   <h2>もんだいを とこう</h2>
   <div class="units">${UNITS.map(u=>{const n=Q.filter(q=>q.u===u.id).length,k=weakQ(u.id).length;
     return `<button class="unit" data-u="${u.id}"><b>${u.id}. ${R(u.title)}</b><span>${R(u.sub)}</span><small>${k?`<span class="weak">にがて ${k}</span>`:n+'もん'}</small></button>`}).join('')}</div>
   <button class="big" id="mixBtn">ぜんぶから ランダム 10もん</button>
   ${w.length?`<button class="big blue" id="weakBtn">にがてを ふくしゅう（${w.length}もん）</button>`:''}
-  <button class="sub wide" id="logBtn">まちがい りれき</button>
-  ${settingsBox()}${syncBox()}`;
+  </div><div class="hside"><button class="sub wide" id="logBtn">まちがい りれき</button>
+  ${settingsBox()}${syncBox()}</div></div>`;
   app.innerHTML=rb(app.innerHTML);
   app.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{if(b.dataset.m==='kotoba')return;st.view='off';window.EQWEL.show(b.dataset.m)});
   $('learnBtn').onclick=learn;
@@ -1299,12 +1331,12 @@ function learn(){
     y:{s:['{犬|いぬ}は','かわいい'],e:'🐶',ask:'{犬|いぬ}は どんなだ？ →「かわいい」',ex:['{大|おお}きい','{赤|あか}い','つめたい','うれしい','しずかだ']}};
   app.innerHTML=`<h2 class="lh">{文|ぶん}には 3つの かたちが あるよ</h2>
   <p class="lead">まえは「なにが（だれが）」「なには（だれは）」。<br>うしろに くる ことばで、{文|ぶん}の かたちが きまるよ。</p>
-  ${ORDER.map((t,i)=>{const c=C[t];return `<section class="lcard l-${t}">
+  <div class="lgrid">${ORDER.map((t,i)=>{const c=C[t];return `<section class="lcard l-${t}">
     <div class="lhead"><span class="num">${i+1}</span>${R(TY[t].form)}</div>
     <div class="lbody"><div class="lemo">${c.e}</div><div class="lmain">${diag(c.s,t)}
       <p class="ask">${R(c.ask)}</p>
       <p>「${TY[t].q}」に くる ことばは <b class="c-${t}">${TY[t].name}</b>。<br>${R(TY[t].what)}だよ。</p>
-      <div class="exs">${c.ex.map(w=>`<span class="t-${t}">${R(w)}</span>`).join('')}</div></div></div></section>`}).join('')}
+      <div class="exs">${c.ex.map(w=>`<span class="t-${t}">${R(w)}</span>`).join('')}</div></div></div></section>`}).join('')}</div>
   <section class="tips"><h3>みわけかたの ヒント</h3>
    <p><b class="c-u">うごきことば</b>… さいごが「る・く・ぐ・む・う」などの おと。<br>はしる、なく、およぐ、よむ、うたう</p>
    <p><b class="c-y">ようすことば</b>… さいごが「い」の ことばが おおい。<br>{赤|あか}い、つめたい、うれしい（しずかだ、げんきだ も なかま）</p>
@@ -1386,10 +1418,12 @@ function answer(q,id){
   if(right)quiz.ok++;else quiz.miss.push(q);
   record(q.id,right);
   const last=quiz.i===quiz.items.length-1;
-  $('after').innerHTML=`<div class="exp"><p class="msg" style="color:${right?'var(--ok)':'var(--shu)'}">${right?'せいかい！':id===-1?'じかんぎれ！':'おしい！'}</p><div class="ex">${rb(cur.exp)}</div></div>
-  <button class="big" id="next">${last?'けっかを みる':'つぎへ'}</button>`;
+  const expHTML=`<div class="exp"><p class="msg" style="color:${right?'var(--ok)':'var(--shu)'}">${right?'せいかい！':id===-1?'じかんぎれ！':'おしい！'}</p><div class="ex">${rb(cur.exp)}</div></div>`;
+  const land=window.matchMedia('(min-width:900px) and (orientation:landscape)').matches;
+  if(land){$('fig').classList.add('answered');$('fig').insertAdjacentHTML('beforeend',expHTML)}
+  $('after').innerHTML=`${land?'':expHTML}<button class="big" id="next">${last?'けっかを みる':'つぎへ'}</button>`;
   const nx=$('next');nx.onclick=()=>{quiz.i++;show()};
-  $('after').scrollIntoView({behavior:'smooth',block:'nearest'});
+  if(!land)$('after').scrollIntoView({behavior:'smooth',block:'nearest'});
 }
 function result(){
   st.view='result';window.scrollTo(0,0);stopTimer();keepAliveOn(false);
