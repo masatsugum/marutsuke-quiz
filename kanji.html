@@ -50,6 +50,16 @@ h1,h2{margin:0; text-wrap:balance}
 .brand svg{flex:none; width:52px; height:52px}
 .brand h1{font-family:var(--display); font-weight:400; font-size:1.9rem; line-height:1.2}
 .brand p{margin:0; color:var(--sub); font-size:.9rem}
+.stepper{display:flex; align-items:center; gap:10px; flex-wrap:wrap; font-weight:700}
+.stepper button{width:48px; height:48px; border-radius:50%; border:2px solid var(--ink); background:var(--paper); color:inherit; font-size:1.4rem; font-weight:900; line-height:1}
+.stepper output{font-family:var(--display); font-size:2rem; line-height:1; min-width:1.6ch; text-align:center; color:var(--pen)}
+.stepper output.word{font-size:1.3rem; min-width:3ch}
+.timer{display:flex; align-items:center; gap:12px}
+.timer .track{flex:1; height:12px; border-radius:6px; background:var(--line); overflow:hidden}
+.timer .track i{display:block; height:100%; width:100%; background:var(--ink); border-radius:6px}
+.timer .tnum{flex:none; font-family:var(--display); font-size:1.7rem; line-height:1; min-width:2ch; text-align:right; font-variant-numeric:tabular-nums}
+.timer.hurry .track i{background:var(--pen)}
+.timer.hurry .tnum{color:var(--pen)}
 .tally{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
 .tally div{background:var(--card); border:1px solid var(--line); border-radius:12px; padding:8px 4px; text-align:center}
 .tally b{display:block; font-family:var(--display); font-weight:400; font-size:1.5rem; line-height:1.2}
@@ -194,15 +204,15 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
 /* ---------- iPad sideways: question left, writing right ---------- */
 /* upright (default): the quiz fills the screen so the squares get the room that is left */
 .app.wide #quiz{height:calc(100dvh - 52px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); min-height:560px}
-.app.wide #quiz .bar,.app.wide #qcard{flex:none} .app.wide #qcard{max-height:48%; overflow:auto}
+.app.wide #quiz .bar,.app.wide #timer,.app.wide #qcard{flex:none} .app.wide #qcard{max-height:48%; overflow:auto}
 #wbox{flex:1; min-height:0} #squares{flex:1; min-height:0}
 #ibox{display:flex; flex-direction:column; gap:12px}
 @media (min-width:900px) and (orientation:landscape){
   .app.wide{padding-block:12px}
   .app.wide #quiz{display:grid; height:calc(100dvh - 24px - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px)); min-height:460px;
     grid-template-columns:minmax(0,1fr) minmax(0,1.05fr); column-gap:32px; row-gap:12px;
-    grid-template-rows:auto minmax(0,1fr); grid-template-areas:"bar bar" "q right"}
-  #quiz .bar{grid-area:bar} #qcard{grid-area:q; overflow:auto; justify-content:center} #wbox,#ibox{grid-area:right; min-height:0}
+    grid-template-rows:auto auto minmax(0,1fr); grid-template-areas:"bar bar" "timer timer" "q right"}
+  #quiz .bar{grid-area:bar} #timer{grid-area:timer} #qcard{grid-area:q; overflow:auto; justify-content:center} #wbox,#ibox{grid-area:right; min-height:0}
   .app.wide #qcard{max-height:none}
   #squares{flex:1; min-height:0}
   #ibox{overflow:auto}
@@ -239,6 +249,26 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
     <p id="weakInfo"></p>
     <button class="go" id="startWeak" type="button">スタート</button>
   </div>
+  <div class="mode">
+    <h2>1問の解答時間</h2>
+    <p>選択・書き順の問題</p>
+    <div class="stepper">
+      <button type="button" id="timeCDown" aria-label="選択・書き順の時間をみじかくする">−</button>
+      <output id="timeCOut">10</output>
+      <button type="button" id="timeCUp" aria-label="選択・書き順の時間を長くする">＋</button>
+      <span id="timeCUnit">秒</span>
+    </div>
+    <p>書き・読みの問題（こたえあわせを押すまで）</p>
+    <div class="stepper">
+      <button type="button" id="timeWDown" aria-label="書き・読みの時間をみじかくする">−</button>
+      <output id="timeWOut">なし</output>
+      <button type="button" id="timeWUp" aria-label="書き・読みの時間を長くする">＋</button>
+      <span id="timeWUnit">秒</span>
+    </div>
+    <p>いちばん短くしてから − を押すと、時間制限なしになります。</p>
+  </div>
+  <button class="plain" id="soundBtn" type="button" aria-pressed="true">音：オン</button>
+  <p class="note">音が出ない端末では、「音」のボタンを押して「オン２」をためしてください（まるつけクイズ・ドリルと共通の設定です）。</p>
   <button class="plain" id="resetHist" type="button">解答履歴をリセット</button>
   <p class="note" id="resetNote" aria-live="polite"></p>
   </div>
@@ -284,6 +314,10 @@ summary{font-weight:700; padding-block:12px; cursor:pointer}
     <button class="quit" id="quitBtn" type="button" aria-label="やめる">✕</button>
     <div class="dots" id="dots"></div>
     <div class="count" id="count">1/10</div>
+  </div>
+  <div class="timer" id="timer" role="timer" aria-label="のこり時間" hidden>
+    <div class="track"><i id="timeBar"></i></div>
+    <div class="tnum"><span id="timeNum">10</span></div>
   </div>
   <div class="qcard" id="qcard">
     <span class="past" id="past" hidden></span>
@@ -739,11 +773,116 @@ function strokeFig(node,ch,bold,px,done){   // draws the kanji with one stroke b
     if(done)done(ds.length) })
   .catch(function(){ s.innerHTML='<rect class="kv-frame" x=".5" y=".5" width="108" height="108" rx="4"/><text class="kv-msg" x="54.5" y="52">書き順の図を</text><text class="kv-msg" x="54.5" y="62">よみこめませんでした</text>'; if(done)done(0) }) }
 
+var soundMode=Number(lsGet("mq.sound2",lsGet("mq.sound",true)?1:0)); if(soundMode!==0&&soundMode!==2)soundMode=1;   // shared with まるつけクイズ: 0 off, 1 normal, 2 audio-file playback
+var soundOn=soundMode>0;
+/* ---------- sound ---------- */
+var actx=null, master=null, keepAlive=null, noiseBuf=null;
+function silentWav(){ var n=2000,b=new Uint8Array(44+n),v=new DataView(b.buffer),s="",i;
+  function w(o,t){for(var k=0;k<t.length;k++)b[o+k]=t.charCodeAt(k)}
+  w(0,"RIFF"); v.setUint32(4,36+n,true); w(8,"WAVEfmt "); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,8000,true); v.setUint32(28,8000,true); v.setUint16(32,1,true); v.setUint16(34,8,true); w(36,"data"); v.setUint32(40,n,true);
+  for(i=44;i<b.length;i++)b[i]=128; for(i=0;i<b.length;i++)s+=String.fromCharCode(b[i]); return "data:audio/wav;base64,"+btoa(s) }
+function unlock(){   // runs inside every tap: phones only start audio from a touch
+  if(!soundOn)return;
+  try{ if(navigator.audioSession)navigator.audioSession.type="playback" }catch(e){}   // iPhone: play even with the silent switch on
+  try{
+    if(!actx){var C=window.AudioContext||window.webkitAudioContext; if(!C)return; actx=new C(); master=actx.createGain(); master.gain.value=1; master.connect(actx.destination)}
+    if(actx.state!=="running")actx.resume();
+    var b=actx.createBuffer(1,1,22050), s=actx.createBufferSource(); s.buffer=b; s.connect(actx.destination); s.start(0);
+  }catch(e){}
+}
+function keepAliveOn(on){   // a silent loop keeps older iPhones from muting the game sounds
+  try{
+    if(on&&soundMode===1){ if(!keepAlive){keepAlive=new Audio(silentWav()); keepAlive.loop=true; keepAlive.setAttribute("playsinline","")}
+      if(keepAlive.paused){var p=keepAlive.play(); if(p&&p.catch)p.catch(function(){})} }
+    else if(keepAlive&&!keepAlive.paused)keepAlive.pause();
+  }catch(e){}
+}
+["pointerdown","touchend","click"].forEach(function(ev){document.addEventListener(ev,unlock,true)});
+/* second way to play: each sound drawn as a small audio file and played like ordinary web audio */
+var RATE=22050, clips={};
+function render(name){
+  var len={tick:0.05,tickHi:0.05,ok:0.62,ng:0.58,fan:1.9}[name], n=Math.floor(RATE*len), d=new Float32Array(n), i, t;
+  function add(f,at,dur,type,vol){ var s=Math.floor(at*RATE), e=Math.min(n,Math.floor((at+dur)*RATE));
+    for(var k=s;k<e;k++){ var x=(k-s)/RATE, p=(x*f)%1, w=type==="square"?(p<0.5?1:-1):type==="saw"?2*p-1:type==="tri"?1-4*Math.abs(p-0.5):Math.sin(2*Math.PI*p);
+      d[k]+=w*vol*Math.min(1,x/0.008)*Math.pow(0.001,x/dur) } }
+  if(name==="tick"||name==="tickHi"){ var hi=name==="tickHi", prev=0;
+    for(i=0;i<Math.floor(RATE*0.035);i++){ var r=Math.random()*2-1; d[i]+=(r-prev)*(hi?0.6:0.45)*Math.pow(1-i/(RATE*0.035),3); prev=r }
+    add(hi?2400:1800,0,0.03,"square",hi?0.25:0.18) }
+  else if(name==="ok"){ add(1046.5,0,0.1,"square",0.22); add(1568,0.1,0.42,"square",0.22); add(1568,0.1,0.5,"sine",0.28) }
+  else if(name==="ng"){ for(i=0;i<n;i++){ t=i/RATE; var env=Math.min(1,t/0.015,(len-t)/0.05);
+      d[i]=((t*140%1)*2-1 + (t*141.7%1)*2-1 + ((t*282.8%1)<0.5?1:-1)*0.6)*0.14*Math.max(0,env) } }
+  else { [523.25,523.25,523.25,659.25,783.99,659.25,783.99,1046.5].forEach(function(f,j){add(f,[0,.13,.26,.39,.58,.77,.9,1.03][j],j===7?0.7:0.2,"tri",0.4)}); [1318.5,1568,2093].forEach(function(f){add(f,1.03,0.8,"sine",0.12)}) }
+  var b=new Uint8Array(44+n*2), v=new DataView(b.buffer), s="";
+  function w(o,x){for(var k=0;k<x.length;k++)b[o+k]=x.charCodeAt(k)}
+  w(0,"RIFF"); v.setUint32(4,36+n*2,true); w(8,"WAVEfmt "); v.setUint32(16,16,true); v.setUint16(20,1,true); v.setUint16(22,1,true);
+  v.setUint32(24,RATE,true); v.setUint32(28,RATE*2,true); v.setUint16(32,2,true); v.setUint16(34,16,true); w(36,"data"); v.setUint32(40,n*2,true);
+  for(i=0;i<n;i++)v.setInt16(44+i*2,Math.max(-1,Math.min(1,d[i]))*32000,true);
+  for(i=0;i<b.length;i+=8192)s+=String.fromCharCode.apply(null,b.subarray(i,i+8192));
+  return "data:audio/wav;base64,"+btoa(s);
+}
+function alt(name){   // true when the second way handled the sound
+  if(soundMode!==2)return false;
+  try{ var c=clips[name]; if(!c){c=clips[name]=new Audio(render(name)); c.preload="auto"; c.setAttribute("playsinline","")}
+    c.currentTime=0; var p=c.play(); if(p&&p.catch)p.catch(function(){}) }catch(e){}
+  return true;
+}
+function audio(){ if(soundMode!==1||!actx)return null; if(actx.state!=="running"){try{actx.resume()}catch(e){}} return actx }
+function tone(f,at,dur,type,vol){var a=actx,o=a.createOscillator(),g=a.createGain(),t=a.currentTime+at;
+  o.type=type; o.frequency.setValueAtTime(f,t); g.gain.setValueAtTime(0.0001,t);
+  g.gain.exponentialRampToValueAtTime(vol,t+0.012); g.gain.exponentialRampToValueAtTime(0.0001,t+dur);
+  o.connect(g); g.connect(master); o.start(t); o.stop(t+dur+0.03)}
+function buzz(f,dur,vol){var a=actx,g=a.createGain(),t=a.currentTime;
+  g.gain.setValueAtTime(0.0001,t); g.gain.linearRampToValueAtTime(vol,t+0.015); g.gain.setValueAtTime(vol,t+dur-0.05); g.gain.linearRampToValueAtTime(0.0001,t+dur);
+  [f,f*1.012,f*2.02].forEach(function(x,i){var o=a.createOscillator(); o.type=i<2?"sawtooth":"square"; o.frequency.setValueAtTime(x,t); o.connect(g); o.start(t); o.stop(t+dur+0.03)});
+  g.connect(master)}
+function click(hi){var a=actx,t=a.currentTime,i;
+  if(!noiseBuf){noiseBuf=a.createBuffer(1,Math.floor(a.sampleRate*0.035),a.sampleRate); var d=noiseBuf.getChannelData(0); for(i=0;i<d.length;i++)d[i]=(Math.random()*2-1)*Math.pow(1-i/d.length,3)}
+  var s=a.createBufferSource(),f=a.createBiquadFilter(),g=a.createGain(); s.buffer=noiseBuf; f.type="bandpass"; f.frequency.value=hi?3800:2700; f.Q.value=1.1; g.gain.value=hi?1:0.75;
+  s.connect(f); f.connect(g); g.connect(master); s.start(t); tone(hi?2400:1800,0,0.03,"square",hi?0.09:0.06)}
+function sndTick(s){ if(alt(s<=3?"tickHi":"tick")||!audio())return; click(s<=3) }                                                   // チッ
+function sndOk(){ if(alt("ok")||!audio())return; tone(1046.5,0,0.1,"square",0.13); tone(1568,0.1,0.42,"square",0.13); tone(1568,0.1,0.55,"sine",0.16) }   // ピコン
+function sndNg(){ if(alt("ng")||!audio())return; buzz(140,0.55,0.16) }                                                // ブー
+function sndFanfare(){ if(alt("fan")||!audio())return; [523.25,523.25,523.25,659.25,783.99,659.25,783.99,1046.5].forEach(function(f,i){tone(f,[0,.13,.26,.39,.58,.77,.9,1.03][i],i===7?0.7:0.2,"triangle",0.22)}); [1318.5,1568,2093].forEach(function(f){tone(f,1.03,0.8,"sine",0.07)}) }
+
+/* ---------- time limit: 選択・書き順 and 書き・読み keep separate settings ---------- */
+var TIME={c:{key:"kj.timeC",def:10,step:5,min:5,max:60}, w:{key:"kj.timeW",def:0,step:15,min:15,max:300}};
+var timeSet={c:Number(lsGet(TIME.c.key,TIME.c.def)), w:Number(lsGet(TIME.w.key,TIME.w.def))};
+Object.keys(TIME).forEach(function(x){ var t=TIME[x], v=timeSet[x]; if(!(v===0||(v>=t.min&&v<=t.max)))timeSet[x]=t.def });
+function fmtTime(sec){ return sec<60?String(sec):(sec%60?Math.floor(sec/60)+"分"+(sec%60)+"秒":(sec/60)+"分") }
+function renderTime(){ ["c","w"].forEach(function(x){ var v=timeSet[x], o=$(x==="c"?"timeCOut":"timeWOut");
+  o.textContent=v?fmtTime(v):"なし"; o.classList.toggle("word",!v||v>=60); $(x==="c"?"timeCUnit":"timeWUnit").hidden=!v||v>=60 }) }
+function stepTime(x,dir){ var t=TIME[x], v=timeSet[x];
+  v=dir<0?(v<=t.min?0:v-t.step):(v?Math.min(t.max,v+t.step):t.min); timeSet[x]=v; lsSet(t.key,v); renderTime() }
+$("timeCDown").addEventListener("click",function(){stepTime("c",-1)}); $("timeCUp").addEventListener("click",function(){stepTime("c",1)});
+$("timeWDown").addEventListener("click",function(){stepTime("w",-1)}); $("timeWUp").addEventListener("click",function(){stepTime("w",1)});
+$("soundBtn").addEventListener("click",function(){ soundMode=[1,2,0][soundMode]; soundOn=soundMode>0; lsSet("mq.sound2",soundMode); lsSet("mq.sound",soundOn);
+  keepAliveOn(false); renderSound(); if(soundOn){unlock(); sndOk()} });
+function renderSound(){ $("soundBtn").textContent="音："+["オフ","オン","オン２"][soundMode]; $("soundBtn").setAttribute("aria-pressed",String(soundOn)) }
+renderTime(); renderSound();
+var timer=null;
+function stopTimer(){ if(timer){clearInterval(timer); timer=null} $("timer").hidden=true }
+function paintTimer(sec,frac,limit){ $("timeNum").textContent=limit>=60&&sec>=60?Math.floor(sec/60)+":"+("0"+sec%60).slice(-2):sec;
+  $("timeBar").style.width=(Math.max(0,frac)*100).toFixed(1)+"%"; $("timer").classList.toggle("hurry",sec<=Math.min(10,Math.max(3,Math.round(limit/6)))) }
+function startTimer(){   // 選択・書き順: ticks every second; 書き・読み: ticks only near the end
+  stopTimer(); var it=game.items[game.i], kaki=(it.p.kind==="kaki"||it.p.kind==="yomi"), limit=timeSet[kaki?"w":"c"]; if(!limit)return;
+  $("timer").hidden=false;
+  var end=Date.now()+limit*1000, last=limit, g=game, idx=game.i, hurry=Math.min(10,Math.max(3,Math.round(limit/6))); paintTimer(limit,1,limit);
+  timer=setInterval(function(){
+    if(game!==g||g.i!==idx||it.ok!==null||(kaki?state!=="write":state!=="input")){ clearInterval(timer); timer=null; return }
+    var left=(end-Date.now())/1000;
+    if(left<=0){ clearInterval(timer); timer=null; paintTimer(0,0,limit); timeUp(it,kaki); return }
+    var s=Math.ceil(left); if(s!==last){ last=s; if(!kaki||s<=hurry)sndTick(s) }
+    paintTimer(s,left/limit,limit);
+  },100) }
+function timeUp(it,kaki){
+  if(kaki){ it.ink=inkOf(); state="check"; stepAt=0; judge(false,true) }
+  else submit(-1,true) }
 /* ---------- quiz ---------- */
 var game=null, stepAt=0, input="";
 function startGame(pool){ if(!pool.length)return;
   game={items:shuffle(pool).slice(0,GAME_SIZE).map(function(p){return {p:p,ok:null,ink:null,given:""}}), i:0};
-  show("quiz"); renderQuestion() }
+  unlock(); keepAliveOn(true); show("quiz"); renderQuestion() }
 function renderDots(){var d=$("dots"); d.textContent=""; game.items.forEach(function(it,i){var c=el("i"); if(it.ok===true)c.className="ok"; else if(it.ok===false)c.className="ng"; else if(i===game.i)c.className="now"; d.appendChild(c)})}
 function setState(s){
   state=s; stepAt=Date.now();
@@ -771,7 +910,7 @@ function renderQuestion(){
     p.chars.forEach(function(ch){mr.appendChild(p.kind==="kaki"&&isKanji(ch)?pointsFig(ch,px):modelBox(ch,px))});
     var ext=p.explain; if(p.kind==="yomi"&&p.alts.length>1)ext="ほかの読み方："+p.alts.slice(1).join("、")+(ext?"\n"+ext:"");
     var ex=$("explain"); ex.textContent=ext; ex.hidden=!ext;
-    makeSquares(p.chars); setState("write"); return }
+    makeSquares(p.chars); setState("write"); startTimer(); return }
   sq=[]; $("squares").textContent=""; state="input"; stepAt=Date.now(); input=""; it.given="";
   $("after").hidden=true; $("abox").className="abox"; $("aunit").textContent="";
   $("abox").hidden=(p.kind==="sentaku"); $("kanaPad").hidden=(p.kind!=="yomi"); $("numPad").hidden=(p.kind!=="jun"); $("choices").hidden=(p.kind!=="sentaku");
@@ -779,7 +918,7 @@ function renderQuestion(){
   if(p.kind==="yomi"){ a.textContent=p.blank?"□に 入る ひらがなを 書こう":"線のところの よみを ひらがなで 書こう" }
   if(p.kind==="jun"){ a.textContent="何画目かな？ 数字で こたえよう"; $("aunit").textContent="画目"; strokeFig($("kfig"),p.ch,p.bold,0) }
   if(p.kind==="sentaku"){ a.textContent="正しいものを えらぼう"; renderChoices(p) }
-  paintInput() }
+  paintInput(); startTimer() }
 function paintInput(){ var v=$("aval"); v.textContent=input||"？"; v.className="val"+(input?"":" empty") }
 
 /* hiragana keypad laid out like the あいうえお chart: あ column on the right */
@@ -826,19 +965,20 @@ document.addEventListener("keydown",function(e){ if($("quiz").hidden||!game)retu
 function renderChoices(p){ var box=$("choices"); box.textContent="";
   p.choices.forEach(function(c,i){ var b=el("button","choice"); b.type="button"; b.appendChild(el("span","no",String(i+1))); b.appendChild(el("span",null,c));
     b.addEventListener("click",function(){ if(state!=="input"||Date.now()-stepAt<300)return; input=c; submit(i) }); box.appendChild(b) }) }
-function submit(ci){
+function submit(ci,late){
   var it=game.items[game.i], p=it.p, ok;
-  if(p.kind==="sentaku"){ ok=(ci===p.correct) }
+  if(late){ ok=false; input="" }
+  else if(p.kind==="sentaku"){ ok=(ci===p.correct) }
   else{ if(!input){ shake(); return }
     ok=(p.kind==="jun")?(parseInt(input,10)===p.n):(p.alts.indexOf(input)>=0) }
-  it.ok=ok; it.given=input; state="after"; stepAt=Date.now();
+  stopTimer(); it.ok=ok; it.given=late?"（時間切れ）":input; state="after"; stepAt=Date.now(); if(ok)sndOk(); else sndNg();
   record(p,ok,null); renderDots();
   $("kanaPad").hidden=$("numPad").hidden=true; $("after").hidden=false;
   if(p.kind==="sentaku")Array.prototype.forEach.call($("choices").children,function(b,i){ b.disabled=true; if(i===p.correct)b.classList.add("ok"); else if(i===ci)b.classList.add("ng") });
   else $("abox").className="abox "+(ok?"ok":"ng");
   $("next2").textContent=(game.i===game.items.length-1)?"けっかを見る":"つぎへ";
   var v=$("verdict"), ra=$("rightAns"), ex=$("explain2");
-  v.textContent=ok?"せいかい！":"ざんねん…"; v.className="verdict "+(ok?"ok":"ng");
+  v.textContent=ok?"せいかい！":late?"時間切れ！":"ざんねん…"; v.className="verdict "+(ok?"ok":"ng");
   ra.textContent=""; if(!ok){ ra.appendChild(document.createTextNode("正しい答えは ")); ra.appendChild(el("b",null,p.answerText)) }
   if(ok&&p.kind==="yomi"&&p.alts.length>1&&input!==p.alts[0]){ ra.textContent="「"+p.alts[0]+"」とも読むよ。" }
   ex.textContent=p.explain; ex.hidden=!p.explain;
@@ -848,10 +988,10 @@ function submit(ci){
     svg.appendChild(c); $("qcard").appendChild(svg) } }
 function shake(){ var a=$("abox"); a.animate&&a.animate([{transform:"translateX(0)"},{transform:"translateX(-8px)"},{transform:"translateX(8px)"},{transform:"translateX(0)"}],{duration:220}) }
 $("next2").addEventListener("click",function(){ if(state!=="after"||Date.now()-stepAt<400)return; next() });
-$("showBtn").addEventListener("click",function(){ if(state!=="write"||Date.now()-stepAt<300)return; game.items[game.i].ink=inkOf(); setState("check") });
-function judge(ok){
-  if(state!=="check"||Date.now()-stepAt<400)return;
-  var it=game.items[game.i]; it.ok=ok; record(it.p,ok,it.ink); renderDots();
+$("showBtn").addEventListener("click",function(){ if(state!=="write"||Date.now()-stepAt<300)return; stopTimer(); game.items[game.i].ink=inkOf(); setState("check") });
+function judge(ok,late){
+  if(state!=="check"||(!late&&Date.now()-stepAt<400))return;
+  var it=game.items[game.i]; it.ok=ok; record(it.p,ok,it.ink); renderDots(); if(ok)sndOk(); else sndNg();
   if(ok){
     var svg=document.createElementNS(SVGNS,"svg"), c=document.createElementNS(SVGNS,"circle");
     svg.setAttribute("class","maru"); svg.setAttribute("viewBox","0 0 150 150");
@@ -860,7 +1000,8 @@ function judge(ok){
     state="done"; $("judge").hidden=true; $("ask").textContent="よくできました！"; $("ask").className="ask ok";
     setTimeout(next,900);
   }else{
-    sq.forEach(function(b){b.strokes=[]}); order=[]; redrawAll(); setState("trace") } }
+    sq.forEach(function(b){b.strokes=[]}); order=[]; redrawAll(); setState("trace");
+    if(late){ $("ask").textContent="時間切れ！ おてほんを なぞって、もう1回 書こう" } } }
 $("okBtn").addEventListener("click",function(){judge(true)});
 $("ngBtn").addEventListener("click",function(){judge(false)});
 $("nextBtn").addEventListener("click",function(){ if(state!=="trace"||Date.now()-stepAt<400)return; next() });
@@ -871,7 +1012,7 @@ function record(p,ok,ink){
     if(log.length>LOG_MAX)log=log.slice(-LOG_MAX); saveLog() }
   cloudSoon() }
 function saveLog(){ lsSet("kj.log",log); lsSet("kj.rv",rv) }
-$("quitBtn").addEventListener("click",function(){game=null; state=""; renderHome(); show("home"); cloudSync(true)});
+$("quitBtn").addEventListener("click",function(){stopTimer(); keepAliveOn(false); game=null; state=""; renderHome(); show("home"); cloudSync(true)});
 function showResult(){
   var items=game.items, total=items.length, right=items.filter(function(it){return it.ok}).length, miss=items.filter(function(it){return it.ok===false});
   $("rScore").textContent=right; $("rTotal").textContent=total;
@@ -882,8 +1023,8 @@ function showResult(){
     else{ if(p.kind==="jun"){ var f=el("div"); strokeFig(f,p.ch,p.bold,120); li.appendChild(f) }
       var a=el("p","note"); a.appendChild(document.createTextNode("正解：")); a.appendChild(el("b",null,p.answerText)); a.appendChild(document.createTextNode("　きみの答え："+(it.given||"")+(p.kind==="jun"&&it.given?"画目":""))); li.appendChild(a) }
     ul.appendChild(li) });
-  game.missed=miss.map(function(it){return it.p}); $("retryMiss").hidden=!miss.length; state="";
-  show("result"); cloudSync(true) }
+  game.missed=miss.map(function(it){return it.p}); $("retryMiss").hidden=!miss.length; state=""; stopTimer();
+  show("result"); keepAliveOn(false); if(total&&right>=total*0.8)sndFanfare(); cloudSync(true) }
 function pairOf(cs,ink,px){
   var row=el("div","pair"), f1=el("figure"), f2=el("figure"), r1=el("div","mrow"), r2=el("div","mrow");
   cs.forEach(function(ch,i){ r1.appendChild(inkSvg(ink&&ink[i],px)); r2.appendChild(modelBox(ch,px)) });
